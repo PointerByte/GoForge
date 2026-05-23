@@ -1,0 +1,10 @@
+go 1.26.0
+
+use (
+	.
+	./cmd/go-openssl
+	./cmd/qgo
+	./encrypt
+	./logger
+	./security
+)

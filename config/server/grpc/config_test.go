@@ -280,6 +280,40 @@ func TestNewIUnitary(t *testing.T) {
 	}
 }
 
+func TestNewIConfigLoadsEnvBeforeRegister(t *testing.T) {
+	resetServerGRPCTestState(t)
+
+	wantErr := errors.New("load env failed")
+	loadEnv = func(string) error { return wantErr }
+
+	srv := NewIConfig(nil, nil)
+	err := srv.Register(func(r grpc.ServiceRegistrar) {
+		pb.RegisterGreeterServer(r, greeterService{})
+	})
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("Register() error = %v, want %v", err, wantErr)
+	}
+}
+
+func TestNewIConfigLoadsEnvOnce(t *testing.T) {
+	resetServerGRPCTestState(t)
+
+	loadCalls := 0
+	loadEnv = func(string) error {
+		loadCalls++
+		return nil
+	}
+	srv := NewIConfig(nil, grpc.NewServer())
+
+	err := srv.Serve()
+	if err == nil {
+		t.Fatal("Serve() succeeded unexpectedly")
+	}
+	if loadCalls != 1 {
+		t.Fatalf("loadEnv calls = %d, want 1", loadCalls)
+	}
+}
+
 func TestSubUnitaryConfiguration(t *testing.T) {
 	resetServerGRPCTestState(t)
 	srv := NewIConfig(nil, grpc.NewServer()).(*Config)

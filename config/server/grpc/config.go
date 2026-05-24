@@ -167,9 +167,15 @@ func SetTLSConfig(config *tls.Config) {
 //	custom := grpc.NewServer()
 //	srv := unitary.NewIConfig(nil, custom)
 func NewIConfig(mocks IConfig, server *grpc.Server, options ...ConfigOption) IConfig {
+	dir, err := os.Getwd()
+	if err == nil {
+		err = loadEnv(dir)
+	}
+
 	config := &Config{
-		mocks:  mocks,
-		server: server,
+		mocks:     mocks,
+		server:    server,
+		serverErr: err,
 	}
 	for _, option := range options {
 		if option != nil {
@@ -210,14 +216,6 @@ func (su *Config) Serve() error {
 		return su.mocks.Serve()
 	}
 
-	dir, err := os.Getwd()
-	if err != nil {
-		return err
-	}
-
-	if err := loadEnv(dir); err != nil {
-		return err
-	}
 	if err := su.ensureServer(); err != nil {
 		return err
 	}

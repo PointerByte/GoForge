@@ -37,14 +37,14 @@ func LoadEnv(prefixPath string) error {
 	}
 
 	// Load .env
-	dirEnv := filepath.Join(prefixPath, ".env")
+	dirEnv := filepath.Join(configDir, ".env")
 	_ = godotenv.Overload(dirEnv)
 	viper.SetConfigFile(dirEnv)
 	viper.SetConfigType("env")
 	_ = viper.MergeInConfig()
 
 	// Load .env.local
-	dirEnvLocal := filepath.Join(prefixPath, ".env.local")
+	dirEnvLocal := filepath.Join(configDir, ".env.local")
 	_ = godotenv.Overload(dirEnvLocal)
 	viper.SetConfigFile(dirEnvLocal)
 	viper.SetConfigType("env")

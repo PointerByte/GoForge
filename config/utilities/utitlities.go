@@ -26,7 +26,28 @@ var configFileCandidates = []configFileCandidate{
 	{name: "application.json", configType: "json"},
 }
 
+// LoadEnv resolves the GoForge runtime configuration directory and loads it
+// into Viper. If prefixPath is empty, the current working directory is used. If
+// prefixPath contains application.yml, application.yaml, or application.json
+// directly, that directory is used; otherwise LoadEnv walks upward looking for
+// the nearest resources/ directory with one of those files. When no matching
+// resources/ directory is found, it falls back to prefixPath/resources so the
+// returned read error points at the expected location.
+//
+// Configuration is loaded in this order: application.yml, application.yaml,
+// application.json, .env, .env.local from the resolved directory, and finally
+// process environment variable overrides derived from the existing Viper key
+// paths, for example app.name -> APP_NAME. Missing .env files are ignored, but
+// failure to read the selected application file is returned.
 func LoadEnv(prefixPath string) error {
+	if prefixPath == "" {
+		dir, err := os.Getwd()
+		if err != nil {
+			return err
+		}
+		prefixPath = dir
+	}
+
 	configDir := resolveConfigDir(prefixPath)
 	configFile, configType := resolveConfigFile(configDir)
 

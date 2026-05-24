@@ -66,20 +66,48 @@ go install github.com/PointerByte/GoForge/cmd/go-openssl@latest
 ## Configuration
 
 GoForge applications keep runtime configuration under `resources/`.
-`config/utilities.LoadEnv(prefixPath)` loads configuration into `viper` by
-resolving the nearest `resources` directory from the provided path. It also
-accepts a directory that contains `application.*` directly for module-local
-examples.
+`config/utilities.LoadEnv(prefixPath)` is the shared runtime configuration
+loader. It loads the selected application file into `viper`, merges optional
+environment files, and applies process environment overrides before the server,
+logger, OpenTelemetry, clients, and JWT helpers read configuration.
 
-It checks these files in order:
+Use it when you build a custom entrypoint or command:
 
-1. `resources/application.yml`
-2. `resources/application.yaml`
-3. `resources/application.json`
+```go
+if err := utilities.LoadEnv("."); err != nil {
+	log.Fatal(err)
+}
+
+serviceName := viper.GetString("app.name")
+```
+
+Gin and gRPC server bootstraps call it for you. Custom code should call it
+before reading from `viper` or initializing components that depend on
+configuration.
+
+`prefixPath` controls where configuration is searched:
+
+- an empty value uses the current working directory
+- a directory with `application.yml`, `application.yaml`, or `application.json`
+  is used directly
+- otherwise GoForge walks upward from `prefixPath` until it finds the nearest
+  `resources/` directory with an application file
+- if no parent `resources/` directory is found, it tries `prefixPath/resources`
+  so the missing file error points at the expected location
+
+Inside the resolved configuration directory, it checks these files in order:
+
+1. `application.yml`
+2. `application.yaml`
+3. `application.json`
 
 After the application file is read, it merges `.env` and `.env.local` from the
-current working directory and enables environment variables. Environment
+same resolved directory and enables environment variables. Environment
 overrides are generated from the existing configuration key path.
+
+This keeps local files, deployment variables, and framework defaults on the
+same `viper` instance, so Gin and gRPC behave consistently even when the
+binary is started from a nested directory such as `cmd/example`.
 
 Examples:
 

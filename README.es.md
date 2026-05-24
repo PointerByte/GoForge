@@ -66,20 +66,50 @@ go install github.com/PointerByte/GoForge/cmd/go-openssl@latest
 ## Configuracion
 
 Las aplicaciones GoForge mantienen la configuracion de runtime en `resources/`.
-`config/utilities.LoadEnv(prefixPath)` carga configuracion en `viper`
-resolviendo la carpeta `resources` mas cercana desde la ruta indicada. Tambien
-acepta un directorio que contenga `application.*` directamente para ejemplos
-locales de modulos.
+`config/utilities.LoadEnv(prefixPath)` es el loader compartido de configuracion
+de runtime. Carga el archivo de aplicacion seleccionado en `viper`, mezcla
+archivos de entorno opcionales y aplica overrides desde variables de entorno
+del proceso antes de que el servidor, logger, OpenTelemetry, clientes y helpers
+JWT lean configuracion.
 
-Busca estos archivos en orden:
+Usalo cuando construyas un entrypoint o comando propio:
 
-1. `resources/application.yml`
-2. `resources/application.yaml`
-3. `resources/application.json`
+```go
+if err := utilities.LoadEnv("."); err != nil {
+	log.Fatal(err)
+}
+
+serviceName := viper.GetString("app.name")
+```
+
+Los bootstraps de Gin y gRPC lo llaman por ti. El codigo custom debe llamarlo
+antes de leer desde `viper` o inicializar componentes que dependen de
+configuracion.
+
+`prefixPath` controla donde se busca la configuracion:
+
+- un valor vacio usa el directorio de trabajo actual
+- un directorio con `application.yml`, `application.yaml` o `application.json`
+  se usa directamente
+- si no, GoForge sube desde `prefixPath` hasta encontrar la carpeta
+  `resources/` mas cercana con un archivo de aplicacion
+- si no encuentra una carpeta `resources/` en los padres, intenta
+  `prefixPath/resources` para que el error apunte a la ubicacion esperada
+
+Dentro del directorio de configuracion resuelto, busca estos archivos en orden:
+
+1. `application.yml`
+2. `application.yaml`
+3. `application.json`
 
 Despues de leer el archivo de aplicacion, mezcla `.env` y `.env.local` desde el
-directorio de trabajo actual y habilita variables de entorno. Los overrides por
+mismo directorio resuelto y habilita variables de entorno. Los overrides por
 entorno se generan desde la ruta de claves ya existente en la configuracion.
+
+Esto mantiene archivos locales, variables de despliegue y defaults del
+framework en la misma instancia de `viper`, para que Gin y gRPC se comporten de
+forma consistente incluso cuando el binario se inicia desde un directorio
+anidado como `cmd/example`.
 
 Ejemplos:
 

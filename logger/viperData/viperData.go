@@ -27,11 +27,10 @@ var mux sync.Mutex
 // It initializes the viperData map on the first call using sync.Once to ensure thread safety.
 // The function also sets a default value for LoggerFormatDateAtribute if it is not already set in Viper.
 func GetViperData(key string) any {
-	if viper.GetString(string(LoggerFormatDateAtribute)) == "" {
-		viper.Set(string(LoggerFormatDateAtribute), layout)
-	}
-
 	once.Do(func() {
+		if viper.GetString(string(LoggerFormatDateAtribute)) == "" {
+			viper.Set(string(LoggerFormatDateAtribute), layout)
+		}
 		viperData = map[string]any{
 			string(AppVersionAtribute):                         viper.GetString(string(AppVersionAtribute)),
 			string(AppAtribute):                                viper.GetString(string(AppAtribute)),

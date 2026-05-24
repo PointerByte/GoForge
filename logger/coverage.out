@@ -1,4 +1,9 @@
 mode: atomic
+github.com/PointerByte/GoForge/logger/utilities/utitities.go:11.56,13.9 2 3
+github.com/PointerByte/GoForge/logger/utilities/utitities.go:13.9,15.3 1 1
+github.com/PointerByte/GoForge/logger/utilities/utitities.go:16.2,17.15 2 2
+github.com/PointerByte/GoForge/logger/utilities/utitities.go:17.15,19.3 1 1
+github.com/PointerByte/GoForge/logger/utilities/utitities.go:20.2,20.24 1 1
 github.com/PointerByte/GoForge/logger/formatter/format.go:18.44,20.2 1 12
 github.com/PointerByte/GoForge/logger/formatter/format.go:28.65,29.56 1 8
 github.com/PointerByte/GoForge/logger/formatter/format.go:30.14,31.27 1 2
@@ -395,17 +400,12 @@ github.com/PointerByte/GoForge/logger/builder/slog.go:80.16,82.3 1 1
 github.com/PointerByte/GoForge/logger/builder/slog.go:83.2,83.12 1 3
 github.com/PointerByte/GoForge/logger/builder/slog.go:87.65,91.2 3 1
 github.com/PointerByte/GoForge/logger/builder/slog.go:93.59,97.2 3 1
-github.com/PointerByte/GoForge/logger/utilities/utitities.go:11.56,13.9 2 3
-github.com/PointerByte/GoForge/logger/utilities/utitities.go:13.9,15.3 1 1
-github.com/PointerByte/GoForge/logger/utilities/utitities.go:16.2,17.15 2 2
-github.com/PointerByte/GoForge/logger/utilities/utitities.go:17.15,19.3 1 1
-github.com/PointerByte/GoForge/logger/utilities/utitities.go:20.2,20.24 1 1
 github.com/PointerByte/GoForge/logger/viperData/viperData.go:19.32,22.2 2 1
-github.com/PointerByte/GoForge/logger/viperData/viperData.go:29.35,30.61 1 3
-github.com/PointerByte/GoForge/logger/viperData/viperData.go:30.61,32.3 1 1
-github.com/PointerByte/GoForge/logger/viperData/viperData.go:34.2,34.17 1 3
-github.com/PointerByte/GoForge/logger/viperData/viperData.go:34.17,54.3 1 1
-github.com/PointerByte/GoForge/logger/viperData/viperData.go:56.2,58.23 3 3
+github.com/PointerByte/GoForge/logger/viperData/viperData.go:29.35,30.17 1 3
+github.com/PointerByte/GoForge/logger/viperData/viperData.go:30.17,31.62 1 1
+github.com/PointerByte/GoForge/logger/viperData/viperData.go:31.62,33.4 1 1
+github.com/PointerByte/GoForge/logger/viperData/viperData.go:34.3,52.4 1 1
+github.com/PointerByte/GoForge/logger/viperData/viperData.go:55.2,57.23 3 3
 github.com/PointerByte/GoForge/logger/middlewares/http/http.go:25.35,26.32 1 4
 github.com/PointerByte/GoForge/logger/middlewares/http/http.go:26.32,51.24 10 4
 github.com/PointerByte/GoForge/logger/middlewares/http/http.go:51.24,53.4 1 0

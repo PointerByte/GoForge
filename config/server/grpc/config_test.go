@@ -309,13 +309,26 @@ func TestNewIConfigLoadsEnvBeforeRegister(t *testing.T) {
 	}
 }
 
-func TestNewIConfigLoadsEnvOnce(t *testing.T) {
+func TestNewIConfigKeepsViperDataForLoggerAndOtel(t *testing.T) {
 	resetServerGRPCTestState(t)
 
 	loadCalls := 0
 	loadEnv = func(string) error {
 		loadCalls++
+		viper.Set("app.name", "grpc-test-service")
 		return nil
+	}
+	initLogger = func(context.Context, string) (*sdklog.LoggerProvider, error) {
+		if got := viper.GetString("app.name"); got != "grpc-test-service" {
+			t.Fatalf("app.name before InitLogger = %q, want grpc-test-service", got)
+		}
+		return sdklog.NewLoggerProvider(), nil
+	}
+	initOtel = func(context.Context) (func(context.Context) error, error) {
+		if got := viper.GetString("app.name"); got != "grpc-test-service" {
+			t.Fatalf("app.name before InitOtel = %q, want grpc-test-service", got)
+		}
+		return func(context.Context) error { return nil }, nil
 	}
 	srv := NewIConfig(nil, grpc.NewServer())
 

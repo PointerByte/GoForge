@@ -118,6 +118,9 @@ server:
       SkipQueryString: false
   grpc:
     port: ":50051"
+    rate:
+      limit: 1000
+      burst: 2000
 
 client:
   http:
@@ -175,6 +178,8 @@ Supported client-auth values include `no_client_cert`, `request_client_cert`,
 ### gRPC Server
 
 - `server.grpc.port`: gRPC listen address
+- `server.grpc.rate.limit`: request rate for the built-in limiter; `0` disables it
+- `server.grpc.rate.burst`: burst size for the limiter
 - `server.grpc.tls.enable`: enables TLS on the gRPC server
 - `server.grpc.tls.certFile`: server certificate path
 - `server.grpc.tls.keyFile`: server private key path

@@ -13,17 +13,22 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/PointerByte/GoForge/config/utilities"
 	"github.com/PointerByte/GoForge/config/utilities/traces"
 	"github.com/PointerByte/GoForge/logger/builder"
 	loggerGRPCMiddlewares "github.com/PointerByte/GoForge/logger/middlewares/grpc"
 	"github.com/spf13/viper"
+	"golang.org/x/time/rate"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/status"
 )
 
 var listenTCP = net.Listen
@@ -38,10 +43,16 @@ var logServerErrorFn = func(err error) {
 	builder.New(context.Background()).Error(err)
 }
 var loadEnv = utilities.LoadEnv
+var initLogger = builder.InitLogger
+var initOtel = traces.InitOtel
 var runAsyncFn = func(fn func()) {
 	go fn()
 }
 var waitForShutdownSignalFn = waitForShutdownSignal
+
+type handlerShutdown func(ctx context.Context) error
+
+const timeout = 30 * time.Second
 
 func init() {
 	quit = make(chan os.Signal, 1)
@@ -92,6 +103,7 @@ type Config struct {
 	serverErr          error
 	listener           net.Listener
 	address            string
+	shutdownList       []handlerShutdown
 	unaryInterceptors  []grpc.UnaryServerInterceptor
 	streamInterceptors []grpc.StreamServerInterceptor
 	mux                sync.RWMutex
@@ -167,16 +179,18 @@ func SetTLSConfig(config *tls.Config) {
 //	custom := grpc.NewServer()
 //	srv := unitary.NewIConfig(nil, custom)
 func NewIConfig(mocks IConfig, server *grpc.Server, options ...ConfigOption) IConfig {
-	dir, err := os.Getwd()
-	if err == nil {
-		err = loadEnv(dir)
+	config := &Config{
+		mocks:  mocks,
+		server: server,
 	}
 
-	config := &Config{
-		mocks:     mocks,
-		server:    server,
-		serverErr: err,
+	dir, err := os.Getwd()
+	if err != nil {
+		config.serverErr = err
+	} else {
+		config.shutdownList, config.serverErr = loadConfig(dir)
 	}
+
 	for _, option := range options {
 		if option != nil {
 			option(config)
@@ -239,12 +253,13 @@ func (su *Config) Serve() error {
 	}
 	listener := su.listener
 	server := su.server
+	shutdownList := append([]handlerShutdown(nil), su.shutdownList...)
 	su.mux.Unlock()
 
 	address := listener.Addr().String()
 	logServerInfoFn(fmt.Sprintf("gRPC server started on %s", address))
 	runAsyncFn(func() {
-		waitForShutdownSignalFn(server)
+		waitForShutdownSignalFn(server, shutdownList)
 	})
 
 	if err := server.Serve(listener); err != nil {
@@ -256,9 +271,45 @@ func (su *Config) Serve() error {
 	return nil
 }
 
-func waitForShutdownSignal(server *grpc.Server) {
+func loadConfigDefaultGRPC() {
+	viper.SetDefault("server.grpc.rate.limit", 1000)
+	viper.SetDefault("server.grpc.rate.burst", 2000)
+}
+
+func loadConfig(prefixPath string) ([]handlerShutdown, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	if err := loadEnv(prefixPath); err != nil {
+		return nil, err
+	}
+	loadConfigDefaultGRPC()
+
+	path := filepath.Join(prefixPath, viper.GetString("logger.dir"))
+	lp, err := initLogger(ctx, path)
+	if err != nil {
+		return nil, err
+	}
+
+	shutdownList := []handlerShutdown{lp.Shutdown}
+	shutdownOtel, err := initOtel(ctx)
+	if err != nil {
+		return nil, err
+	}
+	shutdownList = append(shutdownList, shutdownOtel)
+	return shutdownList, nil
+}
+
+func waitForShutdownSignal(server *grpc.Server, shutdownList []handlerShutdown) {
 	<-quit
 	logServerInfoFn("Signal received, turning off gRPC server...")
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	for _, shutdown := range shutdownList {
+		if err := shutdown(ctx); err != nil {
+			logServerErrorFn(err)
+		}
+	}
 	server.GracefulStop()
 }
 
@@ -317,7 +368,9 @@ func (su *Config) ensureServerLocked() error {
 }
 
 func (su *Config) defaultServerOptions() ([]grpc.ServerOption, error) {
+	rateLimiter := newGRPCRateLimiter()
 	unaryInterceptors := []grpc.UnaryServerInterceptor{
+		rateLimitUnaryInterceptor(rateLimiter),
 		traces.MiddlewareOtelGRPCUnary(),
 		loggerGRPCMiddlewares.InitLoggerUnaryServerInterceptor(),
 		loggerGRPCMiddlewares.LoggerWithConfigUnaryServerInterceptor(),
@@ -326,6 +379,7 @@ func (su *Config) defaultServerOptions() ([]grpc.ServerOption, error) {
 	unaryInterceptors = append(unaryInterceptors, su.unaryInterceptors...)
 
 	streamInterceptors := []grpc.StreamServerInterceptor{
+		rateLimitStreamInterceptor(rateLimiter),
 		traces.MiddlewareOtelGRPCStream(),
 		loggerGRPCMiddlewares.InitLoggerStreamServerInterceptor(),
 		loggerGRPCMiddlewares.LoggerWithConfigStreamServerInterceptor(),
@@ -346,6 +400,40 @@ func (su *Config) defaultServerOptions() ([]grpc.ServerOption, error) {
 		options = append(options, grpc.Creds(credentials.NewTLS(config)))
 	}
 	return options, nil
+}
+
+func newGRPCRateLimiter() *rate.Limiter {
+	rateLimit := viper.GetFloat64("server.grpc.rate.limit")
+	if rateLimit == 0 {
+		return nil
+	}
+
+	burst := viper.GetInt("server.grpc.rate.burst")
+	if burst <= 0 {
+		burst = int(rateLimit)
+		if burst <= 0 {
+			burst = 1
+		}
+	}
+	return rate.NewLimiter(rate.Limit(rateLimit), burst)
+}
+
+func rateLimitUnaryInterceptor(limiter *rate.Limiter) grpc.UnaryServerInterceptor {
+	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+		if limiter != nil && !limiter.Allow() {
+			return nil, status.Error(codes.ResourceExhausted, "too many requests, please try again later")
+		}
+		return handler(ctx, req)
+	}
+}
+
+func rateLimitStreamInterceptor(limiter *rate.Limiter) grpc.StreamServerInterceptor {
+	return func(srv any, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+		if limiter != nil && !limiter.Allow() {
+			return status.Error(codes.ResourceExhausted, "too many requests, please try again later")
+		}
+		return handler(srv, stream)
+	}
 }
 
 func resolveTLSConfig() (*tls.Config, error) {

@@ -11,12 +11,12 @@
 // generated service. Any service generated in the proto package can be
 // registered through Register.
 //
-// Before the server starts serving, Serve loads configuration through
-// utilities.LoadEnv using the current working directory. The loader resolves
-// resources/application.yml, resources/application.yaml, or
-// resources/application.json, so values such as server.grpc.port, TLS, and mTLS
-// settings can be sourced from the resources directory plus environment
-// overrides.
+// NewIConfig loads configuration through utilities.LoadEnv using the current
+// working directory, then initializes the logger and OpenTelemetry providers.
+// The loader resolves resources/application.yml, resources/application.yaml, or
+// resources/application.json, so values such as server.grpc.port, rate limits,
+// TLS, and mTLS settings can be sourced from the resources directory plus
+// environment overrides.
 //
 // Basic usage:
 //

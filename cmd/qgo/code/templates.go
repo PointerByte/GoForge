@@ -94,6 +94,9 @@ func buildApplicationYAML(serviceType string, appName string) string {
 server:
   grpc:
     port: ":50051"
+    rate:
+      limit: 1000
+      burst: 2000
     LoggerWithConfig:
       enabled: true
       SkipFunction: []
@@ -264,6 +267,10 @@ func buildApplicationJSON(serviceType string, appName string) (string, error) {
 		data["server"] = map[string]any{
 			"grpc": map[string]any{
 				"port": ":50051",
+				"rate": map[string]any{
+					"limit": 1000,
+					"burst": 2000,
+				},
 				"LoggerWithConfig": map[string]any{
 					"enabled":      true,
 					"SkipFunction": []string{},

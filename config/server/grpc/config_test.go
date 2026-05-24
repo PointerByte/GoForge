@@ -17,6 +17,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -26,9 +27,12 @@ import (
 	viperdata "github.com/PointerByte/GoForge/logger/viperData"
 	"github.com/golang/mock/gomock"
 	"github.com/spf13/viper"
+	sdklog "go.opentelemetry.io/otel/sdk/log"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
 )
 
@@ -101,6 +105,8 @@ func resetServerGRPCTestState(t *testing.T) {
 	originalReadFileFn := readFileFn
 	originalNewCertPoolFn := newCertPoolFn
 	originalLoadEnv := loadEnv
+	originalInitLogger := initLogger
+	originalInitOtel := initOtel
 	originalRunAsyncFn := runAsyncFn
 	originalWaitForShutdownSignalFn := waitForShutdownSignalFn
 	originalQuit := quit
@@ -112,6 +118,8 @@ func resetServerGRPCTestState(t *testing.T) {
 		readFileFn = originalReadFileFn
 		newCertPoolFn = originalNewCertPoolFn
 		loadEnv = originalLoadEnv
+		initLogger = originalInitLogger
+		initOtel = originalInitOtel
 		runAsyncFn = originalRunAsyncFn
 		waitForShutdownSignalFn = originalWaitForShutdownSignalFn
 		quit = originalQuit
@@ -127,8 +135,14 @@ func resetServerGRPCTestState(t *testing.T) {
 	viper.Set("logger.ignoredHeaders", []string{})
 	builder.EnableModeTest()
 	loadEnv = func(string) error { return nil }
+	initLogger = func(context.Context, string) (*sdklog.LoggerProvider, error) {
+		return sdklog.NewLoggerProvider(), nil
+	}
+	initOtel = func(context.Context) (func(context.Context) error, error) {
+		return func(context.Context) error { return nil }, nil
+	}
 	runAsyncFn = func(fn func()) { go fn() }
-	waitForShutdownSignalFn = func(*grpc.Server) {}
+	waitForShutdownSignalFn = func(*grpc.Server, []handlerShutdown) {}
 	quit = make(chan os.Signal, 1)
 }
 
@@ -311,6 +325,54 @@ func TestNewIConfigLoadsEnvOnce(t *testing.T) {
 	}
 	if loadCalls != 1 {
 		t.Fatalf("loadEnv calls = %d, want 1", loadCalls)
+	}
+}
+
+func TestNewIConfigInitializesLoggerAndOtelAfterLoadEnv(t *testing.T) {
+	resetServerGRPCTestState(t)
+
+	var order []string
+	viper.Set("logger.dir", "logs")
+	loadEnv = func(string) error {
+		order = append(order, "load")
+		return nil
+	}
+	initLogger = func(_ context.Context, dir string) (*sdklog.LoggerProvider, error) {
+		order = append(order, "logger")
+		if filepath.Base(dir) != "logs" {
+			t.Fatalf("InitLogger dir = %q, want logs suffix", dir)
+		}
+		return sdklog.NewLoggerProvider(), nil
+	}
+	initOtel = func(context.Context) (func(context.Context) error, error) {
+		order = append(order, "otel")
+		return func(context.Context) error { return nil }, nil
+	}
+
+	srv := NewIConfig(nil, grpc.NewServer()).(*Config)
+
+	if got := strings.Join(order, ","); got != "load,logger,otel" {
+		t.Fatalf("initialization order = %q, want load,logger,otel", got)
+	}
+	if len(srv.shutdownList) != 2 {
+		t.Fatalf("shutdownList len = %d, want 2", len(srv.shutdownList))
+	}
+}
+
+func TestNewIConfigInitLoggerError(t *testing.T) {
+	resetServerGRPCTestState(t)
+
+	wantErr := errors.New("init logger failed")
+	initLogger = func(context.Context, string) (*sdklog.LoggerProvider, error) {
+		return nil, wantErr
+	}
+
+	srv := NewIConfig(nil, nil)
+	err := srv.Register(func(r grpc.ServiceRegistrar) {
+		pb.RegisterGreeterServer(r, greeterService{})
+	})
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("Register() error = %v, want %v", err, wantErr)
 	}
 }
 
@@ -582,10 +644,16 @@ func TestWaitForShutdownSignalGracefullyStopsServer(t *testing.T) {
 	server := grpc.NewServer()
 	quit = make(chan os.Signal, 1)
 	stopped := make(chan struct{}, 1)
+	shutdownCalled := false
 	runAsyncFn = func(fn func()) { go fn() }
 
 	runAsyncFn(func() {
-		waitForShutdownSignal(server)
+		waitForShutdownSignal(server, []handlerShutdown{
+			func(context.Context) error {
+				shutdownCalled = true
+				return nil
+			},
+		})
 		close(stopped)
 	})
 
@@ -595,6 +663,9 @@ func TestWaitForShutdownSignalGracefullyStopsServer(t *testing.T) {
 	case <-stopped:
 	case <-time.After(time.Second):
 		t.Fatal("waitForShutdownSignal() did not stop the server after signal")
+	}
+	if !shutdownCalled {
+		t.Fatal("expected shutdown handler to be called")
 	}
 }
 
@@ -671,6 +742,84 @@ func TestResolveTLSConfigDisabled(t *testing.T) {
 	}
 	if config != nil {
 		t.Fatalf("resolveTLSConfig() = %#v, want nil", config)
+	}
+}
+
+func TestLoadConfigDefaultGRPC(t *testing.T) {
+	resetServerGRPCTestState(t)
+
+	loadConfigDefaultGRPC()
+
+	if got := viper.GetInt("server.grpc.rate.limit"); got != 1000 {
+		t.Fatalf("server.grpc.rate.limit = %d, want 1000", got)
+	}
+	if got := viper.GetInt("server.grpc.rate.burst"); got != 2000 {
+		t.Fatalf("server.grpc.rate.burst = %d, want 2000", got)
+	}
+}
+
+func TestGRPCRateLimiterUnary(t *testing.T) {
+	resetServerGRPCTestState(t)
+
+	viper.Set("server.grpc.rate.limit", 1)
+	viper.Set("server.grpc.rate.burst", 1)
+	limiter := newGRPCRateLimiter()
+	interceptor := rateLimitUnaryInterceptor(limiter)
+	calls := 0
+	handler := func(context.Context, any) (any, error) {
+		calls++
+		return "ok", nil
+	}
+
+	resp, err := interceptor(context.Background(), "request", &grpc.UnaryServerInfo{}, handler)
+	if err != nil {
+		t.Fatalf("first unary call failed: %v", err)
+	}
+	if resp != "ok" {
+		t.Fatalf("first unary response = %v, want ok", resp)
+	}
+
+	_, err = interceptor(context.Background(), "request", &grpc.UnaryServerInfo{}, handler)
+	if status.Code(err) != codes.ResourceExhausted {
+		t.Fatalf("second unary error code = %v, want ResourceExhausted", status.Code(err))
+	}
+	if calls != 1 {
+		t.Fatalf("handler calls = %d, want 1", calls)
+	}
+}
+
+func TestGRPCRateLimiterStream(t *testing.T) {
+	resetServerGRPCTestState(t)
+
+	viper.Set("server.grpc.rate.limit", 1)
+	viper.Set("server.grpc.rate.burst", 1)
+	limiter := newGRPCRateLimiter()
+	interceptor := rateLimitStreamInterceptor(limiter)
+	calls := 0
+	handler := func(any, grpc.ServerStream) error {
+		calls++
+		return nil
+	}
+
+	if err := interceptor(nil, nil, &grpc.StreamServerInfo{}, handler); err != nil {
+		t.Fatalf("first stream call failed: %v", err)
+	}
+
+	err := interceptor(nil, nil, &grpc.StreamServerInfo{}, handler)
+	if status.Code(err) != codes.ResourceExhausted {
+		t.Fatalf("second stream error code = %v, want ResourceExhausted", status.Code(err))
+	}
+	if calls != 1 {
+		t.Fatalf("handler calls = %d, want 1", calls)
+	}
+}
+
+func TestGRPCRateLimiterDisabled(t *testing.T) {
+	resetServerGRPCTestState(t)
+
+	viper.Set("server.grpc.rate.limit", 0)
+	if limiter := newGRPCRateLimiter(); limiter != nil {
+		t.Fatal("expected nil limiter when server.grpc.rate.limit is 0")
 	}
 }
 

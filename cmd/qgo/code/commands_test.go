@@ -347,6 +347,9 @@ func TestTemplateBranches(t *testing.T) {
 	if !strings.Contains(buildApplicationYAML(serviceTypeGRPC, "grpc-app"), "port: \":50051\"") {
 		t.Fatal("expected grpc yaml template")
 	}
+	if !strings.Contains(buildApplicationYAML(serviceTypeGRPC, "grpc-app"), "rate:\n      limit: 1000\n      burst: 2000") {
+		t.Fatal("expected grpc yaml template to include rate config")
+	}
 	if !strings.Contains(buildApplicationYAML(serviceTypeGRPC, "grpc-app"), "SkipFunction: []") {
 		t.Fatal("expected grpc yaml template to include empty SkipFunction")
 	}
@@ -376,6 +379,15 @@ func TestTemplateBranches(t *testing.T) {
 	}
 	if !strings.Contains(grpcJSON, "\"SkipFunction\": []") {
 		t.Fatal("expected grpc json template to include empty SkipFunction")
+	}
+	var grpcJSONData map[string]any
+	if err := json.Unmarshal([]byte(grpcJSON), &grpcJSONData); err != nil {
+		t.Fatalf("expected valid grpc json template: %v", err)
+	}
+	grpcServerConfig := grpcJSONData["server"].(map[string]any)["grpc"].(map[string]any)
+	rateConfig := grpcServerConfig["rate"].(map[string]any)
+	if rateConfig["limit"] != float64(1000) || rateConfig["burst"] != float64(2000) {
+		t.Fatalf("expected grpc json template to include rate config, got %#v", rateConfig)
 	}
 
 	ginJSON, err := buildApplicationJSON(serviceTypeGin, "gin-app")

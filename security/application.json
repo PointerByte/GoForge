@@ -6,11 +6,7 @@
     "hmac": {
       "secret": "replace-with-your-hmac-secret"
     },
-    "rsa": {
-      "private_key": "./certs/jwt/key.pem",
-      "public_key": "./certs/jwt/public.pem"
-    },
-    "eddsa": {
+    "keys": {
       "private_key": "./certs/jwt/ed25519-key.pem",
       "public_key": "./certs/jwt/ed25519-public.pem"
     }

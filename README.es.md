@@ -120,6 +120,8 @@ Ejemplos:
 - `client.http.timeout` -> `CLIENT_HTTP_TIMEOUT`
 - `client.grpc.tls.serverName` -> `CLIENT_GRPC_TLS_SERVERNAME`
 - `jwt.hmac.secret` -> `JWT_HMAC_SECRET`
+- `jwt.keys.private_key` -> `JWT_KEYS_PRIVATE_KEY`
+- `jwt.keys.public_key` -> `JWT_KEYS_PUBLIC_KEY`
 
 YAML es el formato recomendado para aplicaciones nuevas.
 
@@ -172,7 +174,8 @@ traces:
 jwt:
   enable: false
   transport: header
-  eddsa:
+  algorithm: EDDSA
+  keys:
     private_key: ./certs/jwt/ed25519-key.pem
     public_key: ./certs/jwt/ed25519-public.pem
 ```
@@ -237,8 +240,10 @@ Valores de client-auth soportados: `no_client_cert`, `request_client_cert`,
 - `jwt.enable`: habilita validacion JWT en middleware
 - `jwt.transport`: origen del token, normalmente `header` o `cookie`
 - `jwt.cookie.name`: nombre de cookie cuando `jwt.transport` es `cookie`
-- `jwt.algorithm`: algoritmo de firma como `HS256`, `RS256`, `PS256` o `EdDSA`; opcional cuando solo hay una estrategia configurada
-- `jwt.hmac.secret`, `jwt.rsa.*`, `jwt.eddsa.*`: configuracion de firma; configura una sola estrategia por servicio o define `jwt.algorithm` si hay varias
+- `jwt.algorithm`: algoritmo de firma como `HS256`, `RS256`, `PS256` o `EdDSA`; requerido cuando usas `jwt.keys.*`
+- `jwt.hmac.secret`: secreto compartido para `HS256`
+- `jwt.keys.private_key`, `jwt.keys.public_key`: valores de llaves asimetricas o rutas PEM interpretadas segun `jwt.algorithm`
+- `jwt.rsa.*`, `jwt.eddsa.*`: rutas legacy de llaves asimetricas mantenidas por compatibilidad
 
 ## Servidor HTTP
 

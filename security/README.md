@@ -65,9 +65,10 @@ This module does not load `application.yaml`, `application.yml`, or
 ```yaml
 jwt:
   enable: true
+  algorithm: EdDSA
   cookie:
     name: access_token
-  eddsa:
+  keys:
     private_key: ./certs/jwt/ed25519-key.pem
     public_key: ./certs/jwt/ed25519-public.pem
 ```
@@ -75,21 +76,21 @@ jwt:
 Main keys:
 
 - `jwt.enable`: when explicitly set to `false`, Gin JWT middleware lets requests pass through
-- `jwt.algorithm`: `HS256`, `RS256`, `PS256`, or `EdDSA`; optional when only one strategy is configured
+- `jwt.algorithm`: `HS256`, `RS256`, `PS256`, or `EdDSA`; required when using `jwt.keys.*`
 - `jwt.cookie.name`: cookie name used by cookie-based auth; defaults to `access_token`
 - `jwt.hmac.secret`: shared secret for `HS256`
-- `jwt.rsa.private_key`: RSA private key value or PEM file path
-- `jwt.rsa.public_key`: RSA public key value or PEM file path
-- `jwt.eddsa.private_key`: Ed25519 private key value or PEM file path
-- `jwt.eddsa.public_key`: Ed25519 public key value or PEM file path
+- `jwt.keys.private_key`: asymmetric private key value or PEM file path
+- `jwt.keys.public_key`: asymmetric public key value or PEM file path
+- `jwt.rsa.private_key`, `jwt.rsa.public_key`: legacy RSA key paths
+- `jwt.eddsa.private_key`, `jwt.eddsa.public_key`: legacy Ed25519 key paths
 
-Configure one strategy per service. If more than one strategy exists under
-`jwt`, set `jwt.algorithm` to resolve the ambiguity.
+The generic `jwt.keys.*` pair is interpreted according to `jwt.algorithm`: use
+`EdDSA` for Ed25519 keys and `RS256` or `PS256` for RSA keys. Without
+`jwt.algorithm`, generic keys are intentionally ambiguous.
 
 The `application.yaml` and `application.json` files in this module are complete
-examples: they include `hmac`, `rsa`, and `eddsa` to document the available
-options. Because multiple strategies are configured, they also include
-`jwt.algorithm`.
+examples: they include `hmac`, `keys`, and `jwt.algorithm` to document the
+available options.
 
 Configured service inputs can receive direct values through `HMACSecret`,
 `RSAPrivateKey`, `RSAPublicKey`, `EdDSAPrivateKey`, and `EdDSAPublicKey`. The
@@ -106,11 +107,13 @@ Example files:
 
 ### Configured From Viper
 
-With one configured strategy, `NewConfiguredService` can infer the algorithm:
+With generic asymmetric keys, set `jwt.algorithm` so the service knows how to
+parse and verify the key pair:
 
 ```go
-viper.Set("jwt.eddsa.private_key", "./certs/jwt/ed25519-key.pem")
-viper.Set("jwt.eddsa.public_key", "./certs/jwt/ed25519-public.pem")
+viper.Set("jwt.algorithm", "EdDSA")
+viper.Set("jwt.keys.private_key", "./certs/jwt/ed25519-key.pem")
+viper.Set("jwt.keys.public_key", "./certs/jwt/ed25519-public.pem")
 
 service, err := jwtservice.NewConfiguredService(jwtservice.ConfigServiceInput{})
 if err != nil {
@@ -118,8 +121,10 @@ if err != nil {
 }
 ```
 
-If you configure multiple strategies, set `jwt.algorithm` or pass it in
-`ConfigServiceInput`:
+Legacy algorithm-specific keys such as `jwt.eddsa.*` and `jwt.rsa.*` are still
+accepted for compatibility and can still be inferred when only one legacy
+strategy is configured. If you configure multiple strategies, set
+`jwt.algorithm` or pass it in `ConfigServiceInput`:
 
 ```go
 package main

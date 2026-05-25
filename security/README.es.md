@@ -65,9 +65,10 @@ Este modulo no carga automaticamente `application.yaml`, `application.yml` ni
 ```yaml
 jwt:
   enable: true
+  algorithm: EdDSA
   cookie:
     name: access_token
-  eddsa:
+  keys:
     private_key: ./certs/jwt/ed25519-key.pem
     public_key: ./certs/jwt/ed25519-public.pem
 ```
@@ -75,20 +76,21 @@ jwt:
 Claves principales:
 
 - `jwt.enable`: cuando esta explicitamente en `false`, el middleware JWT de Gin deja pasar requests
-- `jwt.algorithm`: `HS256`, `RS256`, `PS256` o `EdDSA`; es opcional cuando solo hay una estrategia configurada
+- `jwt.algorithm`: `HS256`, `RS256`, `PS256` o `EdDSA`; requerido cuando usas `jwt.keys.*`
 - `jwt.cookie.name`: nombre de cookie usado por auth con cookies; default `access_token`
 - `jwt.hmac.secret`: secreto compartido para `HS256`
-- `jwt.rsa.private_key`: valor de llave privada RSA o ruta a archivo PEM
-- `jwt.rsa.public_key`: valor de llave publica RSA o ruta a archivo PEM
-- `jwt.eddsa.private_key`: valor de llave privada Ed25519 o ruta a archivo PEM
-- `jwt.eddsa.public_key`: valor de llave publica Ed25519 o ruta a archivo PEM
+- `jwt.keys.private_key`: valor de llave privada asimetrica o ruta a archivo PEM
+- `jwt.keys.public_key`: valor de llave publica asimetrica o ruta a archivo PEM
+- `jwt.rsa.private_key`, `jwt.rsa.public_key`: rutas legacy para llaves RSA
+- `jwt.eddsa.private_key`, `jwt.eddsa.public_key`: rutas legacy para llaves Ed25519
 
-Configura una sola estrategia por servicio. Si hay mas de una estrategia bajo
-`jwt`, define `jwt.algorithm` para resolver la ambiguedad.
+El par generico `jwt.keys.*` se interpreta segun `jwt.algorithm`: usa `EdDSA`
+para llaves Ed25519 y `RS256` o `PS256` para llaves RSA. Sin `jwt.algorithm`,
+las llaves genericas son ambiguas intencionalmente.
 
 Los archivos `application.yaml` y `application.json` de este modulo son ejemplos
-completos: incluyen `hmac`, `rsa` y `eddsa` para documentar las opciones. Como
-hay varias estrategias configuradas, tambien incluyen `jwt.algorithm`.
+completos: incluyen `hmac`, `keys` y `jwt.algorithm` para documentar las
+opciones disponibles.
 
 Los inputs configurados pueden recibir valores directos con `HMACSecret`,
 `RSAPrivateKey`, `RSAPublicKey`, `EdDSAPrivateKey` y `EdDSAPublicKey`. Los
@@ -105,12 +107,13 @@ Archivos de ejemplo:
 
 ### Configurado Desde Viper
 
-Con una sola estrategia configurada, `NewConfiguredService` puede inferir el
-algoritmo:
+Con llaves asimetricas genericas, define `jwt.algorithm` para que el servicio
+sepa como parsear y verificar el par de llaves:
 
 ```go
-viper.Set("jwt.eddsa.private_key", "./certs/jwt/ed25519-key.pem")
-viper.Set("jwt.eddsa.public_key", "./certs/jwt/ed25519-public.pem")
+viper.Set("jwt.algorithm", "EdDSA")
+viper.Set("jwt.keys.private_key", "./certs/jwt/ed25519-key.pem")
+viper.Set("jwt.keys.public_key", "./certs/jwt/ed25519-public.pem")
 
 service, err := jwtservice.NewConfiguredService(jwtservice.ConfigServiceInput{})
 if err != nil {
@@ -118,8 +121,10 @@ if err != nil {
 }
 ```
 
-Si configuras varias estrategias, define `jwt.algorithm` o pasalo en
-`ConfigServiceInput`:
+Las rutas legacy especificas por algoritmo, como `jwt.eddsa.*` y `jwt.rsa.*`,
+siguen aceptandose por compatibilidad y todavia pueden inferirse cuando solo
+hay una estrategia legacy configurada. Si configuras varias estrategias, define
+`jwt.algorithm` o pasalo en `ConfigServiceInput`:
 
 ```go
 package main

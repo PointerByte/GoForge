@@ -38,10 +38,10 @@ func TestSetJWTAsymmetricKeys(t *testing.T) {
 			t.Fatalf("expected no error, got %v", err)
 		}
 
-		if got := viper.GetString(DefaultRSAPrivateKeyKey); got != "rsa-private" {
+		if got := viper.GetString(DefaultJWTPrivateKeyKey); got != "rsa-private" {
 			t.Fatalf("expected private key %q, got %q", "rsa-private", got)
 		}
-		if got := viper.GetString(DefaultRSAPublicKeyKey); got != "rsa-public" {
+		if got := viper.GetString(DefaultJWTPublicKeyKey); got != "rsa-public" {
 			t.Fatalf("expected public key %q, got %q", "rsa-public", got)
 		}
 	})
@@ -49,17 +49,17 @@ func TestSetJWTAsymmetricKeys(t *testing.T) {
 	t.Run("rsa overwrites existing values", func(t *testing.T) {
 		viper.Reset()
 		t.Cleanup(viper.Reset)
-		viper.Set(DefaultRSAPrivateKeyKey, "old-private")
-		viper.Set(DefaultRSAPublicKeyKey, "old-public")
+		viper.Set(DefaultJWTPrivateKeyKey, "old-private")
+		viper.Set(DefaultJWTPublicKeyKey, "old-public")
 
 		if err := SetJWTAsymmetricKeys("new-private", "new-public", "RSA"); err != nil {
 			t.Fatalf("expected no error, got %v", err)
 		}
 
-		if got := viper.GetString(DefaultRSAPrivateKeyKey); got != "new-private" {
+		if got := viper.GetString(DefaultJWTPrivateKeyKey); got != "new-private" {
 			t.Fatalf("expected private key %q, got %q", "new-private", got)
 		}
-		if got := viper.GetString(DefaultRSAPublicKeyKey); got != "new-public" {
+		if got := viper.GetString(DefaultJWTPublicKeyKey); got != "new-public" {
 			t.Fatalf("expected public key %q, got %q", "new-public", got)
 		}
 	})
@@ -72,10 +72,10 @@ func TestSetJWTAsymmetricKeys(t *testing.T) {
 			t.Fatalf("expected no error, got %v", err)
 		}
 
-		if got := viper.GetString(DefaultEdDSAPrivateKeyKey); got != "eddsa-private" {
+		if got := viper.GetString(DefaultJWTPrivateKeyKey); got != "eddsa-private" {
 			t.Fatalf("expected private key %q, got %q", "eddsa-private", got)
 		}
-		if got := viper.GetString(DefaultEdDSAPublicKeyKey); got != "eddsa-public" {
+		if got := viper.GetString(DefaultJWTPublicKeyKey); got != "eddsa-public" {
 			t.Fatalf("expected public key %q, got %q", "eddsa-public", got)
 		}
 	})
@@ -83,17 +83,17 @@ func TestSetJWTAsymmetricKeys(t *testing.T) {
 	t.Run("eddsa overwrites existing values", func(t *testing.T) {
 		viper.Reset()
 		t.Cleanup(viper.Reset)
-		viper.Set(DefaultEdDSAPrivateKeyKey, "old-private")
-		viper.Set(DefaultEdDSAPublicKeyKey, "old-public")
+		viper.Set(DefaultJWTPrivateKeyKey, "old-private")
+		viper.Set(DefaultJWTPublicKeyKey, "old-public")
 
 		if err := SetJWTAsymmetricKeys("new-private", "new-public", "EdDSA"); err != nil {
 			t.Fatalf("expected no error, got %v", err)
 		}
 
-		if got := viper.GetString(DefaultEdDSAPrivateKeyKey); got != "new-private" {
+		if got := viper.GetString(DefaultJWTPrivateKeyKey); got != "new-private" {
 			t.Fatalf("expected private key %q, got %q", "new-private", got)
 		}
-		if got := viper.GetString(DefaultEdDSAPublicKeyKey); got != "new-public" {
+		if got := viper.GetString(DefaultJWTPublicKeyKey); got != "new-public" {
 			t.Fatalf("expected public key %q, got %q", "new-public", got)
 		}
 	})
@@ -741,6 +741,42 @@ func TestNewConfiguredServiceUsesViperAlgorithm(t *testing.T) {
 		}
 
 		viper.Set(DefaultAlgorithmKey, "RS256")
+		viper.Set(DefaultJWTPrivateKeyKey, base64.StdEncoding.EncodeToString(privateDER))
+		viper.Set(DefaultJWTPublicKeyKey, base64.StdEncoding.EncodeToString(publicDER))
+		defer viper.Reset()
+
+		service, err := NewConfiguredService(ConfigServiceInput{})
+		if err != nil {
+			t.Fatalf("expected service without error, got %v", err)
+		}
+
+		token, err := service.Create(testClaims{UserID: "2", Role: "admin", Active: true})
+		if err != nil {
+			t.Fatalf("expected token without error, got %v", err)
+		}
+
+		if err := service.ValidateSignature(token); err != nil {
+			t.Fatalf("expected valid signature, got %v", err)
+		}
+	})
+
+	t.Run("rs256 uses legacy keys as fallback", func(t *testing.T) {
+		privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+		if err != nil {
+			t.Fatalf("expected rsa key without error, got %v", err)
+		}
+
+		privateDER, err := x509.MarshalPKCS8PrivateKey(privateKey)
+		if err != nil {
+			t.Fatalf("expected private key marshal without error, got %v", err)
+		}
+
+		publicDER, err := x509.MarshalPKIXPublicKey(&privateKey.PublicKey)
+		if err != nil {
+			t.Fatalf("expected public key marshal without error, got %v", err)
+		}
+
+		viper.Set(DefaultAlgorithmKey, "RS256")
 		viper.Set(DefaultRSAPrivateKeyKey, base64.StdEncoding.EncodeToString(privateDER))
 		viper.Set(DefaultRSAPublicKeyKey, base64.StdEncoding.EncodeToString(publicDER))
 		defer viper.Reset()
@@ -750,7 +786,7 @@ func TestNewConfiguredServiceUsesViperAlgorithm(t *testing.T) {
 			t.Fatalf("expected service without error, got %v", err)
 		}
 
-		token, err := service.Create(testClaims{UserID: "2", Role: "admin", Active: true})
+		token, err := service.Create(testClaims{UserID: "2-legacy", Role: "admin", Active: true})
 		if err != nil {
 			t.Fatalf("expected token without error, got %v", err)
 		}
@@ -776,8 +812,8 @@ func TestNewConfiguredServiceUsesViperAlgorithm(t *testing.T) {
 			t.Fatalf("expected public key marshal without error, got %v", err)
 		}
 
-		viper.Set(DefaultRSAPrivateKeyKey, "./certs/jwt/key.pem")
-		viper.Set(DefaultRSAPublicKeyKey, "./certs/jwt/public.pem")
+		viper.Set(DefaultJWTPrivateKeyKey, "./certs/jwt/key.pem")
+		viper.Set(DefaultJWTPublicKeyKey, "./certs/jwt/public.pem")
 		defer viper.Reset()
 
 		service, err := NewConfiguredService(ConfigServiceInput{
@@ -855,8 +891,8 @@ func TestNewConfiguredServiceUsesViperAlgorithm(t *testing.T) {
 		}
 
 		viper.Set(DefaultAlgorithmKey, "PS256")
-		viper.Set(DefaultRSAPrivateKeyKey, base64.StdEncoding.EncodeToString(privateDER))
-		viper.Set(DefaultRSAPublicKeyKey, base64.StdEncoding.EncodeToString(publicDER))
+		viper.Set(DefaultJWTPrivateKeyKey, base64.StdEncoding.EncodeToString(privateDER))
+		viper.Set(DefaultJWTPublicKeyKey, base64.StdEncoding.EncodeToString(publicDER))
 		defer viper.Reset()
 
 		service, err := NewConfiguredService(ConfigServiceInput{})
@@ -891,8 +927,8 @@ func TestNewConfiguredServiceUsesViperAlgorithm(t *testing.T) {
 		}
 
 		viper.Set(DefaultAlgorithmKey, "EdDSA")
-		viper.Set(DefaultEdDSAPrivateKeyKey, base64.StdEncoding.EncodeToString(privateDER))
-		viper.Set(DefaultEdDSAPublicKeyKey, base64.StdEncoding.EncodeToString(publicDER))
+		viper.Set(DefaultJWTPrivateKeyKey, base64.StdEncoding.EncodeToString(privateDER))
+		viper.Set(DefaultJWTPublicKeyKey, base64.StdEncoding.EncodeToString(publicDER))
 		defer viper.Reset()
 
 		service, err := NewConfiguredService(ConfigServiceInput{})
@@ -926,8 +962,8 @@ func TestNewConfiguredServiceUsesViperAlgorithm(t *testing.T) {
 			t.Fatalf("expected public key marshal without error, got %v", err)
 		}
 
-		viper.Set(DefaultEdDSAPrivateKeyKey, "./certs/jwt/ed25519-key.pem")
-		viper.Set(DefaultEdDSAPublicKeyKey, "./certs/jwt/ed25519-public.pem")
+		viper.Set(DefaultJWTPrivateKeyKey, "./certs/jwt/ed25519-key.pem")
+		viper.Set(DefaultJWTPublicKeyKey, "./certs/jwt/ed25519-public.pem")
 		defer viper.Reset()
 
 		service, err := NewConfiguredService(ConfigServiceInput{
@@ -949,7 +985,7 @@ func TestNewConfiguredServiceUsesViperAlgorithm(t *testing.T) {
 		}
 	})
 
-	t.Run("infers eddsa from configured keys", func(t *testing.T) {
+	t.Run("infers eddsa from legacy configured keys", func(t *testing.T) {
 		publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
 		if err != nil {
 			t.Fatalf("expected ed25519 key without error, got %v", err)
@@ -981,6 +1017,17 @@ func TestNewConfiguredServiceUsesViperAlgorithm(t *testing.T) {
 
 		if err := service.ValidateSignature(token); err != nil {
 			t.Fatalf("expected valid signature, got %v", err)
+		}
+	})
+
+	t.Run("requires algorithm when generic keys are configured", func(t *testing.T) {
+		viper.Set(DefaultJWTPrivateKeyKey, "private")
+		viper.Set(DefaultJWTPublicKeyKey, "public")
+		defer viper.Reset()
+
+		_, err := NewConfiguredService(ConfigServiceInput{})
+		if !errors.Is(err, ErrMissingAlgorithm) {
+			t.Fatalf("expected ErrMissingAlgorithm, got %v", err)
 		}
 	})
 

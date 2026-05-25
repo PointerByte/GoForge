@@ -46,6 +46,8 @@ var (
 const (
 	DefaultAlgorithmKey       = "jwt.algorithm"
 	DefaultHMACSecretKey      = "jwt.hmac.secret"
+	DefaultJWTPrivateKeyKey   = "jwt.keys.private_key"
+	DefaultJWTPublicKeyKey    = "jwt.keys.public_key"
 	DefaultRSAPrivateKeyKey   = "jwt.rsa.private_key"
 	DefaultRSAPublicKeyKey    = "jwt.rsa.public_key"
 	DefaultEdDSAPrivateKeyKey = "jwt.eddsa.private_key"
@@ -53,18 +55,16 @@ const (
 )
 
 // SetJWTAsymmetricKeys stores the configured asymmetric key pair in viper using
-// the standard JWT config keys for the selected algorithm.
+// the standard JWT config keys.
 // Existing values are overwritten with Set, while previously unset values are
 // registered with SetDefault so package defaults remain discoverable.
-// Supported algorithms are "rsa" and "eddsa", matched case-insensitively.
+// Supported algorithms are "rsa", "rs256", "ps256", and "eddsa", matched
+// case-insensitively.
 func SetJWTAsymmetricKeys(priv, pub, alg string) error {
-	switch strings.ToLower(strings.TrimSpace(alg)) {
-	case "rsa":
-		setJWTConfigValue(DefaultRSAPrivateKeyKey, priv)
-		setJWTConfigValue(DefaultRSAPublicKeyKey, pub)
-	case "eddsa":
-		setJWTConfigValue(DefaultEdDSAPrivateKeyKey, priv)
-		setJWTConfigValue(DefaultEdDSAPublicKeyKey, pub)
+	switch strings.ToUpper(strings.TrimSpace(alg)) {
+	case "RSA", "RS256", "PS256", "EDDSA":
+		setJWTConfigValue(DefaultJWTPrivateKeyKey, priv)
+		setJWTConfigValue(DefaultJWTPublicKeyKey, pub)
 	default:
 		return fmt.Errorf("%w: %s", ErrUnsupportedAlg, alg)
 	}
@@ -287,6 +287,10 @@ func New(options ...Option) (*Service, error) {
 
 // NewConfiguredService builds a JWT service based on the configured algorithm.
 // It reads values from viper using the provided keys or the package defaults.
+// Asymmetric strategies read jwt.keys.private_key and jwt.keys.public_key by
+// default, falling back to legacy algorithm-specific keys such as jwt.rsa.* and
+// jwt.eddsa.*. When only generic jwt.keys.* values are configured, Algorithm
+// must be set because the key path no longer identifies RSA or Ed25519.
 func NewConfiguredService(input ConfigServiceInput) (*Service, error) {
 	algorithm := strings.ToUpper(strings.TrimSpace(input.Algorithm))
 	if algorithm == "" {
@@ -310,24 +314,24 @@ func NewConfiguredService(input ConfigServiceInput) (*Service, error) {
 		return NewRSAService(RSAServiceInput{
 			PrivateKeyValue: input.RSAPrivateKey,
 			PublicKeyValue:  input.RSAPublicKey,
-			PrivateKeyEnv:   stringPtrOrDefault(input.RSAPrivateKeyKey, DefaultRSAPrivateKeyKey),
-			PublicKeyEnv:    stringPtrOrDefault(input.RSAPublicKeyKey, DefaultRSAPublicKeyKey),
+			PrivateKeyEnv:   stringPtrValue(input.RSAPrivateKeyKey),
+			PublicKeyEnv:    stringPtrValue(input.RSAPublicKeyKey),
 			Validator:       input.Validator,
 		})
 	case "PS256":
 		return NewRSAPSSService(RSAServiceInput{
 			PrivateKeyValue: input.RSAPrivateKey,
 			PublicKeyValue:  input.RSAPublicKey,
-			PrivateKeyEnv:   stringPtrOrDefault(input.RSAPrivateKeyKey, DefaultRSAPrivateKeyKey),
-			PublicKeyEnv:    stringPtrOrDefault(input.RSAPublicKeyKey, DefaultRSAPublicKeyKey),
+			PrivateKeyEnv:   stringPtrValue(input.RSAPrivateKeyKey),
+			PublicKeyEnv:    stringPtrValue(input.RSAPublicKeyKey),
 			Validator:       input.Validator,
 		})
 	case "EDDSA":
 		return NewEd25519Service(Ed25519ServiceInput{
 			PrivateKeyValue: input.EdDSAPrivateKey,
 			PublicKeyValue:  input.EdDSAPublicKey,
-			PrivateKeyEnv:   stringPtrOrDefault(input.EdDSAPrivateKeyKey, DefaultEdDSAPrivateKeyKey),
-			PublicKeyEnv:    stringPtrOrDefault(input.EdDSAPublicKeyKey, DefaultEdDSAPublicKeyKey),
+			PrivateKeyEnv:   stringPtrValue(input.EdDSAPrivateKeyKey),
+			PublicKeyEnv:    stringPtrValue(input.EdDSAPublicKeyKey),
 			Validator:       input.Validator,
 		})
 	default:
@@ -343,19 +347,15 @@ func inferConfiguredAlgorithm(input ConfigServiceInput) string {
 		candidates = append(candidates, "HS256")
 	}
 
-	rsaPrivateKeyKey := stringPtrOrDefault(input.RSAPrivateKeyKey, DefaultRSAPrivateKeyKey)
-	rsaPublicKeyKey := stringPtrOrDefault(input.RSAPublicKeyKey, DefaultRSAPublicKeyKey)
 	if input.RSAPrivateKey != "" || input.RSAPublicKey != "" ||
-		configValueFromViperOrDirect(rsaPrivateKeyKey) != "" ||
-		configValueFromViperOrDirect(rsaPublicKeyKey) != "" {
+		configuredValueExists(legacyKeyCandidates(stringPtrValue(input.RSAPrivateKeyKey), DefaultRSAPrivateKeyKey)...) ||
+		configuredValueExists(legacyKeyCandidates(stringPtrValue(input.RSAPublicKeyKey), DefaultRSAPublicKeyKey)...) {
 		candidates = append(candidates, "RS256")
 	}
 
-	eddsaPrivateKeyKey := stringPtrOrDefault(input.EdDSAPrivateKeyKey, DefaultEdDSAPrivateKeyKey)
-	eddsaPublicKeyKey := stringPtrOrDefault(input.EdDSAPublicKeyKey, DefaultEdDSAPublicKeyKey)
 	if input.EdDSAPrivateKey != "" || input.EdDSAPublicKey != "" ||
-		configValueFromViperOrDirect(eddsaPrivateKeyKey) != "" ||
-		configValueFromViperOrDirect(eddsaPublicKeyKey) != "" {
+		configuredValueExists(legacyKeyCandidates(stringPtrValue(input.EdDSAPrivateKeyKey), DefaultEdDSAPrivateKeyKey)...) ||
+		configuredValueExists(legacyKeyCandidates(stringPtrValue(input.EdDSAPublicKeyKey), DefaultEdDSAPublicKeyKey)...) {
 		candidates = append(candidates, "EDDSA")
 	}
 
@@ -368,11 +368,10 @@ func inferConfiguredAlgorithm(input ConfigServiceInput) string {
 // NewRSAPSSService builds a JWT service for PS256 signatures.
 func NewRSAPSSService(input RSAServiceInput) (*Service, error) {
 	privateKey := input.PrivateKey
-	privateKeyConfig := stringOrDefault(input.PrivateKeyEnv, DefaultRSAPrivateKeyKey)
+	privateKeyValue, privateKeyConfig := asymmetricConfigValue(input.PrivateKeyValue, input.PrivateKeyEnv, DefaultJWTPrivateKeyKey, DefaultRSAPrivateKeyKey)
 	if privateKey == nil {
-		value := firstNonEmptyString(input.PrivateKeyValue, configValueFromViperOrDirect(privateKeyConfig))
-		if value != "" {
-			parsedKey, err := parseRSAPrivateKeyFromConfig(value)
+		if privateKeyValue != "" {
+			parsedKey, err := parseRSAPrivateKeyFromConfig(privateKeyValue)
 			if err != nil {
 				return nil, fmt.Errorf("jwt: parse rsa private key from key %s: %w", privateKeyConfig, err)
 			}
@@ -381,11 +380,10 @@ func NewRSAPSSService(input RSAServiceInput) (*Service, error) {
 	}
 
 	publicKey := input.PublicKey
-	publicKeyConfig := stringOrDefault(input.PublicKeyEnv, DefaultRSAPublicKeyKey)
+	publicKeyValue, publicKeyConfig := asymmetricConfigValue(input.PublicKeyValue, input.PublicKeyEnv, DefaultJWTPublicKeyKey, DefaultRSAPublicKeyKey)
 	if publicKey == nil {
-		value := firstNonEmptyString(input.PublicKeyValue, configValueFromViperOrDirect(publicKeyConfig))
-		if value != "" {
-			parsedKey, err := parseRSAPublicKeyFromConfig(value)
+		if publicKeyValue != "" {
+			parsedKey, err := parseRSAPublicKeyFromConfig(publicKeyValue)
 			if err != nil {
 				return nil, fmt.Errorf("jwt: parse rsa public key from key %s: %w", publicKeyConfig, err)
 			}
@@ -403,11 +401,10 @@ func NewRSAPSSService(input RSAServiceInput) (*Service, error) {
 // NewEd25519Service builds a JWT service for EdDSA signatures.
 func NewEd25519Service(input Ed25519ServiceInput) (*Service, error) {
 	privateKey := input.PrivateKey
-	privateKeyConfig := stringOrDefault(input.PrivateKeyEnv, DefaultEdDSAPrivateKeyKey)
+	privateKeyValue, privateKeyConfig := asymmetricConfigValue(input.PrivateKeyValue, input.PrivateKeyEnv, DefaultJWTPrivateKeyKey, DefaultEdDSAPrivateKeyKey)
 	if privateKey == nil {
-		value := firstNonEmptyString(input.PrivateKeyValue, configValueFromViperOrDirect(privateKeyConfig))
-		if value != "" {
-			parsedKey, err := parseEd25519PrivateKeyFromConfig(value)
+		if privateKeyValue != "" {
+			parsedKey, err := parseEd25519PrivateKeyFromConfig(privateKeyValue)
 			if err != nil {
 				return nil, fmt.Errorf("jwt: parse ed25519 private key from key %s: %w", privateKeyConfig, err)
 			}
@@ -416,11 +413,10 @@ func NewEd25519Service(input Ed25519ServiceInput) (*Service, error) {
 	}
 
 	publicKey := input.PublicKey
-	publicKeyConfig := stringOrDefault(input.PublicKeyEnv, DefaultEdDSAPublicKeyKey)
+	publicKeyValue, publicKeyConfig := asymmetricConfigValue(input.PublicKeyValue, input.PublicKeyEnv, DefaultJWTPublicKeyKey, DefaultEdDSAPublicKeyKey)
 	if publicKey == nil {
-		value := firstNonEmptyString(input.PublicKeyValue, configValueFromViperOrDirect(publicKeyConfig))
-		if value != "" {
-			parsedKey, err := parseEd25519PublicKeyFromConfig(value)
+		if publicKeyValue != "" {
+			parsedKey, err := parseEd25519PublicKeyFromConfig(publicKeyValue)
 			if err != nil {
 				return nil, fmt.Errorf("jwt: parse ed25519 public key from key %s: %w", publicKeyConfig, err)
 			}
@@ -457,11 +453,10 @@ func NewHMACService(input HMACServiceInput) (*Service, error) {
 // keep the previous Base64-encoded DER format for compatibility.
 func NewRSAService(input RSAServiceInput) (*Service, error) {
 	privateKey := input.PrivateKey
-	privateKeyConfig := stringOrDefault(input.PrivateKeyEnv, DefaultRSAPrivateKeyKey)
+	privateKeyValue, privateKeyConfig := asymmetricConfigValue(input.PrivateKeyValue, input.PrivateKeyEnv, DefaultJWTPrivateKeyKey, DefaultRSAPrivateKeyKey)
 	if privateKey == nil {
-		value := firstNonEmptyString(input.PrivateKeyValue, configValueFromViperOrDirect(privateKeyConfig))
-		if value != "" {
-			parsedKey, err := parseRSAPrivateKeyFromConfig(value)
+		if privateKeyValue != "" {
+			parsedKey, err := parseRSAPrivateKeyFromConfig(privateKeyValue)
 			if err != nil {
 				return nil, fmt.Errorf("jwt: parse rsa private key from key %s: %w", privateKeyConfig, err)
 			}
@@ -470,11 +465,10 @@ func NewRSAService(input RSAServiceInput) (*Service, error) {
 	}
 
 	publicKey := input.PublicKey
-	publicKeyConfig := stringOrDefault(input.PublicKeyEnv, DefaultRSAPublicKeyKey)
+	publicKeyValue, publicKeyConfig := asymmetricConfigValue(input.PublicKeyValue, input.PublicKeyEnv, DefaultJWTPublicKeyKey, DefaultRSAPublicKeyKey)
 	if publicKey == nil {
-		value := firstNonEmptyString(input.PublicKeyValue, configValueFromViperOrDirect(publicKeyConfig))
-		if value != "" {
-			parsedKey, err := parseRSAPublicKeyFromConfig(value)
+		if publicKeyValue != "" {
+			parsedKey, err := parseRSAPublicKeyFromConfig(publicKeyValue)
 			if err != nil {
 				return nil, fmt.Errorf("jwt: parse rsa public key from key %s: %w", publicKeyConfig, err)
 			}
@@ -1109,6 +1103,53 @@ func looksLikeDirectConfigValue(value string) bool {
 	return false
 }
 
+func asymmetricConfigValue(directValue string, explicitKey string, defaultKey string, legacyKey string) (string, string) {
+	directSource := stringOrDefault(strings.TrimSpace(explicitKey), defaultKey)
+	return configValueFromDirectOrKeys(directValue, directSource, configKeyCandidates(explicitKey, defaultKey, legacyKey)...)
+}
+
+func configValueFromDirectOrKeys(directValue string, directSource string, keys ...string) (string, string) {
+	if strings.TrimSpace(directValue) != "" {
+		return directValue, directSource
+	}
+	for _, key := range keys {
+		if value := configValueFromViperOrDirect(key); value != "" {
+			return value, key
+		}
+	}
+	return "", firstNonEmptyString(keys...)
+}
+
+func configuredValueExists(keys ...string) bool {
+	for _, key := range keys {
+		if configValueFromViperOrDirect(key) != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func legacyKeyCandidates(explicitKey string, legacyKey string) []string {
+	return configKeyCandidates(explicitKey, legacyKey)
+}
+
+func configKeyCandidates(keys ...string) []string {
+	candidates := make([]string, 0, len(keys))
+	seen := make(map[string]struct{}, len(keys))
+	for _, key := range keys {
+		key = strings.TrimSpace(key)
+		if key == "" {
+			continue
+		}
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		candidates = append(candidates, key)
+	}
+	return candidates
+}
+
 func firstNonEmptyString(values ...string) string {
 	for _, value := range values {
 		if strings.TrimSpace(value) != "" {
@@ -1130,6 +1171,13 @@ func stringPtrOrDefault(value *string, fallback string) string {
 		return fallback
 	}
 	return stringOrDefault(*value, fallback)
+}
+
+func stringPtrValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return strings.TrimSpace(*value)
 }
 
 func setJWTConfigValue(key string, value string) {

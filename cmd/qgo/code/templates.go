@@ -145,7 +145,7 @@ jwt:
   enable: false
   transport: header
   algorithm: EDDSA
-  eddsa:
+  keys:
     private_key: ./certs/jwt/ed25519-key.pem
     public_key: ./certs/jwt/ed25519-public.pem
 `, appName)
@@ -231,7 +231,7 @@ jwt:
   enable: false
   transport: header
   algorithm: EDDSA
-  eddsa:
+  keys:
     private_key: ./certs/jwt/ed25519-key.pem
     public_key: ./certs/jwt/ed25519-public.pem
 `, appName)
@@ -313,7 +313,7 @@ func buildApplicationJSON(serviceType string, appName string) (string, error) {
 			"enable":    false,
 			"transport": "header",
 			"algorithm": "EDDSA",
-			"eddsa": map[string]any{
+			"keys": map[string]any{
 				"private_key": "./certs/jwt/ed25519-key.pem",
 				"public_key":  "./certs/jwt/ed25519-public.pem",
 			},
@@ -394,7 +394,7 @@ func buildApplicationJSON(serviceType string, appName string) (string, error) {
 			"enable":    false,
 			"transport": "header",
 			"algorithm": "EDDSA",
-			"eddsa": map[string]any{
+			"keys": map[string]any{
 				"private_key": "./certs/jwt/ed25519-key.pem",
 				"public_key":  "./certs/jwt/ed25519-public.pem",
 			},

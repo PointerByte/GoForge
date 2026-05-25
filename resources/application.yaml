@@ -96,6 +96,6 @@ jwt:
   enable: false
   transport: header
   algorithm: EDDSA
-  eddsa:
+  keys:
     private_key: ./certs/jwt/ed25519-key.pem
     public_key: ./certs/jwt/ed25519-public.pem

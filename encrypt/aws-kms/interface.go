@@ -6,20 +6,19 @@ package awskms
 import (
 	"context"
 
-	"github.com/PointerByte/GoForge/encrypt/common"
 	"github.com/PointerByte/GoForge/encrypt/models"
 )
 
 type SymmetricRepository interface {
 	// GenerateSymetrycKeys creates a symmetric key managed by AWS KMS and
 	// returns its metadata reference.
-	GenerateSymetrycKeys(ctx context.Context, size common.SizeSymetrycKey) (*models.KeyData, error)
+	GenerateSymetrycKeys(ctx context.Context, input models.GenerateSymmetricKeyRequest) (*models.KeyData, error)
 	// EncryptAES encrypts plaintext with an AWS KMS symmetric key reference or
 	// falls back to local AES-GCM when secretKey is a Base64 AES key.
-	EncryptAES(ctx context.Context, secretKey, value string, additional *string) (string, error)
+	EncryptAES(ctx context.Context, input models.EncryptAESRequest) (string, error)
 	// DecryptAES decrypts ciphertext produced by EncryptAES using AWS KMS or a
 	// local Base64 AES key.
-	DecryptAES(ctx context.Context, secretKey, cipherValue string, additional *string) (string, error)
+	DecryptAES(ctx context.Context, input models.DecryptAESRequest) (string, error)
 }
 
 type AsymmetricRepository interface {
@@ -27,22 +26,31 @@ type AsymmetricRepository interface {
 	// AWS KMS never exports the private key, so the private-key return value is
 	// always empty and the generated key ARN is stored in viper under
 	// "encrypt.aws-kms.arn".
-	GenerateRSAKeys(ctx context.Context, size common.SizeAsymetrycKey) (*models.KeyData, error)
-	// GenerateECCKeys creates an AWS KMS key-agreement key on the requested NIST
+	GenerateRSAKeys(ctx context.Context, input models.GenerateRSAKeyRequest) (*models.KeyData, error)
+	// GenerateECDHCurveKeys creates an AWS KMS key-agreement key on the requested NIST
 	// curve and returns its public key and metadata.
-	GenerateECCKeys(ctx context.Context, curve common.CurveAsymmetricKey) (*models.KeyData, error)
+	GenerateECDHCurveKeys(ctx context.Context, input models.GenerateECDHCurveKeyRequest) (*models.KeyData, error)
 	// RSA_OAEP_Encode encrypts plaintext with a KMS key id/ARN or a Base64 RSA
 	// public key, using local RSA-OAEP as fallback for exported keys.
-	RSA_OAEP_Encode(ctx context.Context, publicKey, text string) (string, error)
+	RSA_OAEP_Encode(ctx context.Context, input models.RSAOAEPEncodeRequest) (string, error)
 	// RSA_OAEP_Decode decrypts Base64 ciphertext with a KMS key id/ARN or a
 	// Base64 RSA private key.
-	RSA_OAEP_Decode(ctx context.Context, privateKey, cipherText string) (string, error)
+	RSA_OAEP_Decode(ctx context.Context, input models.RSAOAEPDecodeRequest) (string, error)
 	// ECDH_Encode encrypts plaintext using a local ECC public key or an AWS KMS
 	// key-agreement key, deriving an AES-GCM key through ECDH.
-	ECDH_Encode(ctx context.Context, publicKey, text string) (string, error)
+	ECDH_Encode(ctx context.Context, input models.ECDHEncodeRequest) (string, error)
 	// ECDH_Decode decrypts ciphertext produced by ECDH_Encode using a local ECC
 	// private key or an AWS KMS key-agreement key reference.
-	ECDH_Decode(ctx context.Context, privateKey, cipherText string) (string, error)
+	ECDH_Decode(ctx context.Context, input models.ECDHDecodeRequest) (string, error)
+}
+
+type KeyRepository interface {
+	// RotateKey creates a new provider-backed key version or key material by key id.
+	RotateKey(ctx context.Context, input models.RotateKeyRequest) (*models.KeyData, error)
+	// GetKey returns the provider metadata and public material available for key id.
+	GetKey(ctx context.Context, input models.GetKeyRequest) (*models.KeyData, error)
+	// DeactivateKey disables a provider-backed key or key version by key id.
+	DeactivateKey(ctx context.Context, input models.DeactivateKeyRequest) error
 }
 
 type HashRepository interface {

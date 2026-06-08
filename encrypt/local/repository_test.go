@@ -17,6 +17,7 @@ import (
 	"testing"
 
 	"github.com/PointerByte/GoForge/encrypt/common"
+	"github.com/PointerByte/GoForge/encrypt/models"
 	"github.com/PointerByte/GoForge/encrypt/utilities"
 	"github.com/zeebo/blake3"
 )
@@ -25,7 +26,7 @@ var testContext = context.Background()
 
 func TestNewRepositoryBuildsAllRepositories(t *testing.T) {
 	repository := NewRepository()
-	if repository.SymmetricRepository == nil || repository.AsymmetricRepository == nil || repository.SignatureRepository == nil || repository.HashRepository == nil {
+	if repository.SymmetricRepository == nil || repository.AsymmetricRepository == nil || repository.KeyRepository == nil || repository.SignatureRepository == nil || repository.HashRepository == nil {
 		t.Fatal("expected all repositories to be initialized")
 	}
 }
@@ -33,7 +34,7 @@ func TestNewRepositoryBuildsAllRepositories(t *testing.T) {
 func TestSymmetricRepositoryAES(t *testing.T) {
 	repository := NewSymmetricRepository()
 
-	key, err := repository.GenerateSymetrycKeys(testContext, common.Key256Bits)
+	key, err := repository.GenerateSymetrycKeys(testContext, models.GenerateSymmetricKeyRequest{Size: common.Key256Bits})
 	if err != nil {
 		t.Fatalf("GenerateSymetrycKeys() error = %v", err)
 	}
@@ -49,11 +50,11 @@ func TestSymmetricRepositoryAES(t *testing.T) {
 	}
 
 	additional := "aad"
-	ciphertext, err := repository.EncryptAES(testContext, key.KeyID, "hello", &additional)
+	ciphertext, err := repository.EncryptAES(testContext, models.EncryptAESRequest{SecretKey: key.KeyID, Value: "hello", Additional: &additional})
 	if err != nil {
 		t.Fatalf("EncryptAES() error = %v", err)
 	}
-	plaintext, err := repository.DecryptAES(testContext, key.KeyID, ciphertext, &additional)
+	plaintext, err := repository.DecryptAES(testContext, models.DecryptAESRequest{SecretKey: key.KeyID, CipherValue: ciphertext, Additional: &additional})
 	if err != nil {
 		t.Fatalf("DecryptAES() error = %v", err)
 	}
@@ -66,30 +67,30 @@ func TestSymmetricRepositoryErrors(t *testing.T) {
 	repository := NewSymmetricRepository()
 
 	additional := "aad"
-	if _, err := repository.EncryptAES(testContext, "%%%", "value", &additional); err == nil {
+	if _, err := repository.EncryptAES(testContext, models.EncryptAESRequest{SecretKey: "%%%", Value: "value", Additional: &additional}); err == nil {
 		t.Fatal("expected EncryptAES() base64 error")
 	}
-	if _, err := repository.EncryptAES(testContext, base64.StdEncoding.EncodeToString([]byte("short")), "value", &additional); err == nil {
+	if _, err := repository.EncryptAES(testContext, models.EncryptAESRequest{SecretKey: base64.StdEncoding.EncodeToString([]byte("short")), Value: "value", Additional: &additional}); err == nil {
 		t.Fatal("expected EncryptAES() invalid key error")
 	}
-	if _, err := repository.DecryptAES(testContext, "%%%", "cipher", &additional); err == nil {
+	if _, err := repository.DecryptAES(testContext, models.DecryptAESRequest{SecretKey: "%%%", CipherValue: "cipher", Additional: &additional}); err == nil {
 		t.Fatal("expected DecryptAES() key error")
 	}
 
 	key := base64.StdEncoding.EncodeToString(make([]byte, 32))
-	if _, err := repository.DecryptAES(testContext, key, "%%%", &additional); err == nil {
+	if _, err := repository.DecryptAES(testContext, models.DecryptAESRequest{SecretKey: key, CipherValue: "%%%", Additional: &additional}); err == nil {
 		t.Fatal("expected DecryptAES() ciphertext error")
 	}
-	if _, err := repository.DecryptAES(testContext, key, base64.StdEncoding.EncodeToString([]byte("short")), &additional); err == nil {
+	if _, err := repository.DecryptAES(testContext, models.DecryptAESRequest{SecretKey: key, CipherValue: base64.StdEncoding.EncodeToString([]byte("short")), Additional: &additional}); err == nil {
 		t.Fatal("expected DecryptAES() short ciphertext error")
 	}
 
-	ciphertext, err := repository.EncryptAES(testContext, key, "hello", &additional)
+	ciphertext, err := repository.EncryptAES(testContext, models.EncryptAESRequest{SecretKey: key, Value: "hello", Additional: &additional})
 	if err != nil {
 		t.Fatalf("EncryptAES() error = %v", err)
 	}
 	wrongAdditional := "wrong"
-	if _, err := repository.DecryptAES(testContext, key, ciphertext, &wrongAdditional); err == nil {
+	if _, err := repository.DecryptAES(testContext, models.DecryptAESRequest{SecretKey: key, CipherValue: ciphertext, Additional: &wrongAdditional}); err == nil {
 		t.Fatal("expected DecryptAES() authentication error")
 	}
 
@@ -120,10 +121,10 @@ func TestRepositoriesRespectCanceledContext(t *testing.T) {
 	cancel()
 
 	symmetricRepository := NewSymmetricRepository()
-	if _, err := symmetricRepository.GenerateSymetrycKeys(ctx, common.Key128Bits); !errors.Is(err, context.Canceled) {
+	if _, err := symmetricRepository.GenerateSymetrycKeys(ctx, models.GenerateSymmetricKeyRequest{Size: common.Key128Bits}); !errors.Is(err, context.Canceled) {
 		t.Fatalf("GenerateSymetrycKeys() error = %v, want context.Canceled", err)
 	}
-	if _, err := symmetricRepository.EncryptAES(ctx, base64.StdEncoding.EncodeToString(make([]byte, 16)), "payload", nil); !errors.Is(err, context.Canceled) {
+	if _, err := symmetricRepository.EncryptAES(ctx, models.EncryptAESRequest{SecretKey: base64.StdEncoding.EncodeToString(make([]byte, 16)), Value: "payload", Additional: nil}); !errors.Is(err, context.Canceled) {
 		t.Fatalf("EncryptAES() error = %v, want context.Canceled", err)
 	}
 
@@ -133,8 +134,19 @@ func TestRepositoriesRespectCanceledContext(t *testing.T) {
 	}
 
 	asymmetricRepository := NewAsymmetricRepository()
-	if _, err := asymmetricRepository.GenerateRSAKeys(ctx, common.Key2048Bits); !errors.Is(err, context.Canceled) {
+	if _, err := asymmetricRepository.GenerateRSAKeys(ctx, models.GenerateRSAKeyRequest{Size: common.Key2048Bits}); !errors.Is(err, context.Canceled) {
 		t.Fatalf("GenerateRSAKeys() error = %v, want context.Canceled", err)
+	}
+
+	keyRepository := NewKeyRepository()
+	if _, err := keyRepository.RotateKey(ctx, models.RotateKeyRequest{KeyID: "key"}); !errors.Is(err, context.Canceled) {
+		t.Fatalf("RotateKey() error = %v, want context.Canceled", err)
+	}
+	if _, err := keyRepository.GetKey(ctx, models.GetKeyRequest{KeyID: "key"}); !errors.Is(err, context.Canceled) {
+		t.Fatalf("GetKey() error = %v, want context.Canceled", err)
+	}
+	if err := keyRepository.DeactivateKey(ctx, models.DeactivateKeyRequest{KeyID: "key"}); !errors.Is(err, context.Canceled) {
+		t.Fatalf("DeactivateKey() error = %v, want context.Canceled", err)
 	}
 
 	signatureRepository := NewSignatureRepository()
@@ -144,8 +156,22 @@ func TestRepositoriesRespectCanceledContext(t *testing.T) {
 
 	timeoutCtx, timeoutCancel := context.WithTimeout(testContext, 0)
 	defer timeoutCancel()
-	if _, err := symmetricRepository.DecryptAES(timeoutCtx, "bad", "bad", nil); !errors.Is(err, context.DeadlineExceeded) {
+	if _, err := symmetricRepository.DecryptAES(timeoutCtx, models.DecryptAESRequest{SecretKey: "bad", CipherValue: "bad", Additional: nil}); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("DecryptAES() error = %v, want context.DeadlineExceeded", err)
+	}
+}
+
+func TestKeyRepositoryUnsupported(t *testing.T) {
+	repository := NewKeyRepository()
+
+	if _, err := repository.RotateKey(testContext, models.RotateKeyRequest{KeyID: "key"}); err == nil {
+		t.Fatal("expected RotateKey() unsupported error")
+	}
+	if _, err := repository.GetKey(testContext, models.GetKeyRequest{KeyID: "key"}); err == nil {
+		t.Fatal("expected GetKey() unsupported error")
+	}
+	if err := repository.DeactivateKey(testContext, models.DeactivateKeyRequest{KeyID: "key"}); err == nil {
+		t.Fatal("expected DeactivateKey() unsupported error")
 	}
 }
 
@@ -153,7 +179,7 @@ func TestAsymmetricAndSignatureRepositories(t *testing.T) {
 	asymmetricRepository := NewAsymmetricRepository()
 	signatureRepository := NewSignatureRepository()
 
-	keyData, err := asymmetricRepository.GenerateRSAKeys(testContext, common.Key2048Bits)
+	keyData, err := asymmetricRepository.GenerateRSAKeys(testContext, models.GenerateRSAKeyRequest{Size: common.Key2048Bits})
 	if err != nil {
 		t.Fatalf("GenerateRSAKeys() error = %v", err)
 	}
@@ -170,11 +196,11 @@ func TestAsymmetricAndSignatureRepositories(t *testing.T) {
 		t.Fatalf("ParsePKCS1PublicKey() error = %v", err)
 	}
 
-	ciphertext, err := asymmetricRepository.RSA_OAEP_Encode(testContext, mustMarshalPKIXRSAPublicKey(t, publicKey), "hello")
+	ciphertext, err := asymmetricRepository.RSA_OAEP_Encode(testContext, models.RSAOAEPEncodeRequest{PublicKey: mustMarshalPKIXRSAPublicKey(t, publicKey), Text: "hello"})
 	if err != nil {
 		t.Fatalf("RSA_OAEP_Encode() error = %v", err)
 	}
-	plaintext, err := asymmetricRepository.RSA_OAEP_Decode(testContext, mustMarshalPKCS8RSAPrivateKey(t, privateKey), ciphertext)
+	plaintext, err := asymmetricRepository.RSA_OAEP_Decode(testContext, models.RSAOAEPDecodeRequest{PrivateKey: mustMarshalPKCS8RSAPrivateKey(t, privateKey), CipherText: ciphertext})
 	if err != nil {
 		t.Fatalf("RSA_OAEP_Decode() error = %v", err)
 	}
@@ -182,12 +208,12 @@ func TestAsymmetricAndSignatureRepositories(t *testing.T) {
 		t.Fatalf("RSA_OAEP_Decode() = %q, want %q", plaintext, "hello")
 	}
 
-	eccKeyData, err := asymmetricRepository.GenerateECCKeys(testContext, common.CurveP256)
+	eccKeyData, err := asymmetricRepository.GenerateECDHCurveKeys(testContext, models.GenerateECDHCurveKeyRequest{Curve: common.CurveP256})
 	if err != nil {
-		t.Fatalf("GenerateECCKeys() error = %v", err)
+		t.Fatalf("GenerateECDHCurveKeys() error = %v", err)
 	}
 	if eccKeyData == nil || eccKeyData.KeyID == "" || eccKeyData.PublicKey == "" || eccKeyData.Provider != "local" {
-		t.Fatalf("GenerateECCKeys() = %#v, want populated local key data", eccKeyData)
+		t.Fatalf("GenerateECDHCurveKeys() = %#v, want populated local key data", eccKeyData)
 	}
 
 	eccPublicKey, err := utilities.ParseECDHPublicKeyFromBase64(eccKeyData.PublicKey)
@@ -198,11 +224,11 @@ func TestAsymmetricAndSignatureRepositories(t *testing.T) {
 		t.Fatalf("ECC public key curve = %v, want P-256", eccPublicKey.Curve())
 	}
 
-	eccCiphertext, err := asymmetricRepository.ECDH_Encode(testContext, eccKeyData.PublicKey, "hello")
+	eccCiphertext, err := asymmetricRepository.ECDH_Encode(testContext, models.ECDHEncodeRequest{PublicKey: eccKeyData.PublicKey, Text: "hello"})
 	if err != nil {
 		t.Fatalf("ECDH_Encode() error = %v", err)
 	}
-	eccPlaintext, err := asymmetricRepository.ECDH_Decode(testContext, eccKeyData.KeyID, eccCiphertext)
+	eccPlaintext, err := asymmetricRepository.ECDH_Decode(testContext, models.ECDHDecodeRequest{PrivateKey: eccKeyData.KeyID, CipherText: eccCiphertext})
 	if err != nil {
 		t.Fatalf("ECDH_Decode() error = %v", err)
 	}
@@ -258,38 +284,38 @@ func TestAsymmetricAndSignatureRepositoryErrors(t *testing.T) {
 	asymmetricRepository := NewAsymmetricRepository()
 	signatureRepository := NewSignatureRepository()
 
-	if _, err := asymmetricRepository.RSA_OAEP_Encode(testContext, "%%%", "payload"); err == nil {
+	if _, err := asymmetricRepository.RSA_OAEP_Encode(testContext, models.RSAOAEPEncodeRequest{PublicKey: "%%%", Text: "payload"}); err == nil {
 		t.Fatal("expected RSA_OAEP_Encode() key error")
 	}
-	if _, err := asymmetricRepository.RSA_OAEP_Decode(testContext, "%%%", "payload"); err == nil {
+	if _, err := asymmetricRepository.RSA_OAEP_Decode(testContext, models.RSAOAEPDecodeRequest{PrivateKey: "%%%", CipherText: "payload"}); err == nil {
 		t.Fatal("expected RSA_OAEP_Decode() key error")
 	}
-	if _, err := asymmetricRepository.RSA_OAEP_Decode(testContext, mustMarshalPKCS8RSAPrivateKey(t, mustRSAKey(t)), "%%%"); err == nil {
+	if _, err := asymmetricRepository.RSA_OAEP_Decode(testContext, models.RSAOAEPDecodeRequest{PrivateKey: mustMarshalPKCS8RSAPrivateKey(t, mustRSAKey(t)), CipherText: "%%%"}); err == nil {
 		t.Fatal("expected RSA_OAEP_Decode() ciphertext error")
 	}
-	if _, err := asymmetricRepository.GenerateRSAKeys(testContext, 0); err == nil {
+	if _, err := asymmetricRepository.GenerateRSAKeys(testContext, models.GenerateRSAKeyRequest{Size: 0}); err == nil {
 		t.Fatal("expected GenerateRSAKeys() error")
 	}
-	if _, err := asymmetricRepository.GenerateECCKeys(testContext, "P-111"); err == nil {
-		t.Fatal("expected GenerateECCKeys() error")
+	if _, err := asymmetricRepository.GenerateECDHCurveKeys(testContext, models.GenerateECDHCurveKeyRequest{Curve: "P-111"}); err == nil {
+		t.Fatal("expected GenerateECDHCurveKeys() error")
 	}
-	if _, err := asymmetricRepository.ECDH_Encode(testContext, "%%%", "payload"); err == nil {
+	if _, err := asymmetricRepository.ECDH_Encode(testContext, models.ECDHEncodeRequest{PublicKey: "%%%", Text: "payload"}); err == nil {
 		t.Fatal("expected ECDH_Encode() key error")
 	}
-	if _, err := asymmetricRepository.ECDH_Decode(testContext, "%%%", "payload"); err == nil {
+	if _, err := asymmetricRepository.ECDH_Decode(testContext, models.ECDHDecodeRequest{PrivateKey: "%%%", CipherText: "payload"}); err == nil {
 		t.Fatal("expected ECDH_Decode() key error")
 	}
-	if _, err := asymmetricRepository.ECDH_Decode(testContext, mustECCPrivateKeyBase64(t, ecdh.P256()), "%%%"); err == nil {
+	if _, err := asymmetricRepository.ECDH_Decode(testContext, models.ECDHDecodeRequest{PrivateKey: mustECCPrivateKeyBase64(t, ecdh.P256()), CipherText: "%%%"}); err == nil {
 		t.Fatal("expected ECDH_Decode() payload error")
 	}
 	p256Private := mustECCPrivateKeyBase64(t, ecdh.P256())
 	p521Private := mustECCPrivateKeyBase64(t, ecdh.P521())
 	p256Public := mustECCPublicKeyBase64(t, p256Private)
-	eccCiphertext, err := asymmetricRepository.ECDH_Encode(testContext, p256Public, "payload")
+	eccCiphertext, err := asymmetricRepository.ECDH_Encode(testContext, models.ECDHEncodeRequest{PublicKey: p256Public, Text: "payload"})
 	if err != nil {
 		t.Fatalf("ECDH_Encode() error = %v", err)
 	}
-	if _, err := asymmetricRepository.ECDH_Decode(testContext, p521Private, eccCiphertext); err == nil {
+	if _, err := asymmetricRepository.ECDH_Decode(testContext, models.ECDHDecodeRequest{PrivateKey: p521Private, CipherText: eccCiphertext}); err == nil {
 		t.Fatal("expected ECDH_Decode() curve mismatch error")
 	}
 

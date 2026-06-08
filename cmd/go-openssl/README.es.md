@@ -31,6 +31,12 @@ Leer un archivo PEM plano o cifrado:
 go-openssl read --file ./certs/cert.pem
 ```
 
+Actualizar el secreto de archivos PEM cifrados existentes:
+
+```bash
+go-openssl reencrypt [flags]
+```
+
 ## Defaults De Generacion
 
 Cuando omites flags, la generacion usa:
@@ -84,6 +90,19 @@ cifrado, pasa el secreto correspondiente con `--signed-by-secret` o
 | `--out` | `-o` | destino opcional para el PEM descifrado |
 
 Si omites `--out`, el comando escribe el contenido PEM en stdout.
+
+## Flags De Reencrypt
+
+| Flag | Descripcion |
+| --- | --- |
+| `--cert-file` | ruta del certificado PEM cifrado |
+| `--key-file` | ruta de la llave privada PEM cifrada |
+| `--public-key-file` | ruta de la llave publica PEM cifrada |
+| `--encrypt-secret-old` | secreto actual usado para descifrar los PEM |
+| `--encrypt-secret-new` | secreto nuevo usado para volver a cifrar los PEM |
+
+Ambos secretos deben tener al menos 32 bytes. El comando reescribe los mismos
+archivos y no genera un certificado ni par de llaves nuevo.
 
 ## Ejemplos Basicos
 
@@ -197,6 +216,17 @@ go-openssl read \
   --out ./certs/encrypted/key.decrypted.pem
 ```
 
+Actualizar archivos PEM cifrados a un secreto nuevo sin regenerar certificados:
+
+```bash
+go-openssl reencrypt \
+  --cert-file ./certs/encrypted/cert.pem \
+  --key-file ./certs/encrypted/key.pem \
+  --public-key-file ./certs/encrypted/public.pem \
+  --encrypt-secret-old "12345678901234567890123456789012" \
+  --encrypt-secret-new "abcdefghijklmnopqrstuvwxyz123456"
+```
+
 Usar una CA cifrada para firmar otro certificado:
 
 ```bash
@@ -280,6 +310,21 @@ func main() {
 }
 ```
 
+Para actualizar el secreto de archivos PEM cifrados existentes desde Go:
+
+```go
+_, err := goopenssl.UpdateEncryptionSecret(goopenssl.UpdateEncryptionSecretOptions{
+	CertificatePath:   "./certs/encrypted/cert.pem",
+	PrivateKeyPath:    "./certs/encrypted/key.pem",
+	PublicKeyPath:     "./certs/encrypted/public.pem",
+	EncryptSecretOld:  "12345678901234567890123456789012",
+	EncryptSecretNew:  "abcdefghijklmnopqrstuvwxyz123456",
+})
+if err != nil {
+	log.Fatal(err)
+}
+```
+
 `go-openssl generate` corresponde a campos de `goopenssl.Options`:
 
 | Flag CLI | Campo Go |
@@ -310,6 +355,7 @@ Helpers de lectura:
 - `ReadCertificateFile(path, secret)`
 - `ReadPrivateKeyFile(path, secret)`
 - `ReadPublicKeyFile(path, secret)`
+- `UpdateEncryptionSecret(options)`
 
 Los PEM planos pueden leerse con secreto vacio. Los PEM cifrados requieren el
 mismo secreto usado durante la generacion.

@@ -231,6 +231,7 @@ import (
 	jwtservice "github.com/PointerByte/GoForge/security/auth/jwt"
 	"github.com/PointerByte/GoForge/security/middlewares"
 	"github.com/gin-gonic/gin"
+	"github.com/spf13/viper"
 )
 
 type MyClaims struct {
@@ -240,13 +241,10 @@ type MyClaims struct {
 
 func main() {
 	router := gin.New()
-	hmacSecretKey := jwtservice.DefaultHMACSecretKey
+	viper.Set(jwtservice.DefaultAlgorithmKey, "HS256")
+	viper.Set(jwtservice.DefaultHMACSecretKey, "change-me")
 
 	router.Use(middlewares.RequireJWT(
-		middlewares.WithJWTServiceConfig(jwtservice.ConfigServiceInput{
-			Algorithm:     "HS256",
-			HMACSecretKey: &hmacSecretKey,
-		}),
 		middlewares.WithJWTClaimsFactory(func() any { return &MyClaims{} }),
 		middlewares.WithJWTValidator(func(ctx context.Context, token jwtservice.Token) error {
 			return nil
@@ -358,8 +356,8 @@ It reads `jwt.cookie.name` from viper and falls back to `access_token`.
 
 ## Custom Strategies
 
-Use `WithCustomStrategy` directly or override middleware service creation with
-`WithJWTServiceFactory`.
+Use `WithCustomStrategy` directly and pass the service to Gin middleware with
+`WithJWTService`.
 
 ```go
 service, err := jwtservice.New(
@@ -369,7 +367,9 @@ if err != nil {
 	panic(err)
 }
 
-_ = service
+router.Use(middlewares.RequireJWT(
+	middlewares.WithJWTService(service),
+))
 ```
 
 ## Security Headers

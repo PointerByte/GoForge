@@ -31,6 +31,12 @@ Read a plain or encrypted PEM file:
 go-openssl read --file ./certs/cert.pem
 ```
 
+Update the secret on existing encrypted PEM files:
+
+```bash
+go-openssl reencrypt [flags]
+```
+
 ## Generate Defaults
 
 When flags are omitted, generation uses:
@@ -84,6 +90,19 @@ encrypted, pass the matching secret with `--signed-by-secret` or
 | `--out` | `-o` | optional destination for decrypted PEM output |
 
 If `--out` is omitted, the command writes the PEM content to stdout.
+
+## Reencrypt Flags
+
+| Flag | Description |
+| --- | --- |
+| `--cert-file` | encrypted certificate PEM path |
+| `--key-file` | encrypted private key PEM path |
+| `--public-key-file` | encrypted public key PEM path |
+| `--encrypt-secret-old` | current secret used to decrypt the PEM files |
+| `--encrypt-secret-new` | new secret used to re-encrypt the PEM files |
+
+Both secrets must be at least 32 bytes. The command rewrites the same files and
+does not generate a new certificate or key pair.
 
 ## Basic Examples
 
@@ -197,6 +216,17 @@ go-openssl read \
   --out ./certs/encrypted/key.decrypted.pem
 ```
 
+Update encrypted PEM files to a new secret without regenerating certificates:
+
+```bash
+go-openssl reencrypt \
+  --cert-file ./certs/encrypted/cert.pem \
+  --key-file ./certs/encrypted/key.pem \
+  --public-key-file ./certs/encrypted/public.pem \
+  --encrypt-secret-old "12345678901234567890123456789012" \
+  --encrypt-secret-new "abcdefghijklmnopqrstuvwxyz123456"
+```
+
 Use an encrypted CA to sign another certificate:
 
 ```bash
@@ -280,6 +310,21 @@ func main() {
 }
 ```
 
+To update the secret on existing encrypted PEM files from Go:
+
+```go
+_, err := goopenssl.UpdateEncryptionSecret(goopenssl.UpdateEncryptionSecretOptions{
+	CertificatePath:   "./certs/encrypted/cert.pem",
+	PrivateKeyPath:    "./certs/encrypted/key.pem",
+	PublicKeyPath:     "./certs/encrypted/public.pem",
+	EncryptSecretOld:  "12345678901234567890123456789012",
+	EncryptSecretNew:  "abcdefghijklmnopqrstuvwxyz123456",
+})
+if err != nil {
+	log.Fatal(err)
+}
+```
+
 `go-openssl generate` maps to `goopenssl.Options` fields:
 
 | CLI flag | Go field |
@@ -310,6 +355,7 @@ Reader helpers:
 - `ReadCertificateFile(path, secret)`
 - `ReadPrivateKeyFile(path, secret)`
 - `ReadPublicKeyFile(path, secret)`
+- `UpdateEncryptionSecret(options)`
 
 Plain PEM files can be read with an empty secret. Encrypted PEM files require
 the same secret used during generation.

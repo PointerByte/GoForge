@@ -6,6 +6,7 @@ package encrypt
 type Repository struct {
 	SymmetricRepository
 	AsymmetricRepository
+	KeyRepository
 	SignatureRepository
 	HashRepository
 }
@@ -16,6 +17,7 @@ func NewRepository(input IRepository) *Repository {
 	return &Repository{
 		SymmetricRepository:  input,
 		AsymmetricRepository: input,
+		KeyRepository:        input,
 		SignatureRepository:  input,
 		HashRepository:       input,
 	}

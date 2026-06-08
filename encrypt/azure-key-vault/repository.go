@@ -4,7 +4,9 @@
 package azurekeyvault
 
 import (
+	"bytes"
 	"context"
+	"crypto/ecdh"
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
@@ -12,12 +14,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math/big"
+	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys"
 	"github.com/PointerByte/GoForge/encrypt/common"
@@ -35,12 +40,12 @@ const (
 	azureProviderName        = "azure-key-vault"
 	azureSymmetricKeyPrefix  = "GoForge-symmetric"
 	azureAsymmetricKeyPrefix = "GoForge-rsa"
+	azureECDHKeyPrefix       = "GoForge-ecdh"
 )
 
 var (
 	errAzureKeyIDRequired      = errors.New("azure-key-vault: key id is required")
 	errAzureVaultURLRequired   = errors.New("azure-key-vault: vault url is required")
-	errAzureECCUnsupported     = errors.New("azure-key-vault: ECC provider-backed encryption is not supported")
 	errAzureEd25519Unsupported = errors.New("azure-key-vault: Ed25519 provider-backed operations are not supported")
 	newAzureCredentialFn       = func(options *azidentity.DefaultAzureCredentialOptions) (azcore.TokenCredential, error) {
 		return azidentity.NewDefaultAzureCredential(options)
@@ -48,17 +53,35 @@ var (
 	newAzureClientFn = func(vaultURL string, credential azcore.TokenCredential) (azureKeysClient, error) {
 		return azkeys.NewClient(vaultURL, credential, nil)
 	}
+	newAzureECDHDeriverFn = func(ctx context.Context, vaultURL string) (azureECDHDeriver, error) {
+		credential, err := newAzureCredentialFn(nil)
+		if err != nil {
+			return nil, fmt.Errorf("azure-key-vault: create credential: %w", err)
+		}
+		return &httpAzureECDHDeriver{
+			credential: credential,
+			httpClient: http.DefaultClient,
+		}, nil
+	}
 )
 
 type azureKeysClient interface {
 	CreateKey(ctx context.Context, name string, parameters azkeys.CreateKeyParameters, options *azkeys.CreateKeyOptions) (azkeys.CreateKeyResponse, error)
 	Encrypt(ctx context.Context, name string, version string, parameters azkeys.KeyOperationParameters, options *azkeys.EncryptOptions) (azkeys.EncryptResponse, error)
 	Decrypt(ctx context.Context, name string, version string, parameters azkeys.KeyOperationParameters, options *azkeys.DecryptOptions) (azkeys.DecryptResponse, error)
+	GetKey(ctx context.Context, name string, version string, options *azkeys.GetKeyOptions) (azkeys.GetKeyResponse, error)
+	RotateKey(ctx context.Context, name string, options *azkeys.RotateKeyOptions) (azkeys.RotateKeyResponse, error)
+	UpdateKey(ctx context.Context, name string, version string, parameters azkeys.UpdateKeyParameters, options *azkeys.UpdateKeyOptions) (azkeys.UpdateKeyResponse, error)
 	Sign(ctx context.Context, name string, version string, parameters azkeys.SignParameters, options *azkeys.SignOptions) (azkeys.SignResponse, error)
 	Verify(ctx context.Context, name string, version string, parameters azkeys.VerifyParameters, options *azkeys.VerifyOptions) (azkeys.VerifyResponse, error)
 }
 
+type azureECDHDeriver interface {
+	DeriveSharedSecret(ctx context.Context, reference azureKeyReference, publicKeyDER []byte) ([]byte, error)
+}
+
 type symmetricRepository struct{ local local.SymmetricRepository }
+type keyRepository struct{}
 type hashRepository struct{ local local.HashRepository }
 type asymmetricRepository struct{ local local.AsymmetricRepository }
 type signatureRepository struct{ local local.SignatureRepository }
@@ -66,6 +89,7 @@ type signatureRepository struct{ local local.SignatureRepository }
 type Repository struct {
 	SymmetricRepository
 	AsymmetricRepository
+	KeyRepository
 	SignatureRepository
 	HashRepository
 }
@@ -83,12 +107,37 @@ type azureKeyReference struct {
 	KID      string
 }
 
+type azureECDHDeriveRequest struct {
+	Algorithm string           `json:"alg"`
+	Public    azureECJWKPublic `json:"public"`
+}
+
+type azureECJWKPublic struct {
+	KeyType string `json:"kty"`
+	Curve   string `json:"crv"`
+	X       string `json:"x"`
+	Y       string `json:"y"`
+}
+
+type azureECDHDeriveResponse struct {
+	Value string `json:"value"`
+}
+
+type httpAzureECDHDeriver struct {
+	credential azcore.TokenCredential
+	httpClient *http.Client
+}
+
 func NewSymmetricRepository() SymmetricRepository {
 	return &symmetricRepository{local: local.NewSymmetricRepository()}
 }
 
 func NewHashRepository() HashRepository {
 	return &hashRepository{local: local.NewHashRepository()}
+}
+
+func NewKeyRepository() KeyRepository {
+	return &keyRepository{}
 }
 
 func NewAsymmetricRepository() AsymmetricRepository {
@@ -103,14 +152,15 @@ func NewRepository() *Repository {
 	return &Repository{
 		SymmetricRepository:  NewSymmetricRepository(),
 		AsymmetricRepository: NewAsymmetricRepository(),
+		KeyRepository:        NewKeyRepository(),
 		SignatureRepository:  NewSignatureRepository(),
 		HashRepository:       NewHashRepository(),
 	}
 }
 
-func (repository *symmetricRepository) GenerateSymetrycKeys(ctx context.Context, size common.SizeSymetrycKey) (*models.KeyData, error) {
-	if size != common.Key256Bits {
-		return nil, fmt.Errorf("azure-key-vault: unsupported symmetric key size: %d", size)
+func (repository *symmetricRepository) GenerateSymetrycKeys(ctx context.Context, input models.GenerateSymmetricKeyRequest) (*models.KeyData, error) {
+	if input.Size != common.Key256Bits {
+		return nil, fmt.Errorf("azure-key-vault: unsupported symmetric key size: %d", input.Size)
 	}
 
 	client, vaultURL, err := newAzureKeysClient(ctx, "")
@@ -125,6 +175,7 @@ func (repository *symmetricRepository) GenerateSymetrycKeys(ctx context.Context,
 			ptr(azkeys.KeyOperationEncrypt),
 			ptr(azkeys.KeyOperationDecrypt),
 		},
+		Tags: azureUIDTags(input.UID),
 	}, nil)
 	if err != nil {
 		return nil, fmt.Errorf("azure-key-vault: create symmetric key: %w", err)
@@ -137,12 +188,99 @@ func (repository *symmetricRepository) GenerateSymetrycKeys(ctx context.Context,
 	return &models.KeyData{KeyID: keyID, KeyRef: keyRef, Provider: azureProviderName}, nil
 }
 
-func (repository *symmetricRepository) EncryptAES(ctx context.Context, secretKey, value string, additional *string) (string, error) {
-	if utilities.IsLocalAESKey(secretKey) {
-		return repository.local.EncryptAES(ctx, secretKey, value, additional)
+func (repository *keyRepository) RotateKey(ctx context.Context, input models.RotateKeyRequest) (*models.KeyData, error) {
+	reference, err := resolveAzureKeyLookupReference(input.KeyID)
+	if err != nil {
+		return nil, err
 	}
 
-	reference, err := resolveAzureKeyReference(secretKey)
+	client, _, err := newAzureKeysClient(ctx, reference.VaultURL)
+	if err != nil {
+		return nil, err
+	}
+
+	response, err := client.RotateKey(ctx, reference.Name, nil)
+	if err != nil {
+		return nil, fmt.Errorf("azure-key-vault: rotate key: %w", err)
+	}
+
+	keyData, err := azureKeyDataFromBundle(response.KeyBundle, reference.VaultURL, reference.Name)
+	if err != nil {
+		return nil, err
+	}
+	rotatedReference, err := resolveAzureKeyReference(keyData.KeyRef)
+	if err != nil {
+		return keyData, nil
+	}
+	getResponse, err := client.GetKey(ctx, rotatedReference.Name, rotatedReference.Version, nil)
+	if err != nil {
+		return nil, fmt.Errorf("azure-key-vault: get rotated key: %w", err)
+	}
+	return azureKeyDataFromBundle(getResponse.KeyBundle, rotatedReference.VaultURL, rotatedReference.Name)
+}
+
+func (repository *keyRepository) GetKey(ctx context.Context, input models.GetKeyRequest) (*models.KeyData, error) {
+	reference, err := resolveAzureKeyLookupReference(input.KeyID)
+	if err != nil {
+		return nil, err
+	}
+
+	client, _, err := newAzureKeysClient(ctx, reference.VaultURL)
+	if err != nil {
+		return nil, err
+	}
+
+	response, err := client.GetKey(ctx, reference.Name, reference.Version, nil)
+	if err != nil {
+		return nil, fmt.Errorf("azure-key-vault: get key: %w", err)
+	}
+	return azureKeyDataFromBundle(response.KeyBundle, reference.VaultURL, reference.Name)
+}
+
+func (repository *keyRepository) DeactivateKey(ctx context.Context, input models.DeactivateKeyRequest) error {
+	reference, err := resolveAzureKeyLookupReference(input.KeyID)
+	if err != nil {
+		return err
+	}
+
+	client, _, err := newAzureKeysClient(ctx, reference.VaultURL)
+	if err != nil {
+		return err
+	}
+
+	if reference.Version == "" {
+		getResponse, err := client.GetKey(ctx, reference.Name, "", nil)
+		if err != nil {
+			return fmt.Errorf("azure-key-vault: get key before deactivation: %w", err)
+		}
+		keyData, err := azureKeyDataFromBundle(getResponse.KeyBundle, reference.VaultURL, reference.Name)
+		if err != nil {
+			return err
+		}
+		latestReference, err := resolveAzureKeyReference(keyData.KeyRef)
+		if err != nil {
+			return err
+		}
+		reference = latestReference
+	}
+
+	enabled := false
+	if _, err := client.UpdateKey(ctx, reference.Name, reference.Version, azkeys.UpdateKeyParameters{
+		KeyAttributes: &azkeys.KeyAttributes{
+			Enabled: &enabled,
+		},
+	}, nil); err != nil {
+		return fmt.Errorf("azure-key-vault: deactivate key: %w", err)
+	}
+	return nil
+}
+
+func (repository *symmetricRepository) EncryptAES(ctx context.Context, input models.EncryptAESRequest) (string, error) {
+	if utilities.IsLocalAESKey(input.SecretKey) {
+		return repository.local.EncryptAES(ctx, input)
+	}
+
+	reference, err := resolveAzureKeyReference(input.SecretKey)
 	if err != nil {
 		return "", err
 	}
@@ -153,8 +291,8 @@ func (repository *symmetricRepository) EncryptAES(ctx context.Context, secretKey
 
 	response, err := client.Encrypt(ctx, reference.Name, reference.Version, azkeys.KeyOperationParameters{
 		Algorithm:                   ptr(azkeys.EncryptionAlgorithmA256GCM),
-		Value:                       []byte(value),
-		AdditionalAuthenticatedData: utilities.BytesFromOptionalString(additional),
+		Value:                       []byte(input.Value),
+		AdditionalAuthenticatedData: azureAuthenticatedData(input.UID, input.Additional),
 	}, nil)
 	if err != nil {
 		return "", fmt.Errorf("azure-key-vault: encrypt with symmetric key: %w", err)
@@ -171,12 +309,12 @@ func (repository *symmetricRepository) EncryptAES(ctx context.Context, secretKey
 	return base64.StdEncoding.EncodeToString(payloadBytes), nil
 }
 
-func (repository *symmetricRepository) DecryptAES(ctx context.Context, secretKey, cipherValue string, additional *string) (string, error) {
-	if utilities.IsLocalAESKey(secretKey) {
-		return repository.local.DecryptAES(ctx, secretKey, cipherValue, additional)
+func (repository *symmetricRepository) DecryptAES(ctx context.Context, input models.DecryptAESRequest) (string, error) {
+	if utilities.IsLocalAESKey(input.SecretKey) {
+		return repository.local.DecryptAES(ctx, input)
 	}
 
-	reference, err := resolveAzureKeyReference(secretKey)
+	reference, err := resolveAzureKeyReference(input.SecretKey)
 	if err != nil {
 		return "", err
 	}
@@ -185,7 +323,7 @@ func (repository *symmetricRepository) DecryptAES(ctx context.Context, secretKey
 		return "", err
 	}
 
-	payloadBytes, err := base64.StdEncoding.DecodeString(cipherValue)
+	payloadBytes, err := base64.StdEncoding.DecodeString(input.CipherValue)
 	if err != nil {
 		return "", fmt.Errorf("azure-key-vault: decode ciphertext payload: %w", err)
 	}
@@ -212,7 +350,7 @@ func (repository *symmetricRepository) DecryptAES(ctx context.Context, secretKey
 		Value:                       resultBytes,
 		IV:                          ivBytes,
 		AuthenticationTag:           tagBytes,
-		AdditionalAuthenticatedData: utilities.BytesFromOptionalString(additional),
+		AdditionalAuthenticatedData: azureAuthenticatedData(input.UID, input.Additional),
 	}, nil)
 	if err != nil {
 		return "", fmt.Errorf("azure-key-vault: decrypt with symmetric key: %w", err)
@@ -252,8 +390,124 @@ func (repository *hashRepository) Blake3(ctx context.Context, message string) st
 	return repository.local.Blake3(ctx, message)
 }
 
-func (repository *asymmetricRepository) GenerateRSAKeys(ctx context.Context, size common.SizeAsymetrycKey) (*models.KeyData, error) {
-	keySize, err := azureRSAKeySize(size)
+func (repository *asymmetricRepository) GenerateECDHCurveKeys(ctx context.Context, input models.GenerateECDHCurveKeyRequest) (*models.KeyData, error) {
+	azureCurve, err := azureECDHCurveName(input.Curve)
+	if err != nil {
+		return nil, err
+	}
+
+	client, vaultURL, err := newAzureKeysClient(ctx, "")
+	if err != nil {
+		return nil, err
+	}
+
+	keyName := fmt.Sprintf("%s-%d", azureECDHKeyPrefix, time.Now().UnixNano())
+	response, err := client.CreateKey(ctx, keyName, azkeys.CreateKeyParameters{
+		Kty:   ptr(azkeys.KeyTypeEC),
+		Curve: ptr(azureCurve),
+		KeyOps: []*azkeys.KeyOperation{
+			ptr(azkeys.KeyOperation("deriveKey")),
+		},
+		Tags: azureUIDTags(input.UID),
+	}, nil)
+	if err != nil {
+		return nil, fmt.Errorf("azure-key-vault: create ecdh key: %w", err)
+	}
+
+	publicKey, err := ecdhPublicKeyFromAzureBundle(response.KeyBundle)
+	if err != nil {
+		return nil, err
+	}
+	publicDER, err := x509.MarshalPKIXPublicKey(publicKey)
+	if err != nil {
+		return nil, fmt.Errorf("azure-key-vault: marshal ecdh public key: %w", err)
+	}
+
+	keyID, keyRef, err := azureMetadataFromBundle(response.KeyBundle, vaultURL, keyName)
+	if err != nil {
+		return nil, err
+	}
+	return &models.KeyData{
+		PublicKey: base64.StdEncoding.EncodeToString(publicDER),
+		KeyID:     keyID,
+		KeyRef:    keyRef,
+		Provider:  azureProviderName,
+	}, nil
+}
+
+func (repository *asymmetricRepository) ECDH_Encode(ctx context.Context, input models.ECDHEncodeRequest) (string, error) {
+	if _, err := utilities.ParseECDHPublicKeyFromBase64(input.PublicKey); err == nil {
+		return repository.local.ECDH_Encode(ctx, input)
+	}
+
+	reference, err := resolveAzureKeyReference(input.PublicKey)
+	if err != nil {
+		return "", err
+	}
+	client, _, err := newAzureKeysClient(ctx, reference.VaultURL)
+	if err != nil {
+		return "", err
+	}
+
+	response, err := client.GetKey(ctx, reference.Name, reference.Version, nil)
+	if err != nil {
+		return "", fmt.Errorf("azure-key-vault: get ecdh public key: %w", err)
+	}
+	recipientPublicKey, err := ecdhPublicKeyFromAzureBundle(response.KeyBundle)
+	if err != nil {
+		return "", err
+	}
+	publicDER, err := x509.MarshalPKIXPublicKey(recipientPublicKey)
+	if err != nil {
+		return "", fmt.Errorf("azure-key-vault: marshal ecdh public key: %w", err)
+	}
+	return repository.local.ECDH_Encode(ctx, models.ECDHEncodeRequest{
+		UID:       input.UID,
+		PublicKey: base64.StdEncoding.EncodeToString(publicDER),
+		Text:      input.Text,
+	})
+}
+
+func (repository *asymmetricRepository) ECDH_Decode(ctx context.Context, input models.ECDHDecodeRequest) (string, error) {
+	if _, err := utilities.ParseECDHPrivateKeyFromBase64(input.PrivateKey); err == nil {
+		return repository.local.ECDH_Decode(ctx, input)
+	}
+
+	reference, err := resolveAzureKeyReference(input.PrivateKey)
+	if err != nil {
+		return "", err
+	}
+	payload, err := utilities.DecodeECCCipherPayload(input.CipherText)
+	if err != nil {
+		return "", err
+	}
+	ephemeralPublicKeyDER, err := base64.StdEncoding.DecodeString(payload.EphemeralPublicKey)
+	if err != nil {
+		return "", fmt.Errorf("azure-key-vault: decode ephemeral public key: %w", err)
+	}
+
+	deriver, err := newAzureECDHDeriverFn(ctx, reference.VaultURL)
+	if err != nil {
+		return "", err
+	}
+	sharedSecret, err := deriver.DeriveSharedSecret(ctx, *reference, ephemeralPublicKeyDER)
+	if err != nil {
+		return "", fmt.Errorf("azure-key-vault: derive shared secret: %w", err)
+	}
+	derivedKey, err := utilities.DeriveECCAESKey(sharedSecret, payload.Curve)
+	if err != nil {
+		return "", err
+	}
+	return local.NewSymmetricRepository().DecryptAES(ctx, models.DecryptAESRequest{
+		UID:         input.UID,
+		SecretKey:   base64.StdEncoding.EncodeToString(derivedKey),
+		CipherValue: payload.Ciphertext,
+		Additional:  &payload.Curve,
+	})
+}
+
+func (repository *asymmetricRepository) GenerateRSAKeys(ctx context.Context, input models.GenerateRSAKeyRequest) (*models.KeyData, error) {
+	keySize, err := azureRSAKeySize(input.Size)
 	if err != nil {
 		return nil, err
 	}
@@ -273,6 +527,7 @@ func (repository *asymmetricRepository) GenerateRSAKeys(ctx context.Context, siz
 			ptr(azkeys.KeyOperationSign),
 			ptr(azkeys.KeyOperationVerify),
 		},
+		Tags: azureUIDTags(input.UID),
 	}, nil)
 	if err != nil {
 		return nil, fmt.Errorf("azure-key-vault: create rsa key: %w", err)
@@ -299,23 +554,12 @@ func (repository *asymmetricRepository) GenerateRSAKeys(ctx context.Context, siz
 	}, nil
 }
 
-func (repository *asymmetricRepository) GenerateECCKeys(ctx context.Context, curve common.CurveAsymmetricKey) (*models.KeyData, error) {
-	_ = curve
-	if ctx == nil {
-		return nil, errors.New("context is nil")
-	}
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	return nil, errAzureECCUnsupported
-}
-
-func (repository *asymmetricRepository) RSA_OAEP_Encode(ctx context.Context, publicKey, text string) (string, error) {
-	if _, err := utilities.ParseRSAPublicKeyFromBase64(publicKey); err == nil {
-		return repository.local.RSA_OAEP_Encode(ctx, publicKey, text)
+func (repository *asymmetricRepository) RSA_OAEP_Encode(ctx context.Context, input models.RSAOAEPEncodeRequest) (string, error) {
+	if _, err := utilities.ParseRSAPublicKeyFromBase64(input.PublicKey); err == nil {
+		return repository.local.RSA_OAEP_Encode(ctx, input)
 	}
 
-	reference, err := resolveAzureKeyReference(publicKey)
+	reference, err := resolveAzureKeyReference(input.PublicKey)
 	if err != nil {
 		return "", err
 	}
@@ -326,7 +570,7 @@ func (repository *asymmetricRepository) RSA_OAEP_Encode(ctx context.Context, pub
 
 	response, err := client.Encrypt(ctx, reference.Name, reference.Version, azkeys.KeyOperationParameters{
 		Algorithm: ptr(azkeys.EncryptionAlgorithmRSAOAEP256),
-		Value:     []byte(text),
+		Value:     []byte(input.Text),
 	}, nil)
 	if err != nil {
 		return "", fmt.Errorf("azure-key-vault: encrypt with rsa-oaep-256: %w", err)
@@ -334,12 +578,12 @@ func (repository *asymmetricRepository) RSA_OAEP_Encode(ctx context.Context, pub
 	return base64.StdEncoding.EncodeToString(response.Result), nil
 }
 
-func (repository *asymmetricRepository) RSA_OAEP_Decode(ctx context.Context, privateKey, cipherText string) (string, error) {
-	if _, err := utilities.ParseRSAPrivateKeyFromBase64(privateKey); err == nil {
-		return repository.local.RSA_OAEP_Decode(ctx, privateKey, cipherText)
+func (repository *asymmetricRepository) RSA_OAEP_Decode(ctx context.Context, input models.RSAOAEPDecodeRequest) (string, error) {
+	if _, err := utilities.ParseRSAPrivateKeyFromBase64(input.PrivateKey); err == nil {
+		return repository.local.RSA_OAEP_Decode(ctx, input)
 	}
 
-	reference, err := resolveAzureKeyReference(privateKey)
+	reference, err := resolveAzureKeyReference(input.PrivateKey)
 	if err != nil {
 		return "", err
 	}
@@ -348,7 +592,7 @@ func (repository *asymmetricRepository) RSA_OAEP_Decode(ctx context.Context, pri
 		return "", err
 	}
 
-	cipherBytes, err := base64.StdEncoding.DecodeString(cipherText)
+	cipherBytes, err := base64.StdEncoding.DecodeString(input.CipherText)
 	if err != nil {
 		return "", fmt.Errorf("azure-key-vault: decode ciphertext: %w", err)
 	}
@@ -360,20 +604,6 @@ func (repository *asymmetricRepository) RSA_OAEP_Decode(ctx context.Context, pri
 		return "", fmt.Errorf("azure-key-vault: decrypt with rsa-oaep-256: %w", err)
 	}
 	return string(response.Result), nil
-}
-
-func (repository *asymmetricRepository) ECDH_Encode(ctx context.Context, publicKey, text string) (string, error) {
-	if _, err := utilities.ParseECDHPublicKeyFromBase64(publicKey); err == nil {
-		return repository.local.ECDH_Encode(ctx, publicKey, text)
-	}
-	return "", errAzureECCUnsupported
-}
-
-func (repository *asymmetricRepository) ECDH_Decode(ctx context.Context, privateKey, cipherText string) (string, error) {
-	if _, err := utilities.ParseECDHPrivateKeyFromBase64(privateKey); err == nil {
-		return repository.local.ECDH_Decode(ctx, privateKey, cipherText)
-	}
-	return "", errAzureECCUnsupported
 }
 
 func (repository *signatureRepository) GenerateEd255Keys(ctx context.Context) (*models.KeyData, error) {
@@ -570,6 +800,24 @@ func resolveAzureKeyReference(key string) (*azureKeyReference, error) {
 	return reference, nil
 }
 
+func resolveAzureKeyLookupReference(key string) (*azureKeyReference, error) {
+	rawKey := strings.TrimSpace(key)
+	if rawKey == "" || strings.HasPrefix(rawKey, "https://") {
+		return resolveAzureKeyReference(rawKey)
+	}
+
+	vaultURL, err := resolveAzureVaultURL()
+	if err != nil {
+		return nil, err
+	}
+	keyRef := strings.TrimRight(vaultURL, "/") + "/keys/" + url.PathEscape(rawKey)
+	return &azureKeyReference{
+		VaultURL: vaultURL,
+		Name:     rawKey,
+		KID:      keyRef,
+	}, nil
+}
+
 func resolveAzureVaultURL() (string, error) {
 	if configured := strings.TrimSpace(viper.GetString(defaultAzureVaultURLKey)); configured != "" {
 		return configured, nil
@@ -605,6 +853,19 @@ func azureRSAKeySize(size common.SizeAsymetrycKey) (int, error) {
 	}
 }
 
+func azureECDHCurveName(curve common.CurveAsymmetricKey) (azkeys.CurveName, error) {
+	switch curve {
+	case common.CurveP256:
+		return azkeys.CurveNameP256, nil
+	case common.CurveP384:
+		return azkeys.CurveNameP384, nil
+	case common.CurveP521:
+		return azkeys.CurveNameP521, nil
+	default:
+		return "", fmt.Errorf("azure-key-vault: unsupported ecdh curve: %q", curve)
+	}
+}
+
 func azureMetadataFromBundle(bundle azkeys.KeyBundle, vaultURL, keyName string) (string, string, error) {
 	if bundle.Key != nil && bundle.Key.KID != nil {
 		keyRef := string(*bundle.Key.KID)
@@ -615,6 +876,224 @@ func azureMetadataFromBundle(bundle azkeys.KeyBundle, vaultURL, keyName string) 
 	}
 	keyRef := strings.TrimRight(vaultURL, "/") + "/keys/" + keyName
 	return keyName, keyRef, nil
+}
+
+func azureKeyDataFromBundle(bundle azkeys.KeyBundle, vaultURL, keyName string) (*models.KeyData, error) {
+	keyID, keyRef, err := azureMetadataFromBundle(bundle, vaultURL, keyName)
+	if err != nil {
+		return nil, err
+	}
+
+	keyData := &models.KeyData{
+		KeyID:    keyID,
+		KeyRef:   keyRef,
+		Provider: azureProviderName,
+	}
+	if bundle.Key == nil {
+		return keyData, nil
+	}
+
+	switch {
+	case azureBundleHasRSAKey(bundle):
+		publicKey, err := rsaPublicKeyFromAzureBundle(bundle)
+		if err != nil {
+			return nil, err
+		}
+		publicDER, err := x509.MarshalPKIXPublicKey(publicKey)
+		if err != nil {
+			return nil, fmt.Errorf("azure-key-vault: marshal public key: %w", err)
+		}
+		keyData.PublicKey = base64.StdEncoding.EncodeToString(publicDER)
+	case azureBundleHasECKey(bundle):
+		publicKey, err := ecdhPublicKeyFromAzureBundle(bundle)
+		if err != nil {
+			return nil, err
+		}
+		publicDER, err := x509.MarshalPKIXPublicKey(publicKey)
+		if err != nil {
+			return nil, fmt.Errorf("azure-key-vault: marshal ecdh public key: %w", err)
+		}
+		keyData.PublicKey = base64.StdEncoding.EncodeToString(publicDER)
+	}
+	return keyData, nil
+}
+
+func azureBundleHasRSAKey(bundle azkeys.KeyBundle) bool {
+	if bundle.Key == nil {
+		return false
+	}
+	if bundle.Key.Kty != nil && (*bundle.Key.Kty == azkeys.KeyTypeRSA || *bundle.Key.Kty == azkeys.KeyTypeRSAHSM) {
+		return true
+	}
+	return len(bundle.Key.N) > 0 || len(bundle.Key.E) > 0
+}
+
+func azureBundleHasECKey(bundle azkeys.KeyBundle) bool {
+	if bundle.Key == nil {
+		return false
+	}
+	if bundle.Key.Kty != nil && (*bundle.Key.Kty == azkeys.KeyTypeEC || *bundle.Key.Kty == azkeys.KeyTypeECHSM) {
+		return true
+	}
+	return bundle.Key.Crv != nil || len(bundle.Key.X) > 0 || len(bundle.Key.Y) > 0
+}
+
+func ecdhPublicKeyFromAzureBundle(bundle azkeys.KeyBundle) (*ecdh.PublicKey, error) {
+	if bundle.Key == nil || bundle.Key.Crv == nil || len(bundle.Key.X) == 0 || len(bundle.Key.Y) == 0 {
+		return nil, errors.New("azure-key-vault: missing ecdh public key material")
+	}
+
+	curve, coordinateSize, err := ecdhCurveFromAzureName(*bundle.Key.Crv)
+	if err != nil {
+		return nil, err
+	}
+
+	x, err := leftPadCoordinate(bundle.Key.X, coordinateSize)
+	if err != nil {
+		return nil, fmt.Errorf("azure-key-vault: invalid ecdh public key x coordinate: %w", err)
+	}
+	y, err := leftPadCoordinate(bundle.Key.Y, coordinateSize)
+	if err != nil {
+		return nil, fmt.Errorf("azure-key-vault: invalid ecdh public key y coordinate: %w", err)
+	}
+
+	sec1 := make([]byte, 1+len(x)+len(y))
+	sec1[0] = 0x04
+	copy(sec1[1:], x)
+	copy(sec1[1+len(x):], y)
+
+	publicKey, err := curve.NewPublicKey(sec1)
+	if err != nil {
+		return nil, fmt.Errorf("azure-key-vault: parse ecdh public key: %w", err)
+	}
+	return publicKey, nil
+}
+
+func azureECJWKFromPublicKeyDER(publicKeyDER []byte) (*azureECJWKPublic, error) {
+	publicKeyAny, err := x509.ParsePKIXPublicKey(publicKeyDER)
+	if err != nil {
+		return nil, fmt.Errorf("parse ecdh public key: %w", err)
+	}
+
+	publicKey, ok := publicKeyAny.(*ecdh.PublicKey)
+	if !ok {
+		return nil, errors.New("public key is not an ECDH key")
+	}
+
+	curveName, coordinateSize, err := azureCurveNameFromECDH(publicKey.Curve())
+	if err != nil {
+		return nil, err
+	}
+	publicKeyBytes := publicKey.Bytes()
+	if len(publicKeyBytes) != 1+2*coordinateSize || publicKeyBytes[0] != 0x04 {
+		return nil, errors.New("invalid ECDH public key encoding")
+	}
+
+	return &azureECJWKPublic{
+		KeyType: string(azkeys.KeyTypeEC),
+		Curve:   string(curveName),
+		X:       base64.RawURLEncoding.EncodeToString(publicKeyBytes[1 : 1+coordinateSize]),
+		Y:       base64.RawURLEncoding.EncodeToString(publicKeyBytes[1+coordinateSize:]),
+	}, nil
+}
+
+func ecdhCurveFromAzureName(curve azkeys.CurveName) (ecdh.Curve, int, error) {
+	switch curve {
+	case azkeys.CurveNameP256:
+		return ecdh.P256(), 32, nil
+	case azkeys.CurveNameP384:
+		return ecdh.P384(), 48, nil
+	case azkeys.CurveNameP521:
+		return ecdh.P521(), 66, nil
+	default:
+		return nil, 0, fmt.Errorf("azure-key-vault: unsupported ecdh curve: %q", curve)
+	}
+}
+
+func azureCurveNameFromECDH(curve ecdh.Curve) (azkeys.CurveName, int, error) {
+	switch curve {
+	case ecdh.P256():
+		return azkeys.CurveNameP256, 32, nil
+	case ecdh.P384():
+		return azkeys.CurveNameP384, 48, nil
+	case ecdh.P521():
+		return azkeys.CurveNameP521, 66, nil
+	default:
+		return "", 0, errors.New("unsupported ECDH curve")
+	}
+}
+
+func leftPadCoordinate(coordinate []byte, size int) ([]byte, error) {
+	if len(coordinate) > size {
+		return nil, fmt.Errorf("coordinate has %d bytes, max %d", len(coordinate), size)
+	}
+	padded := make([]byte, size)
+	copy(padded[size-len(coordinate):], coordinate)
+	return padded, nil
+}
+
+func (deriver *httpAzureECDHDeriver) DeriveSharedSecret(ctx context.Context, reference azureKeyReference, publicKeyDER []byte) ([]byte, error) {
+	publicKey, err := azureECJWKFromPublicKeyDER(publicKeyDER)
+	if err != nil {
+		return nil, err
+	}
+	requestBody, err := json.Marshal(azureECDHDeriveRequest{
+		Algorithm: "ECDH",
+		Public:    *publicKey,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("encode derivekey request: %w", err)
+	}
+
+	deriveURL := strings.TrimRight(reference.VaultURL, "/") + "/keys/" + url.PathEscape(reference.Name) + "/" + url.PathEscape(reference.Version) + "/derivekey?api-version=7.6"
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, deriveURL, bytes.NewReader(requestBody))
+	if err != nil {
+		return nil, err
+	}
+	request.Header.Set("Accept", "application/json")
+	request.Header.Set("Content-Type", "application/json")
+
+	token, err := deriver.credential.GetToken(ctx, policy.TokenRequestOptions{
+		Scopes: []string{"https://vault.azure.net/.default"},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("get access token: %w", err)
+	}
+	request.Header.Set("Authorization", "Bearer "+token.Token)
+
+	response, err := deriver.httpClient.Do(request)
+	if err != nil {
+		return nil, err
+	}
+	defer response.Body.Close()
+
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read derivekey response: %w", err)
+	}
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		return nil, fmt.Errorf("derivekey returned status %d: %s", response.StatusCode, strings.TrimSpace(string(body)))
+	}
+
+	var result azureECDHDeriveResponse
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, fmt.Errorf("decode derivekey response: %w", err)
+	}
+	if strings.TrimSpace(result.Value) == "" {
+		return nil, errors.New("derivekey response missing shared secret")
+	}
+	sharedSecret, err := decodeAzureBase64URL(result.Value)
+	if err != nil {
+		return nil, fmt.Errorf("decode derivekey shared secret: %w", err)
+	}
+	return sharedSecret, nil
+}
+
+func decodeAzureBase64URL(value string) ([]byte, error) {
+	if decoded, err := base64.RawURLEncoding.DecodeString(value); err == nil {
+		return decoded, nil
+	}
+	return base64.URLEncoding.DecodeString(value)
 }
 
 func rsaPublicKeyFromAzureBundle(bundle azkeys.KeyBundle) (*rsa.PublicKey, error) {
@@ -633,6 +1112,23 @@ func looksLikeAzureKeyReference(key string) bool {
 		return configuredAzureKeyID() != ""
 	}
 	return strings.HasPrefix(trimmed, "https://") && strings.Contains(trimmed, "/keys/")
+}
+
+func azureUIDTags(uid string) map[string]*string {
+	if strings.TrimSpace(uid) == "" {
+		return nil
+	}
+	return map[string]*string{"uid": ptr(uid)}
+}
+
+func azureAuthenticatedData(uid string, additional *string) []byte {
+	if strings.TrimSpace(uid) == "" {
+		return utilities.BytesFromOptionalString(additional)
+	}
+	if additional == nil {
+		return []byte(uid)
+	}
+	return []byte(uid + "\x00" + *additional)
 }
 
 func boolValue(value *bool) bool {

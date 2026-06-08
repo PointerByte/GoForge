@@ -29,18 +29,17 @@ func TestRequireJWTAllowsRequestWithValidBearerToken(t *testing.T) {
 	configureMiddlewareJWT()
 	defer viper.Reset()
 
-	service, err := jwtservice.NewConfiguredService(jwtservice.ConfigServiceInput{
-		Validator: func(ctx context.Context, token jwtservice.Token) error {
-			var claims jwtClaims
-			if err := json.Unmarshal(token.Claims, &claims); err != nil {
-				return err
-			}
-			if claims.Role != "admin" {
-				return errors.New("role not allowed")
-			}
-			return nil
-		},
+	validator := jwtservice.Validator(func(ctx context.Context, token jwtservice.Token) error {
+		var claims jwtClaims
+		if err := json.Unmarshal(token.Claims, &claims); err != nil {
+			return err
+		}
+		if claims.Role != "admin" {
+			return errors.New("role not allowed")
+		}
+		return nil
 	})
+	service, err := jwtservice.NewConfiguredService(&validator)
 	if err != nil {
 		t.Fatalf("expected jwt service without error, got %v", err)
 	}
@@ -54,17 +53,15 @@ func TestRequireJWTAllowsRequestWithValidBearerToken(t *testing.T) {
 	nextCalled := false
 	router.Use(RequireJWT(
 		WithJWTClaimsFactory(func() any { return &jwtClaims{} }),
-		WithJWTServiceConfig(jwtservice.ConfigServiceInput{
-			Validator: func(ctx context.Context, token jwtservice.Token) error {
-				var claims jwtClaims
-				if err := json.Unmarshal(token.Claims, &claims); err != nil {
-					return err
-				}
-				if claims.Role != "admin" {
-					return errors.New("role not allowed")
-				}
-				return nil
-			},
+		WithJWTValidator(func(ctx context.Context, token jwtservice.Token) error {
+			var claims jwtClaims
+			if err := json.Unmarshal(token.Claims, &claims); err != nil {
+				return err
+			}
+			if claims.Role != "admin" {
+				return errors.New("role not allowed")
+			}
+			return nil
 		}),
 	))
 	router.GET("/private", func(c *gin.Context) {
@@ -138,7 +135,7 @@ func TestRequireJWTRejectsInvalidSignature(t *testing.T) {
 	configureMiddlewareJWT()
 	defer viper.Reset()
 
-	service, err := jwtservice.NewConfiguredService(jwtservice.ConfigServiceInput{})
+	service, err := jwtservice.NewConfiguredService(nil)
 	if err != nil {
 		t.Fatalf("expected jwt service without error, got %v", err)
 	}
@@ -179,7 +176,7 @@ func TestRequireJWTWithDefaultClaimsMapAndCustomContextKeys(t *testing.T) {
 	configureMiddlewareJWT()
 	defer viper.Reset()
 
-	service, err := jwtservice.NewConfiguredService(jwtservice.ConfigServiceInput{})
+	service, err := jwtservice.NewConfiguredService(nil)
 	if err != nil {
 		t.Fatalf("expected jwt service without error, got %v", err)
 	}
@@ -320,7 +317,6 @@ func TestJWTMiddlewareOptionNilHandlersDoNotOverrideDefaults(t *testing.T) {
 	config := jwtMiddlewareConfig{
 		tokenContextKey:     JWTTokenContextKey,
 		claimsContextKey:    JWTClaimsContextKey,
-		serviceFactory:      jwtservice.NewConfiguredService,
 		unauthorizedHandler: func(*gin.Context, error) {},
 	}
 
@@ -340,9 +336,15 @@ func TestJWTMiddlewareOptionNilHandlersDoNotOverrideDefaults(t *testing.T) {
 		t.Fatal("expected unauthorized handler to remain unchanged")
 	}
 
-	WithJWTServiceConfig(jwtservice.ConfigServiceInput{Algorithm: "HS256"})(&config)
-	if config.serviceConfig.Algorithm != "HS256" {
-		t.Fatal("expected service config to be updated")
+	service := &jwtservice.Service{}
+	WithJWTService(service)(&config)
+	if config.service != service {
+		t.Fatal("expected service to be updated")
+	}
+
+	WithJWTService(nil)(&config)
+	if config.service != service {
+		t.Fatal("expected nil service not to override existing service")
 	}
 }
 

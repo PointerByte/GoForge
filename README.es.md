@@ -102,9 +102,17 @@ Dentro del directorio de configuracion resuelto, busca estos archivos en orden:
 2. `application.yaml`
 3. `application.json`
 
-Despues de leer el archivo de aplicacion, mezcla `.env` y `.env.local` desde el
-mismo directorio resuelto y habilita variables de entorno. Los overrides por
-entorno se generan desde la ruta de claves ya existente en la configuracion.
+Despues de leer el archivo de aplicacion, mezcla los archivos de entorno
+declarados en `env.files`. Las rutas relativas se resuelven desde el mismo
+directorio del archivo de aplicacion seleccionado. Los overrides por entorno se
+generan desde la ruta de claves ya existente en la configuracion.
+
+```yaml
+env:
+  files:
+    - .env
+    - .env.local
+```
 
 Esto mantiene archivos locales, variables de despliegue y defaults del
 framework en la misma instancia de `viper`, para que Gin y gRPC se comporten de

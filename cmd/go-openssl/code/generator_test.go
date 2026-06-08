@@ -15,7 +15,10 @@ import (
 	"testing"
 )
 
-const testEncryptionSecret = "12345678901234567890123456789012"
+const (
+	testEncryptionSecret    = "12345678901234567890123456789012"
+	testEncryptionSecretNew = "abcdefghijklmnopqrstuvwxyz123456"
+)
 
 func TestGenerateCertificatesByAlgorithm(t *testing.T) {
 	tests := []struct {
@@ -206,6 +209,54 @@ func TestGenerateEncryptedCertificates(t *testing.T) {
 	}
 }
 
+func TestUpdateEncryptionSecret(t *testing.T) {
+	outputDir := filepath.Join(t.TempDir(), "certs")
+	result, err := GenerateCertificates(Options{
+		Algorithm:     algorithmRSA,
+		OutputDir:     outputDir,
+		CommonName:    "localhost",
+		ValidForDays:  10,
+		EncryptSecret: testEncryptionSecret,
+	})
+	if err != nil {
+		t.Fatalf("GenerateCertificates encrypted returned error: %v", err)
+	}
+
+	updateResult, err := UpdateEncryptionSecret(UpdateEncryptionSecretOptions{
+		CertificatePath:  result.CertificatePath,
+		PrivateKeyPath:   result.PrivateKeyPath,
+		PublicKeyPath:    result.PublicKeyPath,
+		EncryptSecretOld: testEncryptionSecret,
+		EncryptSecretNew: testEncryptionSecretNew,
+	})
+	if err != nil {
+		t.Fatalf("UpdateEncryptionSecret returned error: %v", err)
+	}
+	if updateResult.CertificatePath != result.CertificatePath ||
+		updateResult.PrivateKeyPath != result.PrivateKeyPath ||
+		updateResult.PublicKeyPath != result.PublicKeyPath {
+		t.Fatalf("unexpected update result: %#v", updateResult)
+	}
+
+	if _, err := ReadPEMFile(result.CertificatePath, testEncryptionSecret); err == nil {
+		t.Fatal("expected old secret to fail after update")
+	}
+
+	certificate, err := ReadCertificateFile(result.CertificatePath, testEncryptionSecretNew)
+	if err != nil {
+		t.Fatalf("ReadCertificateFile with new secret returned error: %v", err)
+	}
+	if certificate.Subject.CommonName != "localhost" {
+		t.Fatalf("expected common name localhost, got %q", certificate.Subject.CommonName)
+	}
+	if _, err := ReadPrivateKeyFile(result.PrivateKeyPath, testEncryptionSecretNew); err != nil {
+		t.Fatalf("ReadPrivateKeyFile with new secret returned error: %v", err)
+	}
+	if _, err := ReadPublicKeyFile(result.PublicKeyPath, testEncryptionSecretNew); err != nil {
+		t.Fatalf("ReadPublicKeyFile with new secret returned error: %v", err)
+	}
+}
+
 func TestGenerateCertificatesSignedByEncryptedCA(t *testing.T) {
 	outputDir := filepath.Join(t.TempDir(), "certs")
 	caResult, err := GenerateCertificates(Options{
@@ -290,6 +341,26 @@ func TestGenerateCertificatesErrors(t *testing.T) {
 		EncryptSecret: "short",
 	}); err == nil {
 		t.Fatal("expected short encryption secret error")
+	}
+
+	if _, err := UpdateEncryptionSecret(UpdateEncryptionSecretOptions{
+		CertificatePath:  "cert.pem",
+		PrivateKeyPath:   "key.pem",
+		PublicKeyPath:    "public.pem",
+		EncryptSecretOld: testEncryptionSecret,
+		EncryptSecretNew: testEncryptionSecret,
+	}); err == nil {
+		t.Fatal("expected same encryption secret error")
+	}
+
+	if _, err := UpdateEncryptionSecret(UpdateEncryptionSecretOptions{
+		CertificatePath:  "cert.pem",
+		PrivateKeyPath:   "key.pem",
+		PublicKeyPath:    "public.pem",
+		EncryptSecretOld: "",
+		EncryptSecretNew: testEncryptionSecretNew,
+	}); err == nil {
+		t.Fatal("expected missing old encryption secret error")
 	}
 }
 

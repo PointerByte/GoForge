@@ -28,10 +28,7 @@ func TestRequireJWTCookieAllowsRequestWithValidCookie(t *testing.T) {
 	configureMiddlewareJWTCookie()
 	defer viper.Reset()
 
-	service, err := jwtservice.NewConfiguredService(jwtservice.ConfigServiceInput{
-		Algorithm:     "HS256",
-		HMACSecretKey: stringPtr("COOKIE_MIDDLEWARE_SECRET"),
-	})
+	service, err := jwtservice.NewConfiguredService(nil)
 	if err != nil {
 		t.Fatalf("expected jwt service without error, got %v", err)
 	}
@@ -47,7 +44,7 @@ func TestRequireJWTCookieAllowsRequestWithValidCookie(t *testing.T) {
 		WithJWTCookieClaimsFactory(func() any { return &cookieClaims{} }),
 		WithJWTCookieServiceConfig(cookiesauth.ConfigServiceInput{
 			CookieNameKey: "COOKIE_MIDDLEWARE_NAME",
-			JWT: jwtservice.ConfigServiceInput{
+			JWT: cookiesauth.JWTConfigServiceInput{
 				Algorithm:     "HS256",
 				HMACSecretKey: stringPtr("COOKIE_MIDDLEWARE_SECRET"),
 				Validator: func(ctx context.Context, token jwtservice.Token) error {
@@ -145,7 +142,7 @@ func TestRequireJWTCookieRejectsInvalidServiceConfiguration(t *testing.T) {
 		c.AbortWithStatus(http.StatusTeapot)
 	}), WithJWTCookieServiceConfig(cookiesauth.ConfigServiceInput{
 		CookieName: "session_token",
-		JWT: jwtservice.ConfigServiceInput{
+		JWT: cookiesauth.JWTConfigServiceInput{
 			Algorithm:     "HS256",
 			HMACSecretKey: stringPtr(jwtservice.DefaultHMACSecretKey),
 		},
@@ -172,10 +169,7 @@ func TestRequireJWTCookieWithCustomContextKeys(t *testing.T) {
 	configureMiddlewareJWTCookie()
 	defer viper.Reset()
 
-	service, err := jwtservice.NewConfiguredService(jwtservice.ConfigServiceInput{
-		Algorithm:     "HS256",
-		HMACSecretKey: stringPtr("COOKIE_MIDDLEWARE_SECRET"),
-	})
+	service, err := jwtservice.NewConfiguredService(nil)
 	if err != nil {
 		t.Fatalf("expected jwt service without error, got %v", err)
 	}
@@ -264,7 +258,7 @@ func configureMiddlewareJWTCookie() {
 func middlewareJWTCookieServiceConfig() cookiesauth.ConfigServiceInput {
 	return cookiesauth.ConfigServiceInput{
 		CookieNameKey: "COOKIE_MIDDLEWARE_NAME",
-		JWT: jwtservice.ConfigServiceInput{
+		JWT: cookiesauth.JWTConfigServiceInput{
 			Algorithm:     "HS256",
 			HMACSecretKey: stringPtr("COOKIE_MIDDLEWARE_SECRET"),
 		},

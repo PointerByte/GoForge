@@ -54,6 +54,14 @@ func writeApplicationYAML(t *testing.T, dir string, content string) {
 	}
 }
 
+func writeEnvFile(t *testing.T, dir string, name string, content string) {
+	t.Helper()
+
+	if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600); err != nil {
+		t.Fatalf("os.WriteFile(%s) error = %v", name, err)
+	}
+}
+
 // TestExportMappedEnvOverridesNestedValues verifies that environment variables
 // override deeply nested configuration values using the generated path-based
 // env names.
@@ -252,6 +260,41 @@ func TestLoadEnvLoadsJSONAndEnvOverrides(t *testing.T) {
 	}
 	if got := viper.GetStringSlice("server.groups"); !reflect.DeepEqual(got, []string{"/v2", "/v3"}) {
 		t.Fatalf("server.groups = %#v, want %#v", got, []string{"/v2", "/v3"})
+	}
+}
+
+// TestLoadEnvLoadsConfiguredEnvFiles verifies that .env files are loaded only
+// when the application configuration declares them in env.files.
+func TestLoadEnvLoadsConfiguredEnvFiles(t *testing.T) {
+	resetUtilitiesTestState(t)
+
+	dir := t.TempDir()
+	writeApplicationJSON(t, dir, map[string]any{
+		"app": map[string]any{
+			"name": "from-file",
+		},
+		"env": map[string]any{
+			"files": []string{".env", ".env.production"},
+		},
+		"server": map[string]any{
+			"port": ":8080",
+		},
+	})
+	writeEnvFile(t, dir, ".env", "APP_NAME=from-env\n")
+	writeEnvFile(t, dir, ".env.local", "APP_NAME=from-local\nSERVER_PORT=:9090\n")
+	writeEnvFile(t, dir, ".env.production", "APP_NAME=from-production\nSERVER_PORT=:6060\n")
+	t.Setenv("APP_NAME", "from-process")
+	t.Setenv("SERVER_PORT", ":7070")
+
+	if err := LoadEnv(dir); err != nil {
+		t.Fatalf("LoadEnv() error = %v", err)
+	}
+
+	if got := viper.GetString("app.name"); got != "from-production" {
+		t.Fatalf("app.name = %q, want %q", got, "from-production")
+	}
+	if got := viper.GetString("server.port"); got != ":6060" {
+		t.Fatalf("server.port = %q, want %q", got, ":6060")
 	}
 }
 

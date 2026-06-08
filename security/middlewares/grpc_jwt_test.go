@@ -20,7 +20,7 @@ func TestRequireJWTUnaryServerInterceptorAllowsValidBearerToken(t *testing.T) {
 	configureMiddlewareJWT()
 	defer viper.Reset()
 
-	service, err := jwtservice.NewConfiguredService(jwtservice.ConfigServiceInput{})
+	service, err := jwtservice.NewConfiguredService(nil)
 	if err != nil {
 		t.Fatalf("expected jwt service without error, got %v", err)
 	}
@@ -88,7 +88,7 @@ func TestRequireJWTStreamServerInterceptorAllowsValidBearerToken(t *testing.T) {
 	configureMiddlewareJWT()
 	defer viper.Reset()
 
-	service, err := jwtservice.NewConfiguredService(jwtservice.ConfigServiceInput{})
+	service, err := jwtservice.NewConfiguredService(nil)
 	if err != nil {
 		t.Fatalf("expected jwt service without error, got %v", err)
 	}

@@ -20,6 +20,9 @@ func TestNewRepository(t *testing.T) {
 	if repository.AsymmetricRepository == nil {
 		t.Fatal("expected asymmetric repository")
 	}
+	if repository.KeyRepository == nil {
+		t.Fatal("expected key repository")
+	}
 	if repository.SignatureRepository == nil {
 		t.Fatal("expected signature repository")
 	}

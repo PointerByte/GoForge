@@ -101,9 +101,17 @@ Inside the resolved configuration directory, it checks these files in order:
 2. `application.yaml`
 3. `application.json`
 
-After the application file is read, it merges `.env` and `.env.local` from the
-same resolved directory and enables environment variables. Environment
-overrides are generated from the existing configuration key path.
+After the application file is read, it merges the environment files declared in
+`env.files`. Relative file paths are resolved from the same directory as the
+selected application file. Environment overrides are generated from the existing
+configuration key path.
+
+```yaml
+env:
+  files:
+    - .env
+    - .env.local
+```
 
 This keeps local files, deployment variables, and framework defaults on the
 same `viper` instance, so Gin and gRPC behave consistently even when the

@@ -6,7 +6,7 @@
 //
 // Its main responsibility is to load application settings from
 // resources/application.yml, resources/application.yaml, or
-// resources/application.json, merge .env and .env.local files, and apply
+// resources/application.json, merge the env.files declared there, and apply
 // environment-variable overrides derived from the Viper key paths.
 //
 // LoadEnv also accepts a directory that contains application.* directly for

@@ -91,6 +91,11 @@ func buildApplicationYAML(serviceType string, appName string) string {
   name: %s
   version: 0.0.1
 
+env:
+  files:
+    - .env
+    - .env.local
+
 server:
   grpc:
     port: ":50051"
@@ -154,6 +159,11 @@ jwt:
 	return fmt.Sprintf(`app:
   name: %s
   version: 0.0.1
+
+env:
+  files:
+    - .env
+    - .env.local
 
 server:
   gin:
@@ -243,6 +253,12 @@ func buildApplicationJSON(serviceType string, appName string) (string, error) {
 		"app": map[string]any{
 			"name":    appName,
 			"version": "0.0.1",
+		},
+		"env": map[string]any{
+			"files": []string{
+				".env",
+				".env.local",
+			},
 		},
 		"logger": map[string]any{
 			"dir":   "logs",

@@ -34,11 +34,12 @@ var configFileCandidates = []configFileCandidate{
 // resources/ directory is found, it falls back to prefixPath/resources so the
 // returned read error points at the expected location.
 //
-// Configuration is loaded in this order: application.yml, application.yaml,
-// application.json, .env, .env.local from the resolved directory, and finally
-// process environment variable overrides derived from the existing Viper key
-// paths, for example app.name -> APP_NAME. Missing .env files are ignored, but
-// failure to read the selected application file is returned.
+// Configuration is loaded in this order: application.yml, application.yaml, or
+// application.json; the environment files declared in env.files from the
+// selected application file; and finally process environment variable overrides
+// derived from the existing Viper key paths, for example app.name -> APP_NAME.
+// Missing .env files are ignored, but failure to read the selected application
+// file is returned.
 func LoadEnv(prefixPath string) error {
 	if prefixPath == "" {
 		dir, err := os.Getwd()
@@ -57,19 +58,7 @@ func LoadEnv(prefixPath string) error {
 		return err
 	}
 
-	// Load .env
-	dirEnv := filepath.Join(configDir, ".env")
-	_ = godotenv.Overload(dirEnv)
-	viper.SetConfigFile(dirEnv)
-	viper.SetConfigType("env")
-	_ = viper.MergeInConfig()
-
-	// Load .env.local
-	dirEnvLocal := filepath.Join(configDir, ".env.local")
-	_ = godotenv.Overload(dirEnvLocal)
-	viper.SetConfigFile(dirEnvLocal)
-	viper.SetConfigType("env")
-	_ = viper.MergeInConfig()
+	loadEnvFiles(configDir)
 
 	// Enable reading from environment variables.
 	viper.AutomaticEnv()
@@ -77,6 +66,30 @@ func LoadEnv(prefixPath string) error {
 	// Apply mapped environment variable overrides.
 	exportMappedEnv()
 	return nil
+}
+
+func loadEnvFiles(configDir string) {
+	for _, envFile := range resolveEnvFiles(configDir) {
+		_ = godotenv.Overload(envFile)
+		viper.SetConfigFile(envFile)
+		viper.SetConfigType("env")
+		_ = viper.MergeInConfig()
+	}
+}
+
+func resolveEnvFiles(configDir string) []string {
+	envFiles := make([]string, 0)
+	for _, envFile := range viper.GetStringSlice("env.files") {
+		envFile = strings.TrimSpace(envFile)
+		if envFile == "" {
+			continue
+		}
+		if !filepath.IsAbs(envFile) {
+			envFile = filepath.Join(configDir, envFile)
+		}
+		envFiles = append(envFiles, envFile)
+	}
+	return envFiles
 }
 
 func resolveConfigDir(prefixPath string) string {

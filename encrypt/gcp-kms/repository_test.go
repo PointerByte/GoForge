@@ -8,18 +8,21 @@ import (
 	"crypto"
 	"crypto/ecdh"
 	"crypto/ed25519"
+	"crypto/mlkem"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
 	"errors"
+	"strings"
 	"testing"
 
 	kms "cloud.google.com/go/kms/apiv1"
 	kmspb "cloud.google.com/go/kms/apiv1/kmspb"
 	"github.com/PointerByte/GoForge/encrypt/common"
 	"github.com/PointerByte/GoForge/encrypt/local"
+	"github.com/PointerByte/GoForge/encrypt/models"
 	"github.com/PointerByte/GoForge/encrypt/utilities"
 	"github.com/spf13/viper"
 )
@@ -27,11 +30,15 @@ import (
 type fakeGCPClient struct {
 	createCryptoKeyFn        func(context.Context, *kmspb.CreateCryptoKeyRequest) (*kmspb.CryptoKey, error)
 	createCryptoKeyVersionFn func(context.Context, *kmspb.CreateCryptoKeyVersionRequest) (*kmspb.CryptoKeyVersion, error)
+	getCryptoKeyFn           func(context.Context, *kmspb.GetCryptoKeyRequest) (*kmspb.CryptoKey, error)
 	getPublicKeyFn           func(context.Context, *kmspb.GetPublicKeyRequest) (*kmspb.PublicKey, error)
+	updateKeyVersionFn       func(context.Context, *kmspb.UpdateCryptoKeyVersionRequest) (*kmspb.CryptoKeyVersion, error)
+	updatePrimaryFn          func(context.Context, *kmspb.UpdateCryptoKeyPrimaryVersionRequest) (*kmspb.CryptoKey, error)
 	encryptFn                func(context.Context, *kmspb.EncryptRequest) (*kmspb.EncryptResponse, error)
 	decryptFn                func(context.Context, *kmspb.DecryptRequest) (*kmspb.DecryptResponse, error)
 	asymmetricSignFn         func(context.Context, *kmspb.AsymmetricSignRequest) (*kmspb.AsymmetricSignResponse, error)
 	asymmetricDecryptFn      func(context.Context, *kmspb.AsymmetricDecryptRequest) (*kmspb.AsymmetricDecryptResponse, error)
+	decapsulateFn            func(context.Context, *kmspb.DecapsulateRequest) (*kmspb.DecapsulateResponse, error)
 	macSignFn                func(context.Context, *kmspb.MacSignRequest) (*kmspb.MacSignResponse, error)
 	macVerifyFn              func(context.Context, *kmspb.MacVerifyRequest) (*kmspb.MacVerifyResponse, error)
 	closeFn                  func() error
@@ -43,8 +50,26 @@ func (fake fakeGCPClient) CreateCryptoKey(ctx context.Context, req *kmspb.Create
 func (fake fakeGCPClient) CreateCryptoKeyVersion(ctx context.Context, req *kmspb.CreateCryptoKeyVersionRequest) (*kmspb.CryptoKeyVersion, error) {
 	return fake.createCryptoKeyVersionFn(ctx, req)
 }
+func (fake fakeGCPClient) GetCryptoKey(ctx context.Context, req *kmspb.GetCryptoKeyRequest) (*kmspb.CryptoKey, error) {
+	if fake.getCryptoKeyFn == nil {
+		return nil, errors.New("get crypto key not configured")
+	}
+	return fake.getCryptoKeyFn(ctx, req)
+}
 func (fake fakeGCPClient) GetPublicKey(ctx context.Context, req *kmspb.GetPublicKeyRequest) (*kmspb.PublicKey, error) {
 	return fake.getPublicKeyFn(ctx, req)
+}
+func (fake fakeGCPClient) UpdateCryptoKeyVersion(ctx context.Context, req *kmspb.UpdateCryptoKeyVersionRequest) (*kmspb.CryptoKeyVersion, error) {
+	if fake.updateKeyVersionFn == nil {
+		return nil, errors.New("update crypto key version not configured")
+	}
+	return fake.updateKeyVersionFn(ctx, req)
+}
+func (fake fakeGCPClient) UpdateCryptoKeyPrimaryVersion(ctx context.Context, req *kmspb.UpdateCryptoKeyPrimaryVersionRequest) (*kmspb.CryptoKey, error) {
+	if fake.updatePrimaryFn == nil {
+		return nil, errors.New("update primary not configured")
+	}
+	return fake.updatePrimaryFn(ctx, req)
 }
 func (fake fakeGCPClient) Encrypt(ctx context.Context, req *kmspb.EncryptRequest) (*kmspb.EncryptResponse, error) {
 	return fake.encryptFn(ctx, req)
@@ -58,6 +83,12 @@ func (fake fakeGCPClient) AsymmetricSign(ctx context.Context, req *kmspb.Asymmet
 func (fake fakeGCPClient) AsymmetricDecrypt(ctx context.Context, req *kmspb.AsymmetricDecryptRequest) (*kmspb.AsymmetricDecryptResponse, error) {
 	return fake.asymmetricDecryptFn(ctx, req)
 }
+func (fake fakeGCPClient) Decapsulate(ctx context.Context, req *kmspb.DecapsulateRequest) (*kmspb.DecapsulateResponse, error) {
+	if fake.decapsulateFn == nil {
+		return nil, errors.New("decapsulate not configured")
+	}
+	return fake.decapsulateFn(ctx, req)
+}
 func (fake fakeGCPClient) MacSign(ctx context.Context, req *kmspb.MacSignRequest) (*kmspb.MacSignResponse, error) {
 	return fake.macSignFn(ctx, req)
 }
@@ -66,6 +97,121 @@ func (fake fakeGCPClient) MacVerify(ctx context.Context, req *kmspb.MacVerifyReq
 }
 func (fake fakeGCPClient) Close() error {
 	return fake.closeFn()
+}
+
+func TestUIDMetadataHelpers(t *testing.T) {
+	if labels := gcpUIDLabels(""); labels != nil {
+		t.Fatalf("gcpUIDLabels() = %#v, want nil", labels)
+	}
+	labels := gcpUIDLabels("User.123/XYZ")
+	if labels["uid"] != "user-123-xyz" {
+		t.Fatalf("gcpUIDLabels() = %#v, want sanitized uid label", labels)
+	}
+
+	additional := "aad"
+	if got := string(gcpAuthenticatedData("", &additional)); got != "aad" {
+		t.Fatalf("gcpAuthenticatedData() = %q, want aad", got)
+	}
+	if got := string(gcpAuthenticatedData("user-123", &additional)); got != "user-123\x00aad" {
+		t.Fatalf("gcpAuthenticatedData() = %q, want uid and aad", got)
+	}
+}
+
+func TestGCPKeyRepositoryRotateAndGetKey(t *testing.T) {
+	t.Cleanup(viper.Reset)
+	previousClient := newGCPClientFn
+	t.Cleanup(func() { newGCPClientFn = previousClient })
+
+	privateKey := mustGCPRSAKey(t)
+	publicDER, err := x509.MarshalPKIXPublicKey(&privateKey.PublicKey)
+	if err != nil {
+		t.Fatalf("x509.MarshalPKIXPublicKey() error = %v", err)
+	}
+
+	newGCPClientFn = func(context.Context) (gcpKMSClient, error) {
+		return fakeGCPClient{
+			createCryptoKeyVersionFn: func(_ context.Context, req *kmspb.CreateCryptoKeyVersionRequest) (*kmspb.CryptoKeyVersion, error) {
+				return &kmspb.CryptoKeyVersion{Name: req.Parent + "/cryptoKeyVersions/2"}, nil
+			},
+			getCryptoKeyFn: func(_ context.Context, req *kmspb.GetCryptoKeyRequest) (*kmspb.CryptoKey, error) {
+				switch {
+				case strings.HasSuffix(req.Name, "/cryptoKeys/sym-key"):
+					return &kmspb.CryptoKey{
+						Name:    req.Name,
+						Purpose: kmspb.CryptoKey_ENCRYPT_DECRYPT,
+						VersionTemplate: &kmspb.CryptoKeyVersionTemplate{
+							Algorithm: kmspb.CryptoKeyVersion_GOOGLE_SYMMETRIC_ENCRYPTION,
+						},
+						Primary: &kmspb.CryptoKeyVersion{Name: req.Name + "/cryptoKeyVersions/1"},
+					}, nil
+				case strings.HasSuffix(req.Name, "/cryptoKeys/rsa-key"):
+					return &kmspb.CryptoKey{
+						Name:    req.Name,
+						Purpose: kmspb.CryptoKey_ASYMMETRIC_DECRYPT,
+						VersionTemplate: &kmspb.CryptoKeyVersionTemplate{
+							Algorithm: kmspb.CryptoKeyVersion_RSA_DECRYPT_OAEP_2048_SHA256,
+						},
+					}, nil
+				default:
+					return nil, errors.New("unexpected crypto key")
+				}
+			},
+			getPublicKeyFn: func(_ context.Context, req *kmspb.GetPublicKeyRequest) (*kmspb.PublicKey, error) {
+				if req.Name != "projects/test/locations/global/keyRings/ring/cryptoKeys/rsa-key/cryptoKeyVersions/1" {
+					t.Fatalf("GetPublicKey() name = %q", req.Name)
+				}
+				return &kmspb.PublicKey{Pem: string(pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: publicDER}))}, nil
+			},
+			updateKeyVersionFn: func(_ context.Context, req *kmspb.UpdateCryptoKeyVersionRequest) (*kmspb.CryptoKeyVersion, error) {
+				if req.CryptoKeyVersion.GetName() != "projects/test/locations/global/keyRings/ring/cryptoKeys/rsa-key/cryptoKeyVersions/1" {
+					t.Fatalf("UpdateCryptoKeyVersion() name = %q", req.CryptoKeyVersion.GetName())
+				}
+				if req.CryptoKeyVersion.GetState() != kmspb.CryptoKeyVersion_DISABLED {
+					t.Fatalf("UpdateCryptoKeyVersion() state = %s, want DISABLED", req.CryptoKeyVersion.GetState())
+				}
+				if req.UpdateMask == nil || len(req.UpdateMask.Paths) != 1 || req.UpdateMask.Paths[0] != "state" {
+					t.Fatalf("UpdateCryptoKeyVersion() update mask = %#v", req.UpdateMask)
+				}
+				return &kmspb.CryptoKeyVersion{Name: req.CryptoKeyVersion.GetName(), State: kmspb.CryptoKeyVersion_DISABLED}, nil
+			},
+			updatePrimaryFn: func(_ context.Context, req *kmspb.UpdateCryptoKeyPrimaryVersionRequest) (*kmspb.CryptoKey, error) {
+				if req.Name != "projects/test/locations/global/keyRings/ring/cryptoKeys/sym-key" || req.CryptoKeyVersionId != "2" {
+					t.Fatalf("UpdateCryptoKeyPrimaryVersion() = %#v", req)
+				}
+				return &kmspb.CryptoKey{
+					Name:    req.Name,
+					Purpose: kmspb.CryptoKey_ENCRYPT_DECRYPT,
+					Primary: &kmspb.CryptoKeyVersion{
+						Name: req.Name + "/cryptoKeyVersions/" + req.CryptoKeyVersionId,
+					},
+				}, nil
+			},
+			closeFn: func() error { return nil },
+		}, nil
+	}
+
+	viper.Set(defaultGCPKeyIDKey, "projects/test/locations/global/keyRings/ring/cryptoKeys/default/cryptoKeyVersions/1")
+	repository := NewKeyRepository()
+
+	rotatedKey, err := repository.RotateKey(context.Background(), models.RotateKeyRequest{KeyID: "sym-key"})
+	if err != nil {
+		t.Fatalf("RotateKey() error = %v", err)
+	}
+	if rotatedKey.KeyID != "sym-key" || rotatedKey.KeyRef != "projects/test/locations/global/keyRings/ring/cryptoKeys/sym-key" || rotatedKey.Provider != gcpProviderName {
+		t.Fatalf("RotateKey() = %#v, want symmetric key metadata", rotatedKey)
+	}
+
+	rsaKey, err := repository.GetKey(context.Background(), models.GetKeyRequest{KeyID: "rsa-key"})
+	if err != nil {
+		t.Fatalf("GetKey() error = %v", err)
+	}
+	if rsaKey.KeyID != "rsa-key" || rsaKey.KeyRef != "projects/test/locations/global/keyRings/ring/cryptoKeys/rsa-key/cryptoKeyVersions/1" || rsaKey.PublicKey == "" {
+		t.Fatalf("GetKey() = %#v, want RSA key metadata", rsaKey)
+	}
+
+	if err := repository.DeactivateKey(context.Background(), models.DeactivateKeyRequest{KeyID: "rsa-key"}); err != nil {
+		t.Fatalf("DeactivateKey() error = %v", err)
+	}
 }
 
 func TestGCPRepositoryProviderFlowsAndHelpers(t *testing.T) {
@@ -90,13 +236,17 @@ func TestGCPRepositoryProviderFlowsAndHelpers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("x509.MarshalPKCS8PrivateKey() error = %v", err)
 	}
+	kemPrivate, err := mlkem.GenerateKey768()
+	if err != nil {
+		t.Fatalf("mlkem.GenerateKey768() error = %v", err)
+	}
 
 	newGCPClientFn = func(context.Context) (gcpKMSClient, error) {
 		return fakeGCPClient{
 			createCryptoKeyFn: func(_ context.Context, req *kmspb.CreateCryptoKeyRequest) (*kmspb.CryptoKey, error) {
 				name := req.Parent + "/cryptoKeys/" + req.CryptoKeyId
 				primary := &kmspb.CryptoKeyVersion{Name: name + "/cryptoKeyVersions/1"}
-				if req.CryptoKey.GetPurpose() == kmspb.CryptoKey_ENCRYPT_DECRYPT {
+				if req.CryptoKey.GetPurpose() == kmspb.CryptoKey_ENCRYPT_DECRYPT || req.CryptoKey.GetPurpose() == kmspb.CryptoKey_KEY_ENCAPSULATION {
 					return &kmspb.CryptoKey{Name: name, Primary: primary}, nil
 				}
 				return &kmspb.CryptoKey{Name: name}, nil
@@ -105,6 +255,12 @@ func TestGCPRepositoryProviderFlowsAndHelpers(t *testing.T) {
 				return &kmspb.CryptoKeyVersion{Name: req.Parent + "/cryptoKeyVersions/1"}, nil
 			},
 			getPublicKeyFn: func(_ context.Context, req *kmspb.GetPublicKeyRequest) (*kmspb.PublicKey, error) {
+				if req.PublicKeyFormat == kmspb.PublicKey_NIST_PQC {
+					return &kmspb.PublicKey{
+						Algorithm: kmspb.CryptoKeyVersion_ML_KEM_768,
+						PublicKey: &kmspb.ChecksummedData{Data: kemPrivate.EncapsulationKey().Bytes()},
+					}, nil
+				}
 				if req.Name == "projects/test/locations/global/keyRings/ring/cryptoKeys/ed/cryptoKeyVersions/1" {
 					return &kmspb.PublicKey{Pem: string(pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: edPublicDER}))}, nil
 				}
@@ -138,6 +294,13 @@ func TestGCPRepositoryProviderFlowsAndHelpers(t *testing.T) {
 			asymmetricDecryptFn: func(_ context.Context, req *kmspb.AsymmetricDecryptRequest) (*kmspb.AsymmetricDecryptResponse, error) {
 				return &kmspb.AsymmetricDecryptResponse{Plaintext: []byte("plain")}, nil
 			},
+			decapsulateFn: func(_ context.Context, req *kmspb.DecapsulateRequest) (*kmspb.DecapsulateResponse, error) {
+				sharedSecret, err := kemPrivate.Decapsulate(req.Ciphertext)
+				if err != nil {
+					return nil, err
+				}
+				return &kmspb.DecapsulateResponse{SharedSecret: sharedSecret}, nil
+			},
 			macSignFn: func(_ context.Context, req *kmspb.MacSignRequest) (*kmspb.MacSignResponse, error) {
 				return &kmspb.MacSignResponse{Mac: []byte("mac")}, nil
 			},
@@ -153,15 +316,15 @@ func TestGCPRepositoryProviderFlowsAndHelpers(t *testing.T) {
 	keyName := "projects/test/locations/global/keyRings/ring/cryptoKeys/sym"
 	additional := "aad"
 
-	key, err := repository.GenerateSymetrycKeys(context.Background(), common.Key256Bits)
+	key, err := repository.GenerateSymetrycKeys(context.Background(), models.GenerateSymmetricKeyRequest{Size: common.Key256Bits})
 	if err != nil || key == nil || key.Provider != gcpProviderName {
 		t.Fatalf("GenerateSymetrycKeys() = %#v, %v", key, err)
 	}
-	ciphertext, err := repository.EncryptAES(context.Background(), keyName, "hello", &additional)
+	ciphertext, err := repository.EncryptAES(context.Background(), models.EncryptAESRequest{SecretKey: keyName, Value: "hello", Additional: &additional})
 	if err != nil {
 		t.Fatalf("EncryptAES() error = %v", err)
 	}
-	if plaintext, err := repository.DecryptAES(context.Background(), keyName, ciphertext, &additional); err != nil || plaintext != "hello" {
+	if plaintext, err := repository.DecryptAES(context.Background(), models.DecryptAESRequest{SecretKey: keyName, CipherValue: ciphertext, Additional: &additional}); err != nil || plaintext != "hello" {
 		t.Fatalf("DecryptAES() = %q, %v", plaintext, err)
 	}
 	if got := repository.HMAC(context.Background(), viper.GetString(defaultGCPKeyIDKey), "message"); got == "" {
@@ -171,21 +334,29 @@ func TestGCPRepositoryProviderFlowsAndHelpers(t *testing.T) {
 		t.Fatal("expected hash helpers to return values")
 	}
 
-	rsaKey, err := repository.GenerateRSAKeys(context.Background(), common.Key2048Bits)
+	rsaKey, err := repository.GenerateRSAKeys(context.Background(), models.GenerateRSAKeyRequest{Size: common.Key2048Bits})
 	if err != nil || rsaKey == nil || rsaKey.PublicKey == "" {
 		t.Fatalf("GenerateRSAKeys() = %#v, %v", rsaKey, err)
 	}
-	if _, err := repository.RSA_OAEP_Encode(context.Background(), "projects/test/locations/global/keyRings/ring/cryptoKeys/rsa/cryptoKeyVersions/1", "payload"); err != nil {
+	if _, err := repository.RSA_OAEP_Encode(context.Background(), models.RSAOAEPEncodeRequest{PublicKey: "projects/test/locations/global/keyRings/ring/cryptoKeys/rsa/cryptoKeyVersions/1", Text: "payload"}); err != nil {
 		t.Fatalf("RSA_OAEP_Encode() error = %v", err)
 	}
-	if plaintext, err := repository.RSA_OAEP_Decode(context.Background(), "projects/test/locations/global/keyRings/ring/cryptoKeys/rsa/cryptoKeyVersions/1", base64.StdEncoding.EncodeToString([]byte("cipher"))); err != nil || plaintext != "plain" {
+	if plaintext, err := repository.RSA_OAEP_Decode(context.Background(), models.RSAOAEPDecodeRequest{PrivateKey: "projects/test/locations/global/keyRings/ring/cryptoKeys/rsa/cryptoKeyVersions/1", CipherText: base64.StdEncoding.EncodeToString([]byte("cipher"))}); err != nil || plaintext != "plain" {
 		t.Fatalf("RSA_OAEP_Decode() = %q, %v", plaintext, err)
 	}
 	if _, err := repository.GenerateEd255Keys(context.Background()); err != nil {
 		t.Fatalf("GenerateEd255Keys() error = %v", err)
 	}
-	if _, err := repository.GenerateECCKeys(context.Background(), common.CurveP256); !errors.Is(err, errGCPECCUnsupported) {
-		t.Fatalf("GenerateECCKeys() error = %v", err)
+	kemKey, err := repository.GenerateECDHCurveKeys(context.Background(), models.GenerateECDHCurveKeyRequest{Curve: common.CurveP256})
+	if err != nil || kemKey == nil || kemKey.PublicKey == "" {
+		t.Fatalf("GenerateECDHCurveKeys() = %#v, %v", kemKey, err)
+	}
+	kemCiphertext, err := repository.ECDH_Encode(context.Background(), models.ECDHEncodeRequest{PublicKey: kemKey.KeyRef, Text: "payload"})
+	if err != nil {
+		t.Fatalf("ECDH_Encode() gcp kem error = %v", err)
+	}
+	if plaintext, err := repository.ECDH_Decode(context.Background(), models.ECDHDecodeRequest{PrivateKey: kemKey.KeyRef, CipherText: kemCiphertext}); err != nil || plaintext != "payload" {
+		t.Fatalf("ECDH_Decode() gcp kem = %q, %v", plaintext, err)
 	}
 	edSignature, err := repository.SignEd25519(context.Background(), "projects/test/locations/global/keyRings/ring/cryptoKeys/ed/cryptoKeyVersions/1", "payload")
 	if err != nil {
@@ -210,33 +381,33 @@ func TestGCPRepositoryProviderFlowsAndHelpers(t *testing.T) {
 	}
 
 	localRepository := local.NewRepository()
-	localSymmetricKey, err := localRepository.GenerateSymetrycKeys(context.Background(), common.Key256Bits)
+	localSymmetricKey, err := localRepository.GenerateSymetrycKeys(context.Background(), models.GenerateSymmetricKeyRequest{Size: common.Key256Bits})
 	if err != nil {
 		t.Fatalf("local GenerateSymetrycKeys() error = %v", err)
 	}
-	localCiphertext, err := localRepository.EncryptAES(context.Background(), localSymmetricKey.KeyID, "hello", &additional)
+	localCiphertext, err := localRepository.EncryptAES(context.Background(), models.EncryptAESRequest{SecretKey: localSymmetricKey.KeyID, Value: "hello", Additional: &additional})
 	if err != nil {
 		t.Fatalf("local EncryptAES() error = %v", err)
 	}
-	if _, err := repository.DecryptAES(context.Background(), localSymmetricKey.KeyID, localCiphertext, &additional); err != nil {
+	if _, err := repository.DecryptAES(context.Background(), models.DecryptAESRequest{SecretKey: localSymmetricKey.KeyID, CipherValue: localCiphertext, Additional: &additional}); err != nil {
 		t.Fatalf("DecryptAES() local fallback error = %v", err)
 	}
 	localRSAPrivate := mustGCPRSAPrivateBase64(t, privateKey)
 	localRSAPublic := mustGCPRSAPublicBase64(t, &privateKey.PublicKey)
-	localRSACiphertext, err := repository.RSA_OAEP_Encode(context.Background(), localRSAPublic, "payload")
+	localRSACiphertext, err := repository.RSA_OAEP_Encode(context.Background(), models.RSAOAEPEncodeRequest{PublicKey: localRSAPublic, Text: "payload"})
 	if err != nil {
 		t.Fatalf("RSA_OAEP_Encode() local fallback error = %v", err)
 	}
-	if _, err := repository.RSA_OAEP_Decode(context.Background(), localRSAPrivate, localRSACiphertext); err != nil {
+	if _, err := repository.RSA_OAEP_Decode(context.Background(), models.RSAOAEPDecodeRequest{PrivateKey: localRSAPrivate, CipherText: localRSACiphertext}); err != nil {
 		t.Fatalf("RSA_OAEP_Decode() local fallback error = %v", err)
 	}
 	localECCPrivate := mustGCPECCPrivateBase64(t, ecdh.P256())
 	localECCPublic := mustGCPECCPublicBase64(t, localECCPrivate)
-	localEccCiphertext, err := repository.ECDH_Encode(context.Background(), localECCPublic, "payload")
+	localEccCiphertext, err := repository.ECDH_Encode(context.Background(), models.ECDHEncodeRequest{PublicKey: localECCPublic, Text: "payload"})
 	if err != nil {
 		t.Fatalf("ECDH_Encode() local fallback error = %v", err)
 	}
-	if plaintext, err := repository.ECDH_Decode(context.Background(), localECCPrivate, localEccCiphertext); err != nil || plaintext != "payload" {
+	if plaintext, err := repository.ECDH_Decode(context.Background(), models.ECDHDecodeRequest{PrivateKey: localECCPrivate, CipherText: localEccCiphertext}); err != nil || plaintext != "payload" {
 		t.Fatalf("ECDH_Decode() local fallback = %q, %v", plaintext, err)
 	}
 	localPSSSignature, err := repository.SignRSAPSS(context.Background(), localRSAPrivate, "payload")
@@ -288,10 +459,10 @@ func TestGCPRepositoryErrorBranches(t *testing.T) {
 	previousClient := newGCPClientFn
 	t.Cleanup(func() { newGCPClientFn = previousClient })
 
-	if _, err := NewSymmetricRepository().GenerateSymetrycKeys(context.Background(), common.Key128Bits); err == nil {
+	if _, err := NewSymmetricRepository().GenerateSymetrycKeys(context.Background(), models.GenerateSymmetricKeyRequest{Size: common.Key128Bits}); err == nil {
 		t.Fatal("expected unsupported symmetric size error")
 	}
-	if _, err := NewAsymmetricRepository().GenerateRSAKeys(context.Background(), 0); err == nil {
+	if _, err := NewAsymmetricRepository().GenerateRSAKeys(context.Background(), models.GenerateRSAKeyRequest{Size: 0}); err == nil {
 		t.Fatal("expected unsupported rsa size error")
 	}
 	if _, err := resolveGCPKeyRingName(""); err == nil {
@@ -360,50 +531,60 @@ func TestGCPRepositoryErrorBranches(t *testing.T) {
 	viper.Set(defaultGCPKeyIDKey, "projects/test/locations/global/keyRings/ring/cryptoKeys/default/cryptoKeyVersions/1")
 	symmetricRepository := NewSymmetricRepository()
 	hashRepository := NewHashRepository()
+	keyRepository := NewKeyRepository()
 	asymmetricRepository := NewAsymmetricRepository()
 	signatureRepository := NewSignatureRepository()
 
-	if _, err := symmetricRepository.GenerateSymetrycKeys(context.Background(), common.Key256Bits); err == nil {
+	if _, err := symmetricRepository.GenerateSymetrycKeys(context.Background(), models.GenerateSymmetricKeyRequest{Size: common.Key256Bits}); err == nil {
 		t.Fatal("expected GenerateSymetrycKeys() provider error")
 	}
-	if _, err := symmetricRepository.EncryptAES(context.Background(), "", "payload", nil); err == nil {
+	if _, err := symmetricRepository.EncryptAES(context.Background(), models.EncryptAESRequest{SecretKey: "", Value: "payload", Additional: nil}); err == nil {
 		t.Fatal("expected EncryptAES() key name error")
 	}
-	if _, err := symmetricRepository.EncryptAES(context.Background(), "projects/test/locations/global/keyRings/ring/cryptoKeys/key", "payload", nil); err == nil {
+	if _, err := symmetricRepository.EncryptAES(context.Background(), models.EncryptAESRequest{SecretKey: "projects/test/locations/global/keyRings/ring/cryptoKeys/key", Value: "payload", Additional: nil}); err == nil {
 		t.Fatal("expected EncryptAES() provider error")
 	}
-	if _, err := symmetricRepository.DecryptAES(context.Background(), "projects/test/locations/global/keyRings/ring/cryptoKeys/key", "%%%", nil); err == nil {
+	if _, err := symmetricRepository.DecryptAES(context.Background(), models.DecryptAESRequest{SecretKey: "projects/test/locations/global/keyRings/ring/cryptoKeys/key", CipherValue: "%%%", Additional: nil}); err == nil {
 		t.Fatal("expected DecryptAES() decode error")
 	}
-	if _, err := symmetricRepository.DecryptAES(context.Background(), "projects/test/locations/global/keyRings/ring/cryptoKeys/key", base64.StdEncoding.EncodeToString([]byte("cipher")), nil); err == nil {
+	if _, err := symmetricRepository.DecryptAES(context.Background(), models.DecryptAESRequest{SecretKey: "projects/test/locations/global/keyRings/ring/cryptoKeys/key", CipherValue: base64.StdEncoding.EncodeToString([]byte("cipher")), Additional: nil}); err == nil {
 		t.Fatal("expected DecryptAES() provider error")
 	}
-	if _, err := asymmetricRepository.GenerateRSAKeys(context.Background(), common.Key2048Bits); err == nil {
+	if _, err := asymmetricRepository.GenerateRSAKeys(context.Background(), models.GenerateRSAKeyRequest{Size: common.Key2048Bits}); err == nil {
 		t.Fatal("expected GenerateRSAKeys() provider error")
 	}
-	if _, err := asymmetricRepository.RSA_OAEP_Encode(context.Background(), "", "payload"); err == nil {
+	if _, err := asymmetricRepository.RSA_OAEP_Encode(context.Background(), models.RSAOAEPEncodeRequest{PublicKey: "", Text: "payload"}); err == nil {
 		t.Fatal("expected RSA_OAEP_Encode() version error")
 	}
-	if _, err := asymmetricRepository.RSA_OAEP_Encode(context.Background(), "projects/test/locations/global/keyRings/ring/cryptoKeys/key/cryptoKeyVersions/1", "payload"); err == nil {
+	if _, err := asymmetricRepository.RSA_OAEP_Encode(context.Background(), models.RSAOAEPEncodeRequest{PublicKey: "projects/test/locations/global/keyRings/ring/cryptoKeys/key/cryptoKeyVersions/1", Text: "payload"}); err == nil {
 		t.Fatal("expected RSA_OAEP_Encode() provider error")
 	}
-	if _, err := asymmetricRepository.RSA_OAEP_Decode(context.Background(), "", "%%%"); err == nil {
+	if _, err := asymmetricRepository.RSA_OAEP_Decode(context.Background(), models.RSAOAEPDecodeRequest{PrivateKey: "", CipherText: "%%%"}); err == nil {
 		t.Fatal("expected RSA_OAEP_Decode() decode error")
 	}
-	if _, err := asymmetricRepository.RSA_OAEP_Decode(context.Background(), "projects/test/locations/global/keyRings/ring/cryptoKeys/key/cryptoKeyVersions/1", base64.StdEncoding.EncodeToString([]byte("cipher"))); err == nil {
+	if _, err := asymmetricRepository.RSA_OAEP_Decode(context.Background(), models.RSAOAEPDecodeRequest{PrivateKey: "projects/test/locations/global/keyRings/ring/cryptoKeys/key/cryptoKeyVersions/1", CipherText: base64.StdEncoding.EncodeToString([]byte("cipher"))}); err == nil {
 		t.Fatal("expected RSA_OAEP_Decode() provider error")
 	}
-	if _, err := asymmetricRepository.GenerateECCKeys(context.Background(), common.CurveP256); !errors.Is(err, errGCPECCUnsupported) {
-		t.Fatalf("GenerateECCKeys() error = %v", err)
+	if _, err := asymmetricRepository.GenerateECDHCurveKeys(context.Background(), models.GenerateECDHCurveKeyRequest{Curve: common.CurveP256}); err == nil {
+		t.Fatal("expected GenerateECDHCurveKeys() provider error")
 	}
-	if _, err := asymmetricRepository.ECDH_Encode(context.Background(), "projects/test/locations/global/keyRings/ring/cryptoKeys/key/cryptoKeyVersions/1", "payload"); !errors.Is(err, errGCPECCUnsupported) {
-		t.Fatalf("ECDH_Encode() error = %v", err)
+	if _, err := asymmetricRepository.ECDH_Encode(context.Background(), models.ECDHEncodeRequest{PublicKey: "projects/test/locations/global/keyRings/ring/cryptoKeys/key/cryptoKeyVersions/1", Text: "payload"}); err == nil {
+		t.Fatal("expected ECDH_Encode() provider error")
 	}
-	if _, err := asymmetricRepository.ECDH_Decode(context.Background(), "projects/test/locations/global/keyRings/ring/cryptoKeys/key/cryptoKeyVersions/1", "payload"); !errors.Is(err, errGCPECCUnsupported) {
-		t.Fatalf("ECDH_Decode() error = %v", err)
+	if _, err := asymmetricRepository.ECDH_Decode(context.Background(), models.ECDHDecodeRequest{PrivateKey: "projects/test/locations/global/keyRings/ring/cryptoKeys/key/cryptoKeyVersions/1", CipherText: "payload"}); err == nil {
+		t.Fatal("expected ECDH_Decode() payload error")
 	}
 	if got := hashRepository.HMAC(context.Background(), viper.GetString(defaultGCPKeyIDKey), "message"); got != "" {
 		t.Fatalf("HMAC() = %q, want empty string on provider error", got)
+	}
+	if _, err := keyRepository.RotateKey(context.Background(), models.RotateKeyRequest{KeyID: "projects/test/locations/global/keyRings/ring/cryptoKeys/key"}); err == nil {
+		t.Fatal("expected RotateKey() provider error")
+	}
+	if _, err := keyRepository.GetKey(context.Background(), models.GetKeyRequest{KeyID: "projects/test/locations/global/keyRings/ring/cryptoKeys/key"}); err == nil {
+		t.Fatal("expected GetKey() provider error")
+	}
+	if err := keyRepository.DeactivateKey(context.Background(), models.DeactivateKeyRequest{KeyID: "projects/test/locations/global/keyRings/ring/cryptoKeys/key"}); err == nil {
+		t.Fatal("expected DeactivateKey() provider error")
 	}
 	if _, err := signatureRepository.GenerateEd255Keys(context.Background()); err == nil {
 		t.Fatal("expected GenerateEd255Keys() provider error")
@@ -491,11 +672,19 @@ func TestGCPClientAdapterMethodsEnterWrappedCalls(t *testing.T) {
 	assertGCPPanic(t, func() {
 		_, _ = adapter.CreateCryptoKeyVersion(context.Background(), &kmspb.CreateCryptoKeyVersionRequest{})
 	})
+	assertGCPPanic(t, func() { _, _ = adapter.GetCryptoKey(context.Background(), &kmspb.GetCryptoKeyRequest{}) })
 	assertGCPPanic(t, func() { _, _ = adapter.GetPublicKey(context.Background(), &kmspb.GetPublicKeyRequest{}) })
+	assertGCPPanic(t, func() {
+		_, _ = adapter.UpdateCryptoKeyVersion(context.Background(), &kmspb.UpdateCryptoKeyVersionRequest{})
+	})
+	assertGCPPanic(t, func() {
+		_, _ = adapter.UpdateCryptoKeyPrimaryVersion(context.Background(), &kmspb.UpdateCryptoKeyPrimaryVersionRequest{})
+	})
 	assertGCPPanic(t, func() { _, _ = adapter.Encrypt(context.Background(), &kmspb.EncryptRequest{}) })
 	assertGCPPanic(t, func() { _, _ = adapter.Decrypt(context.Background(), &kmspb.DecryptRequest{}) })
 	assertGCPPanic(t, func() { _, _ = adapter.AsymmetricSign(context.Background(), &kmspb.AsymmetricSignRequest{}) })
 	assertGCPPanic(t, func() { _, _ = adapter.AsymmetricDecrypt(context.Background(), &kmspb.AsymmetricDecryptRequest{}) })
+	assertGCPPanic(t, func() { _, _ = adapter.Decapsulate(context.Background(), &kmspb.DecapsulateRequest{}) })
 	assertGCPPanic(t, func() { _, _ = adapter.MacSign(context.Background(), &kmspb.MacSignRequest{}) })
 	assertGCPPanic(t, func() { _, _ = adapter.MacVerify(context.Background(), &kmspb.MacVerifyRequest{}) })
 }

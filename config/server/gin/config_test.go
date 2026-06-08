@@ -426,7 +426,7 @@ func TestAuthMiddleware(t *testing.T) {
 			t.Fatalf("expected missing cookie request 401, got %d", rec.Code)
 		}
 
-		jwtService, err := jwtservice.NewConfiguredService(jwtservice.ConfigServiceInput{})
+		jwtService, err := jwtservice.NewConfiguredService(nil)
 		if err != nil {
 			t.Fatalf("expected jwt service without error, got %v", err)
 		}

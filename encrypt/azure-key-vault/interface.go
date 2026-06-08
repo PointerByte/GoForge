@@ -6,42 +6,50 @@ package azurekeyvault
 import (
 	"context"
 
-	"github.com/PointerByte/GoForge/encrypt/common"
 	"github.com/PointerByte/GoForge/encrypt/models"
 )
 
 type SymmetricRepository interface {
 	// GenerateSymetrycKeys creates an Azure Key Vault symmetric key and returns
 	// its metadata reference.
-	GenerateSymetrycKeys(ctx context.Context, size common.SizeSymetrycKey) (*models.KeyData, error)
+	GenerateSymetrycKeys(ctx context.Context, input models.GenerateSymmetricKeyRequest) (*models.KeyData, error)
 	// EncryptAES encrypts plaintext with an Azure Key Vault symmetric key
 	// reference or falls back to local AES-GCM when secretKey is a Base64 AES
 	// key.
-	EncryptAES(ctx context.Context, secretKey, value string, additional *string) (string, error)
+	EncryptAES(ctx context.Context, input models.EncryptAESRequest) (string, error)
 	// DecryptAES decrypts ciphertext produced by EncryptAES using Azure Key
 	// Vault or a local Base64 AES key.
-	DecryptAES(ctx context.Context, secretKey, cipherValue string, additional *string) (string, error)
+	DecryptAES(ctx context.Context, input models.DecryptAESRequest) (string, error)
 }
 
 type AsymmetricRepository interface {
 	// GenerateRSAKeys creates an RSA key in Azure Key Vault and returns its
 	// public key plus metadata reference.
-	GenerateRSAKeys(ctx context.Context, size common.SizeAsymetrycKey) (*models.KeyData, error)
-	// GenerateECCKeys creates an ECC key pair when provider-backed support is
-	// available for the backend.
-	GenerateECCKeys(ctx context.Context, curve common.CurveAsymmetricKey) (*models.KeyData, error)
+	GenerateRSAKeys(ctx context.Context, input models.GenerateRSAKeyRequest) (*models.KeyData, error)
+	// GenerateECDHCurveKeys creates an EC key in Azure Key Vault and returns its
+	// public key plus metadata reference.
+	GenerateECDHCurveKeys(ctx context.Context, input models.GenerateECDHCurveKeyRequest) (*models.KeyData, error)
 	// RSA_OAEP_Encode encrypts plaintext with an Azure Key Vault key reference
 	// or a Base64 RSA public key.
-	RSA_OAEP_Encode(ctx context.Context, publicKey, text string) (string, error)
+	RSA_OAEP_Encode(ctx context.Context, input models.RSAOAEPEncodeRequest) (string, error)
 	// RSA_OAEP_Decode decrypts ciphertext produced by RSA_OAEP_Encode using an
 	// Azure Key Vault key reference or a Base64 RSA private key.
-	RSA_OAEP_Decode(ctx context.Context, privateKey, cipherText string) (string, error)
+	RSA_OAEP_Decode(ctx context.Context, input models.RSAOAEPDecodeRequest) (string, error)
 	// ECDH_Encode encrypts plaintext with a supported provider-backed ECC key or
 	// falls back to a local Base64 ECC public key.
-	ECDH_Encode(ctx context.Context, publicKey, text string) (string, error)
+	ECDH_Encode(ctx context.Context, input models.ECDHEncodeRequest) (string, error)
 	// ECDH_Decode decrypts ciphertext produced by ECDH_Encode using a supported
 	// provider-backed ECC key or a local Base64 ECC private key.
-	ECDH_Decode(ctx context.Context, privateKey, cipherText string) (string, error)
+	ECDH_Decode(ctx context.Context, input models.ECDHDecodeRequest) (string, error)
+}
+
+type KeyRepository interface {
+	// RotateKey creates a new provider-backed key version or key material by key id.
+	RotateKey(ctx context.Context, input models.RotateKeyRequest) (*models.KeyData, error)
+	// GetKey returns the provider metadata and public material available for key id.
+	GetKey(ctx context.Context, input models.GetKeyRequest) (*models.KeyData, error)
+	// DeactivateKey disables a provider-backed key or key version by key id.
+	DeactivateKey(ctx context.Context, input models.DeactivateKeyRequest) error
 }
 
 type HashRepository interface {

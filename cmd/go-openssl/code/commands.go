@@ -31,6 +31,11 @@ type readCommand struct {
 	outputFile string
 }
 
+type reencryptCommand struct {
+	app     *App
+	options *UpdateEncryptionSecretOptions
+}
+
 // newGenerateCommand creates the certificate generation command.
 func newGenerateCommand(app *App) Command {
 	return &generateCommand{
@@ -122,5 +127,48 @@ func (command *readCommand) Cobra() *cobra.Command {
 	cobraCmd.Flags().StringVarP(&command.file, "file", "f", command.file, "Plain or encrypted PEM file to read")
 	cobraCmd.Flags().StringVarP(&command.secret, "secret", "s", command.secret, "Secret used to decrypt encrypted PEM files")
 	cobraCmd.Flags().StringVarP(&command.outputFile, "out", "o", command.outputFile, "Optional output file for the decrypted PEM")
+	return cobraCmd
+}
+
+// newReencryptCommand creates the encrypted PEM secret update command.
+func newReencryptCommand(app *App) Command {
+	defaults := defaultOptions()
+	return &reencryptCommand{
+		app: app,
+		options: &UpdateEncryptionSecretOptions{
+			CertificatePath: defaults.CertFileName,
+			PrivateKeyPath:  defaults.KeyFileName,
+			PublicKeyPath:   defaults.PublicKeyFileName,
+		},
+	}
+}
+
+// Cobra creates the executable Cobra command that updates encrypted PEM secrets.
+func (command *reencryptCommand) Cobra() *cobra.Command {
+	cobraCmd := &cobra.Command{
+		Use:   "reencrypt",
+		Short: "Update the encryption secret for existing encrypted PEM files",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			result, err := command.app.generator.UpdateEncryptionSecret(*command.options)
+			if err != nil {
+				return err
+			}
+
+			_, err = fmt.Fprintf(
+				command.app.streams.Out,
+				"Encryption secret updated\nCert: %s\nKey: %s\nPublic key: %s\n",
+				result.CertificatePath,
+				result.PrivateKeyPath,
+				result.PublicKeyPath,
+			)
+			return err
+		},
+	}
+
+	cobraCmd.Flags().StringVar(&command.options.CertificatePath, "cert-file", command.options.CertificatePath, "Encrypted certificate PEM file path")
+	cobraCmd.Flags().StringVar(&command.options.PrivateKeyPath, "key-file", command.options.PrivateKeyPath, "Encrypted private key PEM file path")
+	cobraCmd.Flags().StringVar(&command.options.PublicKeyPath, "public-key-file", command.options.PublicKeyPath, "Encrypted public key PEM file path")
+	cobraCmd.Flags().StringVar(&command.options.EncryptSecretOld, "encrypt-secret-old", command.options.EncryptSecretOld, "Current secret used to decrypt encrypted PEM files")
+	cobraCmd.Flags().StringVar(&command.options.EncryptSecretNew, "encrypt-secret-new", command.options.EncryptSecretNew, "New secret used to re-encrypt encrypted PEM files")
 	return cobraCmd
 }

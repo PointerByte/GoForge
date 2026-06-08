@@ -86,6 +86,20 @@ type Options struct {
 	CAKeySecret string
 }
 
+// UpdateEncryptionSecretOptions configures re-encryption of existing encrypted PEM files.
+type UpdateEncryptionSecretOptions struct {
+	// CertificatePath is the encrypted certificate PEM path to update.
+	CertificatePath string
+	// PrivateKeyPath is the encrypted private key PEM path to update.
+	PrivateKeyPath string
+	// PublicKeyPath is the encrypted public key PEM path to update.
+	PublicKeyPath string
+	// EncryptSecretOld is the current secret used to decrypt the PEM files.
+	EncryptSecretOld string
+	// EncryptSecretNew is the new secret used to re-encrypt the PEM files.
+	EncryptSecretNew string
+}
+
 // Result describes the generated PEM artifacts and the effective generation parameters.
 type Result struct {
 	// Algorithm is the normalized algorithm used for generation.
@@ -100,6 +114,22 @@ type Result struct {
 	PublicKeyPath string
 	// Encrypted reports whether the generated PEM files were encrypted.
 	Encrypted bool
+}
+
+// UpdateEncryptionSecretResult describes the PEM files updated with a new encryption secret.
+type UpdateEncryptionSecretResult struct {
+	// CertificatePath is the re-encrypted certificate PEM path.
+	CertificatePath string
+	// PrivateKeyPath is the re-encrypted private key PEM path.
+	PrivateKeyPath string
+	// PublicKeyPath is the re-encrypted public key PEM path.
+	PublicKeyPath string
+}
+
+type pemFileUpdate struct {
+	path    string
+	content []byte
+	mode    os.FileMode
 }
 
 // Generator coordinates filesystem writes and cryptographic generation helpers.
@@ -127,6 +157,11 @@ func NewGenerator() *Generator {
 // GenerateCertificates generates PEM certificate assets using the default generator.
 func GenerateCertificates(options Options) (Result, error) {
 	return NewGenerator().Generate(options)
+}
+
+// UpdateEncryptionSecret re-encrypts existing encrypted PEM files using a new secret.
+func UpdateEncryptionSecret(options UpdateEncryptionSecretOptions) (UpdateEncryptionSecretResult, error) {
+	return NewGenerator().UpdateEncryptionSecret(options)
 }
 
 // Generate creates a certificate together with matching private and public keys.
@@ -201,6 +236,71 @@ func (generator *Generator) Generate(options Options) (Result, error) {
 	}
 
 	return result, nil
+}
+
+// UpdateEncryptionSecret updates existing encrypted certificate, private key, and public key files.
+func (generator *Generator) UpdateEncryptionSecret(options UpdateEncryptionSecretOptions) (UpdateEncryptionSecretResult, error) {
+	resolvedOptions, err := normalizeUpdateEncryptionSecretOptions(options)
+	if err != nil {
+		return UpdateEncryptionSecretResult{}, err
+	}
+
+	randomSource, err := generator.randomSource("")
+	if err != nil {
+		return UpdateEncryptionSecretResult{}, fmt.Errorf("build random source: %w", err)
+	}
+
+	updates := make([]pemFileUpdate, 0, 3)
+	certificateUpdate, err := generator.prepareReencryptedPEMFile(resolvedOptions.CertificatePath, encryptedKindCertificate, resolvedOptions.EncryptSecretOld, resolvedOptions.EncryptSecretNew, randomSource, 0o644)
+	if err != nil {
+		return UpdateEncryptionSecretResult{}, fmt.Errorf("update certificate encryption secret: %w", err)
+	}
+	updates = append(updates, certificateUpdate)
+
+	privateKeyUpdate, err := generator.prepareReencryptedPEMFile(resolvedOptions.PrivateKeyPath, encryptedKindPrivateKey, resolvedOptions.EncryptSecretOld, resolvedOptions.EncryptSecretNew, randomSource, 0o600)
+	if err != nil {
+		return UpdateEncryptionSecretResult{}, fmt.Errorf("update private key encryption secret: %w", err)
+	}
+	updates = append(updates, privateKeyUpdate)
+
+	publicKeyUpdate, err := generator.prepareReencryptedPEMFile(resolvedOptions.PublicKeyPath, encryptedKindPublicKey, resolvedOptions.EncryptSecretOld, resolvedOptions.EncryptSecretNew, randomSource, 0o644)
+	if err != nil {
+		return UpdateEncryptionSecretResult{}, fmt.Errorf("update public key encryption secret: %w", err)
+	}
+	updates = append(updates, publicKeyUpdate)
+
+	for _, update := range updates {
+		if err := generator.writeFileFn(update.path, update.content, update.mode); err != nil {
+			return UpdateEncryptionSecretResult{}, fmt.Errorf("write %s: %w", update.path, err)
+		}
+	}
+
+	return UpdateEncryptionSecretResult{
+		CertificatePath: resolvedOptions.CertificatePath,
+		PrivateKeyPath:  resolvedOptions.PrivateKeyPath,
+		PublicKeyPath:   resolvedOptions.PublicKeyPath,
+	}, nil
+}
+
+func (generator *Generator) prepareReencryptedPEMFile(path string, kind string, oldSecret string, newSecret string, randomSource io.Reader, mode os.FileMode) (pemFileUpdate, error) {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return pemFileUpdate{}, err
+	}
+	if err := requireEncryptedPEM(content, kind); err != nil {
+		return pemFileUpdate{}, err
+	}
+
+	plainContent, err := DecryptPEM(content, oldSecret)
+	if err != nil {
+		return pemFileUpdate{}, err
+	}
+
+	encryptedContent, err := encryptPEM(plainContent, newSecret, kind, randomSource)
+	if err != nil {
+		return pemFileUpdate{}, err
+	}
+	return pemFileUpdate{path: path, content: encryptedContent, mode: mode}, nil
 }
 
 func defaultOptions() *Options {
@@ -295,6 +395,38 @@ func normalizeOptions(options Options) (Options, error) {
 		return Options{}, fmt.Errorf("unsupported algorithm %q", options.Algorithm)
 	}
 
+	return options, nil
+}
+
+func normalizeUpdateEncryptionSecretOptions(options UpdateEncryptionSecretOptions) (UpdateEncryptionSecretOptions, error) {
+	options.CertificatePath = strings.TrimSpace(options.CertificatePath)
+	options.PrivateKeyPath = strings.TrimSpace(options.PrivateKeyPath)
+	options.PublicKeyPath = strings.TrimSpace(options.PublicKeyPath)
+
+	if options.CertificatePath == "" {
+		return UpdateEncryptionSecretOptions{}, fmt.Errorf("certificate path is required")
+	}
+	if options.PrivateKeyPath == "" {
+		return UpdateEncryptionSecretOptions{}, fmt.Errorf("private key path is required")
+	}
+	if options.PublicKeyPath == "" {
+		return UpdateEncryptionSecretOptions{}, fmt.Errorf("public key path is required")
+	}
+	if strings.TrimSpace(options.EncryptSecretOld) == "" {
+		return UpdateEncryptionSecretOptions{}, fmt.Errorf("old encryption secret is required")
+	}
+	if strings.TrimSpace(options.EncryptSecretNew) == "" {
+		return UpdateEncryptionSecretOptions{}, fmt.Errorf("new encryption secret is required")
+	}
+	if options.EncryptSecretOld == options.EncryptSecretNew {
+		return UpdateEncryptionSecretOptions{}, fmt.Errorf("new encryption secret must be different from old encryption secret")
+	}
+	if err := validateEncryptionSecret(options.EncryptSecretOld); err != nil {
+		return UpdateEncryptionSecretOptions{}, fmt.Errorf("old encryption secret: %w", err)
+	}
+	if err := validateEncryptionSecret(options.EncryptSecretNew); err != nil {
+		return UpdateEncryptionSecretOptions{}, fmt.Errorf("new encryption secret: %w", err)
+	}
 	return options, nil
 }
 
@@ -562,6 +694,20 @@ func DecryptPEM(content []byte, secret string) ([]byte, error) {
 		return nil, fmt.Errorf("decrypt encrypted PEM: %w", err)
 	}
 	return plainText, nil
+}
+
+func requireEncryptedPEM(content []byte, kind string) error {
+	block, _ := pem.Decode(content)
+	if block == nil {
+		return fmt.Errorf("decode encrypted PEM: no PEM data found")
+	}
+	if block.Type != encryptedPEMBlockType {
+		return fmt.Errorf("PEM file is not encrypted")
+	}
+	if block.Headers["Kind"] != kind {
+		return fmt.Errorf("encrypted PEM kind = %q, want %q", block.Headers["Kind"], kind)
+	}
+	return nil
 }
 
 func encryptPEM(content []byte, secret string, kind string, randomSource io.Reader) ([]byte, error) {

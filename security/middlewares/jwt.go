@@ -51,8 +51,7 @@ type jwtMiddlewareConfig struct {
 	claimsContextKey    GinContextKey
 	claimsFactory       ClaimsFactory
 	validator           jwtservice.Validator
-	serviceConfig       jwtservice.ConfigServiceInput
-	serviceFactory      func(jwtservice.ConfigServiceInput) (*jwtservice.Service, error)
+	service             *jwtservice.Service
 	unauthorizedHandler func(*gin.Context, error)
 }
 
@@ -74,7 +73,6 @@ func RequireJWT(options ...JWTMiddlewareOption) gin.HandlerFunc {
 		bearerPrefix:     defaultBearerPrefix,
 		tokenContextKey:  JWTTokenContextKey,
 		claimsContextKey: JWTClaimsContextKey,
-		serviceFactory:   jwtservice.NewConfiguredService,
 		unauthorizedHandler: func(c *gin.Context, err error) {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"error": err.Error(),
@@ -89,14 +87,14 @@ func RequireJWT(options ...JWTMiddlewareOption) gin.HandlerFunc {
 		option(&config)
 	}
 
-	if config.validator != nil {
-		config.serviceConfig.Validator = config.validator
-	}
-
-	service, err := config.serviceFactory(config.serviceConfig)
-	if err != nil {
-		return func(c *gin.Context) {
-			config.unauthorizedHandler(c, err)
+	service := config.service
+	if service == nil {
+		var err error
+		service, err = newConfiguredJWTService(jwtValidatorPtr(config.validator))
+		if err != nil {
+			return func(c *gin.Context) {
+				config.unauthorizedHandler(c, err)
+			}
 		}
 	}
 
@@ -133,20 +131,12 @@ func RequireJWT(options ...JWTMiddlewareOption) gin.HandlerFunc {
 	}
 }
 
-// WithJWTServiceConfig customizes how the middleware builds the JWT service
-// from viper-backed configuration.
-func WithJWTServiceConfig(input jwtservice.ConfigServiceInput) JWTMiddlewareOption {
+// WithJWTService injects the JWT service used by the middleware. This is useful
+// for custom JWT strategies that are not viper-backed.
+func WithJWTService(service *jwtservice.Service) JWTMiddlewareOption {
 	return func(config *jwtMiddlewareConfig) {
-		config.serviceConfig = input
-	}
-}
-
-// WithJWTServiceFactory overrides the service constructor used by the
-// middleware. It is useful for custom JWT strategies that are not viper-backed.
-func WithJWTServiceFactory(factory func(jwtservice.ConfigServiceInput) (*jwtservice.Service, error)) JWTMiddlewareOption {
-	return func(config *jwtMiddlewareConfig) {
-		if factory != nil {
-			config.serviceFactory = factory
+		if service != nil {
+			config.service = service
 		}
 	}
 }
@@ -204,4 +194,15 @@ func extractBearerToken(headerValue string, bearerPrefix string) (string, error)
 		return "", ErrMissingAuthorization
 	}
 	return token, nil
+}
+
+func newConfiguredJWTService(validator *jwtservice.Validator) (*jwtservice.Service, error) {
+	return jwtservice.NewConfiguredService(validator)
+}
+
+func jwtValidatorPtr(validator jwtservice.Validator) *jwtservice.Validator {
+	if validator == nil {
+		return nil
+	}
+	return &validator
 }

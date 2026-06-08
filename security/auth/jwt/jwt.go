@@ -172,100 +172,6 @@ type customStrategy struct {
 	verify VerifyFunc
 }
 
-// HMACServiceInput configures NewHMACService.
-// SecretEnv keeps its original name for compatibility and is treated as a
-// viper key when Secret is empty.
-// Validator is optional.
-type HMACServiceInput struct {
-	// Secret is the HS256 shared key used directly when provided.
-	Secret string
-	// SecretEnv is the viper key used to read the shared key when Secret is empty.
-	SecretEnv string
-	// Validator optionally adds a post-signature validation callback.
-	Validator Validator
-}
-
-// RSAServiceInput configures NewRSAService.
-// PrivateKeyEnv and PublicKeyEnv keep their original names for compatibility
-// and are treated as viper keys when the corresponding key is nil.
-// Validator is optional.
-type RSAServiceInput struct {
-	// PrivateKey signs RS256 tokens when provided.
-	PrivateKey *rsa.PrivateKey
-	// PublicKey verifies RS256 token signatures when provided.
-	PublicKey *rsa.PublicKey
-	// PrivateKeyValue is a configured RSA private key value used directly when
-	// PrivateKey is nil. It may be a PEM file path or a Base64-encoded DER key.
-	PrivateKeyValue string
-	// PublicKeyValue is a configured RSA public key value used directly when
-	// PublicKey is nil. It may be a PEM file path or a Base64-encoded DER key.
-	PublicKeyValue string
-	// PrivateKeyEnv is the viper key used to read the private key when PrivateKey is nil.
-	PrivateKeyEnv string
-	// PublicKeyEnv is the viper key used to read the public key when PublicKey is nil.
-	PublicKeyEnv string
-	// Validator optionally adds a post-signature validation callback.
-	Validator Validator
-}
-
-// Ed25519ServiceInput configures NewEd25519Service.
-type Ed25519ServiceInput struct {
-	// PrivateKey signs EdDSA tokens when provided.
-	PrivateKey ed25519.PrivateKey
-	// PublicKey verifies EdDSA token signatures when provided.
-	PublicKey ed25519.PublicKey
-	// PrivateKeyValue is a configured Ed25519 private key value used directly
-	// when PrivateKey is empty. It may be a PEM file path or a Base64-encoded
-	// DER key.
-	PrivateKeyValue string
-	// PublicKeyValue is a configured Ed25519 public key value used directly
-	// when PublicKey is empty. It may be a PEM file path or a Base64-encoded
-	// DER key.
-	PublicKeyValue string
-	// PrivateKeyEnv is the viper key used to read the private key when PrivateKey is nil.
-	PrivateKeyEnv string
-	// PublicKeyEnv is the viper key used to read the public key when PublicKey is nil.
-	PublicKeyEnv string
-	// Validator optionally adds a post-signature validation callback.
-	Validator Validator
-}
-
-// ConfigServiceInput configures NewConfiguredService.
-// When Algorithm is empty, the constructor reads it from viper.
-// Validator is optional.
-type ConfigServiceInput struct {
-	// Algorithm selects the signing strategy; when empty it is read from viper.
-	Algorithm string
-	// algorithmKey is the viper key used to read Algorithm when Algorithm is empty.
-	algorithmKey string
-	// HMACSecret is the HS256 shared key used directly when provided.
-	HMACSecret string
-	// RSAPrivateKey is the RSA private key value used directly when provided.
-	// It may be a PEM file path or a Base64-encoded DER key.
-	RSAPrivateKey string
-	// RSAPublicKey is the RSA public key value used directly when provided.
-	// It may be a PEM file path or a Base64-encoded DER key.
-	RSAPublicKey string
-	// EdDSAPrivateKey is the Ed25519 private key value used directly when provided.
-	// It may be a PEM file path or a Base64-encoded DER key.
-	EdDSAPrivateKey string
-	// EdDSAPublicKey is the Ed25519 public key value used directly when provided.
-	// It may be a PEM file path or a Base64-encoded DER key.
-	EdDSAPublicKey string
-	// HMACSecretKey is the viper key used to read the HS256 shared key.
-	HMACSecretKey *string
-	// RSAPrivateKeyKey is the viper key used to read the RSA private key.
-	RSAPrivateKeyKey *string
-	// RSAPublicKeyKey is the viper key used to read the RSA public key.
-	RSAPublicKeyKey *string
-	// EdDSAPrivateKeyKey is the viper key used to read the Ed25519 private key.
-	EdDSAPrivateKeyKey *string
-	// EdDSAPublicKeyKey is the viper key used to read the Ed25519 public key.
-	EdDSAPublicKeyKey *string
-	// Validator optionally adds a post-signature validation callback.
-	Validator Validator
-}
-
 // New builds a JWT service from the provided options.
 // A signing strategy must be configured, either directly with WithStrategy or
 // through a convenience option such as WithHMACSHA256.
@@ -291,158 +197,66 @@ func New(options ...Option) (*Service, error) {
 // default, falling back to legacy algorithm-specific keys such as jwt.rsa.* and
 // jwt.eddsa.*. When only generic jwt.keys.* values are configured, Algorithm
 // must be set because the key path no longer identifies RSA or Ed25519.
-func NewConfiguredService(input ConfigServiceInput) (*Service, error) {
-	algorithm := strings.ToUpper(strings.TrimSpace(input.Algorithm))
-	if algorithm == "" {
-		algorithm = strings.ToUpper(strings.TrimSpace(viper.GetString(stringOrDefault(input.algorithmKey, DefaultAlgorithmKey))))
-	}
-	if algorithm == "" {
-		algorithm = inferConfiguredAlgorithm(input)
-	}
+func NewConfiguredService(validator *Validator) (*Service, error) {
+	algorithm := strings.ToUpper(strings.TrimSpace(viper.GetString(DefaultAlgorithmKey)))
 	if algorithm == "" {
 		return nil, ErrMissingAlgorithm
 	}
-
 	switch algorithm {
 	case "HS256":
-		return NewHMACService(HMACServiceInput{
-			Secret:    input.HMACSecret,
-			SecretEnv: stringPtrOrDefault(input.HMACSecretKey, DefaultHMACSecretKey),
-			Validator: input.Validator,
-		})
+		return NewHMACService(validator)
 	case "RS256":
-		return NewRSAService(RSAServiceInput{
-			PrivateKeyValue: input.RSAPrivateKey,
-			PublicKeyValue:  input.RSAPublicKey,
-			PrivateKeyEnv:   stringPtrValue(input.RSAPrivateKeyKey),
-			PublicKeyEnv:    stringPtrValue(input.RSAPublicKeyKey),
-			Validator:       input.Validator,
-		})
+		return NewRSAService(validator)
 	case "PS256":
-		return NewRSAPSSService(RSAServiceInput{
-			PrivateKeyValue: input.RSAPrivateKey,
-			PublicKeyValue:  input.RSAPublicKey,
-			PrivateKeyEnv:   stringPtrValue(input.RSAPrivateKeyKey),
-			PublicKeyEnv:    stringPtrValue(input.RSAPublicKeyKey),
-			Validator:       input.Validator,
-		})
+		return NewRSAPSSService(validator)
 	case "EDDSA":
-		return NewEd25519Service(Ed25519ServiceInput{
-			PrivateKeyValue: input.EdDSAPrivateKey,
-			PublicKeyValue:  input.EdDSAPublicKey,
-			PrivateKeyEnv:   stringPtrValue(input.EdDSAPrivateKeyKey),
-			PublicKeyEnv:    stringPtrValue(input.EdDSAPublicKeyKey),
-			Validator:       input.Validator,
-		})
+		return NewEd25519Service(validator)
 	default:
 		return nil, fmt.Errorf("%w: %s", ErrUnsupportedAlg, algorithm)
 	}
 }
 
-func inferConfiguredAlgorithm(input ConfigServiceInput) string {
-	candidates := make([]string, 0, 3)
-
-	hmacSecretKey := stringPtrOrDefault(input.HMACSecretKey, DefaultHMACSecretKey)
-	if input.HMACSecret != "" || configValueFromViperOrDirect(hmacSecretKey) != "" {
-		candidates = append(candidates, "HS256")
-	}
-
-	if input.RSAPrivateKey != "" || input.RSAPublicKey != "" ||
-		configuredValueExists(legacyKeyCandidates(stringPtrValue(input.RSAPrivateKeyKey), DefaultRSAPrivateKeyKey)...) ||
-		configuredValueExists(legacyKeyCandidates(stringPtrValue(input.RSAPublicKeyKey), DefaultRSAPublicKeyKey)...) {
-		candidates = append(candidates, "RS256")
-	}
-
-	if input.EdDSAPrivateKey != "" || input.EdDSAPublicKey != "" ||
-		configuredValueExists(legacyKeyCandidates(stringPtrValue(input.EdDSAPrivateKeyKey), DefaultEdDSAPrivateKeyKey)...) ||
-		configuredValueExists(legacyKeyCandidates(stringPtrValue(input.EdDSAPublicKeyKey), DefaultEdDSAPublicKeyKey)...) {
-		candidates = append(candidates, "EDDSA")
-	}
-
-	if len(candidates) != 1 {
-		return ""
-	}
-	return candidates[0]
-}
-
 // NewRSAPSSService builds a JWT service for PS256 signatures.
-func NewRSAPSSService(input RSAServiceInput) (*Service, error) {
-	privateKey := input.PrivateKey
-	privateKeyValue, privateKeyConfig := asymmetricConfigValue(input.PrivateKeyValue, input.PrivateKeyEnv, DefaultJWTPrivateKeyKey, DefaultRSAPrivateKeyKey)
-	if privateKey == nil {
-		if privateKeyValue != "" {
-			parsedKey, err := parseRSAPrivateKeyFromConfig(privateKeyValue)
-			if err != nil {
-				return nil, fmt.Errorf("jwt: parse rsa private key from key %s: %w", privateKeyConfig, err)
-			}
-			privateKey = parsedKey
-		}
+func NewRSAPSSService(validator *Validator) (*Service, error) {
+	parsedPrivateKey, err := parseRSAPrivateKeyFromConfig(viper.GetString(DefaultJWTPrivateKeyKey))
+	if err != nil {
+		return nil, fmt.Errorf("jwt: parse rsa private key from key %s: %w", DefaultJWTPrivateKeyKey, err)
 	}
-
-	publicKey := input.PublicKey
-	publicKeyValue, publicKeyConfig := asymmetricConfigValue(input.PublicKeyValue, input.PublicKeyEnv, DefaultJWTPublicKeyKey, DefaultRSAPublicKeyKey)
-	if publicKey == nil {
-		if publicKeyValue != "" {
-			parsedKey, err := parseRSAPublicKeyFromConfig(publicKeyValue)
-			if err != nil {
-				return nil, fmt.Errorf("jwt: parse rsa public key from key %s: %w", publicKeyConfig, err)
-			}
-			publicKey = parsedKey
-		}
+	parsedPublicKey, err := parseRSAPublicKeyFromConfig(viper.GetString(DefaultJWTPublicKeyKey))
+	if err != nil {
+		return nil, fmt.Errorf("jwt: parse rsa public key from key %s: %w", DefaultJWTPublicKeyKey, err)
 	}
-
-	options := []Option{WithRSAPSSSHA256(privateKey, publicKey)}
-	if input.Validator != nil {
-		options = append(options, WithValidator(input.Validator))
+	options := []Option{WithRSAPSSSHA256(parsedPrivateKey, parsedPublicKey)}
+	if validator != nil {
+		options = append(options, WithValidator(*validator))
 	}
 	return New(options...)
 }
 
 // NewEd25519Service builds a JWT service for EdDSA signatures.
-func NewEd25519Service(input Ed25519ServiceInput) (*Service, error) {
-	privateKey := input.PrivateKey
-	privateKeyValue, privateKeyConfig := asymmetricConfigValue(input.PrivateKeyValue, input.PrivateKeyEnv, DefaultJWTPrivateKeyKey, DefaultEdDSAPrivateKeyKey)
-	if privateKey == nil {
-		if privateKeyValue != "" {
-			parsedKey, err := parseEd25519PrivateKeyFromConfig(privateKeyValue)
-			if err != nil {
-				return nil, fmt.Errorf("jwt: parse ed25519 private key from key %s: %w", privateKeyConfig, err)
-			}
-			privateKey = parsedKey
-		}
+func NewEd25519Service(validator *Validator) (*Service, error) {
+	parsedPrivateKey, err := parseEd25519PrivateKeyFromConfig(viper.GetString(DefaultJWTPrivateKeyKey))
+	if err != nil {
+		return nil, fmt.Errorf("jwt: parse ed25519 private key from key %s: %w", DefaultJWTPrivateKeyKey, err)
 	}
-
-	publicKey := input.PublicKey
-	publicKeyValue, publicKeyConfig := asymmetricConfigValue(input.PublicKeyValue, input.PublicKeyEnv, DefaultJWTPublicKeyKey, DefaultEdDSAPublicKeyKey)
-	if publicKey == nil {
-		if publicKeyValue != "" {
-			parsedKey, err := parseEd25519PublicKeyFromConfig(publicKeyValue)
-			if err != nil {
-				return nil, fmt.Errorf("jwt: parse ed25519 public key from key %s: %w", publicKeyConfig, err)
-			}
-			publicKey = parsedKey
-		}
+	parsedPublicKey, err := parseEd25519PublicKeyFromConfig(viper.GetString(DefaultJWTPublicKeyKey))
+	if err != nil {
+		return nil, fmt.Errorf("jwt: parse ed25519 public key from key %s: %w", DefaultJWTPublicKeyKey, err)
 	}
-
-	options := []Option{WithEd25519(privateKey, publicKey)}
-	if input.Validator != nil {
-		options = append(options, WithValidator(input.Validator))
+	options := []Option{WithEd25519(parsedPrivateKey, parsedPublicKey)}
+	if validator != nil {
+		options = append(options, WithValidator(*validator))
 	}
 	return New(options...)
 }
 
 // NewHMACService builds a JWT service for HS256 signatures.
 // The secret can be provided directly or loaded from viper.
-func NewHMACService(input HMACServiceInput) (*Service, error) {
-	secret := input.Secret
-	secretKey := stringOrDefault(input.SecretEnv, DefaultHMACSecretKey)
-	if secret == "" {
-		secret = viper.GetString(secretKey)
-	}
-
+func NewHMACService(validator *Validator) (*Service, error) {
+	secret := viper.GetString(DefaultHMACSecretKey)
 	options := []Option{WithHMACSHA256(secret)}
-	if input.Validator != nil {
-		options = append(options, WithValidator(input.Validator))
+	if validator != nil {
+		options = append(options, WithValidator(*validator))
 	}
 	return New(options...)
 }
@@ -451,34 +265,18 @@ func NewHMACService(input HMACServiceInput) (*Service, error) {
 // Keys can be provided directly or loaded from viper values. Configured values
 // may point to PEM files containing PKCS#8 private and X.509 public keys, or
 // keep the previous Base64-encoded DER format for compatibility.
-func NewRSAService(input RSAServiceInput) (*Service, error) {
-	privateKey := input.PrivateKey
-	privateKeyValue, privateKeyConfig := asymmetricConfigValue(input.PrivateKeyValue, input.PrivateKeyEnv, DefaultJWTPrivateKeyKey, DefaultRSAPrivateKeyKey)
-	if privateKey == nil {
-		if privateKeyValue != "" {
-			parsedKey, err := parseRSAPrivateKeyFromConfig(privateKeyValue)
-			if err != nil {
-				return nil, fmt.Errorf("jwt: parse rsa private key from key %s: %w", privateKeyConfig, err)
-			}
-			privateKey = parsedKey
-		}
+func NewRSAService(validator *Validator) (*Service, error) {
+	parsedPrivateKey, err := parseRSAPrivateKeyFromConfig(viper.GetString(DefaultJWTPrivateKeyKey))
+	if err != nil {
+		return nil, fmt.Errorf("jwt: parse rsa private key from key %s: %w", DefaultJWTPrivateKeyKey, err)
 	}
-
-	publicKey := input.PublicKey
-	publicKeyValue, publicKeyConfig := asymmetricConfigValue(input.PublicKeyValue, input.PublicKeyEnv, DefaultJWTPublicKeyKey, DefaultRSAPublicKeyKey)
-	if publicKey == nil {
-		if publicKeyValue != "" {
-			parsedKey, err := parseRSAPublicKeyFromConfig(publicKeyValue)
-			if err != nil {
-				return nil, fmt.Errorf("jwt: parse rsa public key from key %s: %w", publicKeyConfig, err)
-			}
-			publicKey = parsedKey
-		}
+	parsedPublicKey, err := parseRSAPublicKeyFromConfig(viper.GetString(DefaultJWTPublicKeyKey))
+	if err != nil {
+		return nil, fmt.Errorf("jwt: parse rsa public key from key %s: %w", DefaultJWTPublicKeyKey, err)
 	}
-
-	options := []Option{WithRSASHA256(privateKey, publicKey)}
-	if input.Validator != nil {
-		options = append(options, WithValidator(input.Validator))
+	options := []Option{WithRSASHA256(parsedPrivateKey, parsedPublicKey)}
+	if validator != nil {
+		options = append(options, WithValidator(*validator))
 	}
 	return New(options...)
 }
@@ -1076,108 +874,6 @@ func shouldReadPEMFile(value string) bool {
 		return true
 	}
 	return false
-}
-
-func configValueFromViperOrDirect(config string) string {
-	value := viper.GetString(config)
-	if value != "" {
-		return value
-	}
-	if looksLikeDirectConfigValue(config) {
-		return strings.TrimSpace(config)
-	}
-	return ""
-}
-
-func looksLikeDirectConfigValue(value string) bool {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return false
-	}
-	if shouldReadPEMFile(value) {
-		return true
-	}
-	if _, err := base64.StdEncoding.DecodeString(value); err == nil {
-		return true
-	}
-	return false
-}
-
-func asymmetricConfigValue(directValue string, explicitKey string, defaultKey string, legacyKey string) (string, string) {
-	directSource := stringOrDefault(strings.TrimSpace(explicitKey), defaultKey)
-	return configValueFromDirectOrKeys(directValue, directSource, configKeyCandidates(explicitKey, defaultKey, legacyKey)...)
-}
-
-func configValueFromDirectOrKeys(directValue string, directSource string, keys ...string) (string, string) {
-	if strings.TrimSpace(directValue) != "" {
-		return directValue, directSource
-	}
-	for _, key := range keys {
-		if value := configValueFromViperOrDirect(key); value != "" {
-			return value, key
-		}
-	}
-	return "", firstNonEmptyString(keys...)
-}
-
-func configuredValueExists(keys ...string) bool {
-	for _, key := range keys {
-		if configValueFromViperOrDirect(key) != "" {
-			return true
-		}
-	}
-	return false
-}
-
-func legacyKeyCandidates(explicitKey string, legacyKey string) []string {
-	return configKeyCandidates(explicitKey, legacyKey)
-}
-
-func configKeyCandidates(keys ...string) []string {
-	candidates := make([]string, 0, len(keys))
-	seen := make(map[string]struct{}, len(keys))
-	for _, key := range keys {
-		key = strings.TrimSpace(key)
-		if key == "" {
-			continue
-		}
-		if _, ok := seen[key]; ok {
-			continue
-		}
-		seen[key] = struct{}{}
-		candidates = append(candidates, key)
-	}
-	return candidates
-}
-
-func firstNonEmptyString(values ...string) string {
-	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return value
-		}
-	}
-	return ""
-}
-
-func stringOrDefault(value string, fallback string) string {
-	if value != "" {
-		return value
-	}
-	return fallback
-}
-
-func stringPtrOrDefault(value *string, fallback string) string {
-	if value == nil {
-		return fallback
-	}
-	return stringOrDefault(*value, fallback)
-}
-
-func stringPtrValue(value *string) string {
-	if value == nil {
-		return ""
-	}
-	return strings.TrimSpace(*value)
 }
 
 func setJWTConfigValue(key string, value string) {

@@ -106,24 +106,38 @@ import (
 	"github.com/PointerByte/GoForge/encrypt"
 	"github.com/PointerByte/GoForge/encrypt/common"
 	"github.com/PointerByte/GoForge/encrypt/local"
+	"github.com/PointerByte/GoForge/encrypt/models"
 )
 
 func main() {
 	ctx := context.Background()
 	repository := encrypt.NewRepository(local.NewRepository())
 
-	keyData, err := repository.GenerateSymetrycKeys(ctx, common.Key256Bits)
+	keyData, err := repository.GenerateSymetrycKeys(ctx, models.GenerateSymmetricKeyRequest{
+		UID:  "user-123",
+		Size: common.Key256Bits,
+	})
 	if err != nil {
 		panic(err)
 	}
 
 	additional := "aad"
-	cipherText, err := repository.EncryptAES(ctx, keyData.KeyID, "hola", &additional)
+	cipherText, err := repository.EncryptAES(ctx, models.EncryptAESRequest{
+		UID:        "user-123",
+		SecretKey:  keyData.KeyID,
+		Value:      "hola",
+		Additional: &additional,
+	})
 	if err != nil {
 		panic(err)
 	}
 
-	plainText, err := repository.DecryptAES(ctx, keyData.KeyID, cipherText, &additional)
+	plainText, err := repository.DecryptAES(ctx, models.DecryptAESRequest{
+		UID:         "user-123",
+		SecretKey:   keyData.KeyID,
+		CipherValue: cipherText,
+		Additional:  &additional,
+	})
 	if err != nil {
 		panic(err)
 	}
@@ -145,17 +159,28 @@ _, _, _ = hmacValue, sha256Value, blake3Value
 ## RSA
 
 ```go
-keys, err := repository.GenerateRSAKeys(ctx, common.Key2048Bits)
+keys, err := repository.GenerateRSAKeys(ctx, models.GenerateRSAKeyRequest{
+	UID:  "user-123",
+	Size: common.Key2048Bits,
+})
 if err != nil {
 	panic(err)
 }
 
-cipherText, err := repository.RSA_OAEP_Encode(ctx, keys.PublicKey, "hola")
+cipherText, err := repository.RSA_OAEP_Encode(ctx, models.RSAOAEPEncodeRequest{
+	UID:       "user-123",
+	PublicKey: keys.PublicKey,
+	Text:      "hola",
+})
 if err != nil {
 	panic(err)
 }
 
-plainText, err := repository.RSA_OAEP_Decode(ctx, keys.KeyID, cipherText)
+plainText, err := repository.RSA_OAEP_Decode(ctx, models.RSAOAEPDecodeRequest{
+	UID:        "user-123",
+	PrivateKey: keys.KeyID,
+	CipherText: cipherText,
+})
 if err != nil {
 	panic(err)
 }
@@ -175,17 +200,28 @@ _ = plainText
 ## ECC
 
 ```go
-keys, err := repository.GenerateECCKeys(ctx, common.CurveP256)
+keys, err := repository.GenerateECDHCurveKeys(ctx, models.GenerateECDHCurveKeyRequest{
+	UID:   "user-123",
+	Curve: common.CurveP256,
+})
 if err != nil {
 	panic(err)
 }
 
-cipherText, err := repository.ECDH_Encode(ctx, keys.PublicKey, "hola")
+cipherText, err := repository.ECDH_Encode(ctx, models.ECDHEncodeRequest{
+	UID:       "user-123",
+	PublicKey: keys.PublicKey,
+	Text:      "hola",
+})
 if err != nil {
 	panic(err)
 }
 
-plainText, err := repository.ECDH_Decode(ctx, keys.KeyID, cipherText)
+plainText, err := repository.ECDH_Decode(ctx, models.ECDHDecodeRequest{
+	UID:        "user-123",
+	PrivateKey: keys.KeyID,
+	CipherText: cipherText,
+})
 if err != nil {
 	panic(err)
 }

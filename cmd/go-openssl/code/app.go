@@ -55,5 +55,6 @@ func (app *App) rootCommand() *cobra.Command {
 	}
 	root.AddCommand(newGenerateCommand(app).Cobra())
 	root.AddCommand(newReadCommand(app).Cobra())
+	root.AddCommand(newReencryptCommand(app).Cobra())
 	return root
 }

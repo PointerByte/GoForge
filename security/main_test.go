@@ -189,10 +189,9 @@ func TestNewServices(t *testing.T) {
 		t.Fatalf("expected hmac config without error, got %v", err)
 	}
 
-	hmacService, err := jwtservice.NewConfiguredService(jwtservice.ConfigServiceInput{
-		Algorithm: "HS256",
-		Validator: validateActiveSession,
-	})
+	viper.Set(jwtservice.DefaultAlgorithmKey, "HS256")
+	validator := jwtservice.Validator(validateActiveSession)
+	hmacService, err := jwtservice.NewConfiguredService(&validator)
 	if err != nil {
 		t.Fatalf("expected hmac service without error, got %v", err)
 	}
@@ -201,10 +200,8 @@ func TestNewServices(t *testing.T) {
 		t.Fatalf("expected rsa config without error, got %v", err)
 	}
 
-	rsaService, err := jwtservice.NewConfiguredService(jwtservice.ConfigServiceInput{
-		Algorithm: "RS256",
-		Validator: validateActiveSession,
-	})
+	viper.Set(jwtservice.DefaultAlgorithmKey, "RS256")
+	rsaService, err := jwtservice.NewConfiguredService(&validator)
 	if err != nil {
 		t.Fatalf("expected rsa service without error, got %v", err)
 	}
@@ -232,9 +229,8 @@ func TestEnsureDefaultRSAKeysReplacesMissingPEMPlaceholders(t *testing.T) {
 		t.Fatalf("expected generated public key, got %q", viper.GetString(rsaPublicKeyKey))
 	}
 
-	service, err := jwtservice.NewConfiguredService(jwtservice.ConfigServiceInput{
-		Algorithm: "RS256",
-	})
+	viper.Set(jwtservice.DefaultAlgorithmKey, "RS256")
+	service, err := jwtservice.NewConfiguredService(nil)
 	if err != nil {
 		t.Fatalf("expected rsa service without error, got %v", err)
 	}

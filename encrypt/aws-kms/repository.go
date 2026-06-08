@@ -22,7 +22,10 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-sdk-go-v2/otelaws"
 )
 
-const defaultKMSARNKey = "encrypt.vault.aws-kms.arn"
+const (
+	defaultKMSARNKey = "encrypt.vault.aws-kms.arn"
+	awsProviderName  = "aws-kms"
+)
 
 var (
 	errAWSKMSKeyARNRequired = errors.New("aws-kms: key arn or id is required")
@@ -36,17 +39,21 @@ var (
 
 type kmsClient interface {
 	CreateKey(ctx context.Context, params *kms.CreateKeyInput, optFns ...func(*kms.Options)) (*kms.CreateKeyOutput, error)
+	DescribeKey(ctx context.Context, params *kms.DescribeKeyInput, optFns ...func(*kms.Options)) (*kms.DescribeKeyOutput, error)
 	DeriveSharedSecret(ctx context.Context, params *kms.DeriveSharedSecretInput, optFns ...func(*kms.Options)) (*kms.DeriveSharedSecretOutput, error)
+	DisableKey(ctx context.Context, params *kms.DisableKeyInput, optFns ...func(*kms.Options)) (*kms.DisableKeyOutput, error)
 	GetPublicKey(ctx context.Context, params *kms.GetPublicKeyInput, optFns ...func(*kms.Options)) (*kms.GetPublicKeyOutput, error)
 	Encrypt(ctx context.Context, params *kms.EncryptInput, optFns ...func(*kms.Options)) (*kms.EncryptOutput, error)
 	Decrypt(ctx context.Context, params *kms.DecryptInput, optFns ...func(*kms.Options)) (*kms.DecryptOutput, error)
 	GenerateMac(ctx context.Context, params *kms.GenerateMacInput, optFns ...func(*kms.Options)) (*kms.GenerateMacOutput, error)
+	RotateKeyOnDemand(ctx context.Context, params *kms.RotateKeyOnDemandInput, optFns ...func(*kms.Options)) (*kms.RotateKeyOnDemandOutput, error)
 	VerifyMac(ctx context.Context, params *kms.VerifyMacInput, optFns ...func(*kms.Options)) (*kms.VerifyMacOutput, error)
 	Sign(ctx context.Context, params *kms.SignInput, optFns ...func(*kms.Options)) (*kms.SignOutput, error)
 	Verify(ctx context.Context, params *kms.VerifyInput, optFns ...func(*kms.Options)) (*kms.VerifyOutput, error)
 }
 
 type symmetricRepository struct{ local local.SymmetricRepository }
+type keyRepository struct{}
 type hashRepository struct{ local local.HashRepository }
 
 type asymmetricRepository struct {
@@ -60,6 +67,7 @@ type signatureRepository struct {
 type Repository struct {
 	SymmetricRepository
 	AsymmetricRepository
+	KeyRepository
 	SignatureRepository
 	HashRepository
 }
@@ -70,6 +78,10 @@ func NewSymmetricRepository() SymmetricRepository {
 
 func NewHashRepository() HashRepository {
 	return &hashRepository{local: local.NewHashRepository()}
+}
+
+func NewKeyRepository() KeyRepository {
+	return &keyRepository{}
 }
 
 func NewAsymmetricRepository() AsymmetricRepository {
@@ -88,13 +100,14 @@ func NewRepository() *Repository {
 	return &Repository{
 		SymmetricRepository:  NewSymmetricRepository(),
 		AsymmetricRepository: NewAsymmetricRepository(),
+		KeyRepository:        NewKeyRepository(),
 		SignatureRepository:  NewSignatureRepository(),
 		HashRepository:       NewHashRepository(),
 	}
 }
 
-func (repository *symmetricRepository) GenerateSymetrycKeys(ctx context.Context, size common.SizeSymetrycKey) (*models.KeyData, error) {
-	keySpec, err := toAWSSymmetricKeySpec(size)
+func (repository *symmetricRepository) GenerateSymetrycKeys(ctx context.Context, input models.GenerateSymmetricKeyRequest) (*models.KeyData, error) {
+	keySpec, err := toAWSSymmetricKeySpec(input.Size)
 	if err != nil {
 		return nil, err
 	}
@@ -108,6 +121,7 @@ func (repository *symmetricRepository) GenerateSymetrycKeys(ctx context.Context,
 		KeyUsage: types.KeyUsageTypeEncryptDecrypt,
 		KeySpec:  keySpec,
 		Origin:   types.OriginTypeAwsKms,
+		Tags:     awsUIDTags(input.UID),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("aws-kms: create symmetric key: %w", err)
@@ -122,13 +136,74 @@ func (repository *symmetricRepository) GenerateSymetrycKeys(ctx context.Context,
 	return &models.KeyData{
 		KeyID:    keyID,
 		KeyRef:   keyRef,
-		Provider: "aws-kms",
+		Provider: awsProviderName,
 	}, nil
 }
 
-func (repository *symmetricRepository) EncryptAES(ctx context.Context, secretKey, value string, additional *string) (string, error) {
-	if utilities.IsLocalAESKey(secretKey) {
-		return repository.local.EncryptAES(ctx, secretKey, value, additional)
+func (repository *keyRepository) RotateKey(ctx context.Context, input models.RotateKeyRequest) (*models.KeyData, error) {
+	client, err := newAWSKMSClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	keyID, err := resolveAWSKMSKeyID(input.KeyID)
+	if err != nil {
+		return nil, err
+	}
+
+	describeOutput, err := client.DescribeKey(ctx, &kms.DescribeKeyInput{KeyId: sdkaws.String(keyID)})
+	if err != nil {
+		return nil, fmt.Errorf("aws-kms: describe key before rotation: %w", err)
+	}
+	if describeOutput.KeyMetadata == nil {
+		return nil, errors.New("aws-kms: missing key metadata from describe key response")
+	}
+	if describeOutput.KeyMetadata.KeyUsage != types.KeyUsageTypeEncryptDecrypt ||
+		describeOutput.KeyMetadata.KeySpec != types.KeySpecSymmetricDefault {
+		return nil, errors.New("aws-kms: key rotation is supported only for symmetric encryption keys")
+	}
+
+	if _, err := client.RotateKeyOnDemand(ctx, &kms.RotateKeyOnDemandInput{KeyId: sdkaws.String(keyID)}); err != nil {
+		return nil, fmt.Errorf("aws-kms: rotate key: %w", err)
+	}
+
+	return awsKeyDataFromDescribe(ctx, client, keyID)
+}
+
+func (repository *keyRepository) GetKey(ctx context.Context, input models.GetKeyRequest) (*models.KeyData, error) {
+	client, err := newAWSKMSClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	keyID, err := resolveAWSKMSKeyID(input.KeyID)
+	if err != nil {
+		return nil, err
+	}
+
+	return awsKeyDataFromDescribe(ctx, client, keyID)
+}
+
+func (repository *keyRepository) DeactivateKey(ctx context.Context, input models.DeactivateKeyRequest) error {
+	client, err := newAWSKMSClient(ctx)
+	if err != nil {
+		return err
+	}
+
+	keyID, err := resolveAWSKMSKeyID(input.KeyID)
+	if err != nil {
+		return err
+	}
+
+	if _, err := client.DisableKey(ctx, &kms.DisableKeyInput{KeyId: sdkaws.String(keyID)}); err != nil {
+		return fmt.Errorf("aws-kms: deactivate key: %w", err)
+	}
+	return nil
+}
+
+func (repository *symmetricRepository) EncryptAES(ctx context.Context, input models.EncryptAESRequest) (string, error) {
+	if utilities.IsLocalAESKey(input.SecretKey) {
+		return repository.local.EncryptAES(ctx, input)
 	}
 
 	client, err := newAWSKMSClient(ctx)
@@ -136,29 +211,29 @@ func (repository *symmetricRepository) EncryptAES(ctx context.Context, secretKey
 		return "", err
 	}
 
-	keyID, err := resolveAWSKMSKeyID(secretKey)
+	keyID, err := resolveAWSKMSKeyID(input.SecretKey)
 	if err != nil {
 		return "", err
 	}
 
-	input := &kms.EncryptInput{
+	encryptInput := &kms.EncryptInput{
 		KeyId:     sdkaws.String(keyID),
-		Plaintext: []byte(value),
+		Plaintext: []byte(input.Value),
 	}
-	if additional != nil {
-		input.EncryptionContext = map[string]string{"additional": *additional}
+	if encryptionContext := awsKMSEncryptionContext(input.UID, input.Additional); len(encryptionContext) > 0 {
+		encryptInput.EncryptionContext = encryptionContext
 	}
 
-	output, err := client.Encrypt(ctx, input)
+	output, err := client.Encrypt(ctx, encryptInput)
 	if err != nil {
 		return "", fmt.Errorf("aws-kms: encrypt with symmetric key: %w", err)
 	}
 	return base64.StdEncoding.EncodeToString(output.CiphertextBlob), nil
 }
 
-func (repository *symmetricRepository) DecryptAES(ctx context.Context, secretKey, cipherValue string, additional *string) (string, error) {
-	if utilities.IsLocalAESKey(secretKey) {
-		return repository.local.DecryptAES(ctx, secretKey, cipherValue, additional)
+func (repository *symmetricRepository) DecryptAES(ctx context.Context, input models.DecryptAESRequest) (string, error) {
+	if utilities.IsLocalAESKey(input.SecretKey) {
+		return repository.local.DecryptAES(ctx, input)
 	}
 
 	client, err := newAWSKMSClient(ctx)
@@ -166,25 +241,25 @@ func (repository *symmetricRepository) DecryptAES(ctx context.Context, secretKey
 		return "", err
 	}
 
-	keyID, err := resolveAWSKMSKeyID(secretKey)
+	keyID, err := resolveAWSKMSKeyID(input.SecretKey)
 	if err != nil {
 		return "", err
 	}
 
-	ciphertext, err := base64.StdEncoding.DecodeString(cipherValue)
+	ciphertext, err := base64.StdEncoding.DecodeString(input.CipherValue)
 	if err != nil {
 		return "", fmt.Errorf("aws-kms: decode base64 ciphertext: %w", err)
 	}
 
-	input := &kms.DecryptInput{
+	decryptInput := &kms.DecryptInput{
 		KeyId:          sdkaws.String(keyID),
 		CiphertextBlob: ciphertext,
 	}
-	if additional != nil {
-		input.EncryptionContext = map[string]string{"additional": *additional}
+	if encryptionContext := awsKMSEncryptionContext(input.UID, input.Additional); len(encryptionContext) > 0 {
+		decryptInput.EncryptionContext = encryptionContext
 	}
 
-	output, err := client.Decrypt(ctx, input)
+	output, err := client.Decrypt(ctx, decryptInput)
 	if err != nil {
 		return "", fmt.Errorf("aws-kms: decrypt with symmetric key: %w", err)
 	}
@@ -225,53 +300,13 @@ func (repository *hashRepository) Blake3(ctx context.Context, message string) st
 	return repository.local.Blake3(ctx, message)
 }
 
-func (repository *asymmetricRepository) GenerateRSAKeys(ctx context.Context, size common.SizeAsymetrycKey) (*models.KeyData, error) {
+func (repository *asymmetricRepository) GenerateECDHCurveKeys(ctx context.Context, input models.GenerateECDHCurveKeyRequest) (*models.KeyData, error) {
 	client, err := newAWSKMSClient(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	keySpec, err := toAWSRSAKeySpec(size)
-	if err != nil {
-		return nil, err
-	}
-
-	output, err := client.CreateKey(ctx, &kms.CreateKeyInput{
-		KeyUsage: types.KeyUsageTypeEncryptDecrypt,
-		KeySpec:  keySpec,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("aws-kms: create rsa key: %w", err)
-	}
-	if output.KeyMetadata == nil || output.KeyMetadata.KeyId == nil || output.KeyMetadata.Arn == nil {
-		return nil, errors.New("aws-kms: missing key metadata from create key response")
-	}
-
-	publicKeyOutput, err := client.GetPublicKey(ctx, &kms.GetPublicKeyInput{
-		KeyId: output.KeyMetadata.KeyId,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("aws-kms: get public key: %w", err)
-	}
-
-	keyID := sdkaws.ToString(output.KeyMetadata.KeyId)
-	keyRef := sdkaws.ToString(output.KeyMetadata.Arn)
-	publicKey := base64.StdEncoding.EncodeToString(publicKeyOutput.PublicKey)
-	return &models.KeyData{
-		PublicKey: publicKey,
-		KeyID:     keyID,
-		KeyRef:    keyRef,
-		Provider:  "aws-kms",
-	}, nil
-}
-
-func (repository *asymmetricRepository) GenerateECCKeys(ctx context.Context, curve common.CurveAsymmetricKey) (*models.KeyData, error) {
-	client, err := newAWSKMSClient(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	keySpec, err := toAWSECCKeySpec(curve)
+	keySpec, err := toAWSECCKeySpec(input.Curve)
 	if err != nil {
 		return nil, err
 	}
@@ -280,6 +315,7 @@ func (repository *asymmetricRepository) GenerateECCKeys(ctx context.Context, cur
 		KeyUsage: types.KeyUsageTypeKeyAgreement,
 		KeySpec:  keySpec,
 		Origin:   types.OriginTypeAwsKms,
+		Tags:     awsUIDTags(input.UID),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("aws-kms: create ecc key: %w", err)
@@ -297,13 +333,13 @@ func (repository *asymmetricRepository) GenerateECCKeys(ctx context.Context, cur
 		PublicKey: base64.StdEncoding.EncodeToString(publicKeyOutput.PublicKey),
 		KeyID:     sdkaws.ToString(output.KeyMetadata.KeyId),
 		KeyRef:    sdkaws.ToString(output.KeyMetadata.Arn),
-		Provider:  "aws-kms",
+		Provider:  awsProviderName,
 	}, nil
 }
 
-func (repository *asymmetricRepository) RSA_OAEP_Encode(ctx context.Context, publicKey, text string) (string, error) {
-	if _, err := utilities.ParseRSAPublicKeyFromBase64(publicKey); err == nil {
-		return repository.local.RSA_OAEP_Encode(ctx, publicKey, text)
+func (repository *asymmetricRepository) ECDH_Encode(ctx context.Context, input models.ECDHEncodeRequest) (string, error) {
+	if _, err := utilities.ParseECDHPublicKeyFromBase64(input.PublicKey); err == nil {
+		return repository.local.ECDH_Encode(ctx, input)
 	}
 
 	client, err := newAWSKMSClient(ctx)
@@ -311,64 +347,7 @@ func (repository *asymmetricRepository) RSA_OAEP_Encode(ctx context.Context, pub
 		return "", err
 	}
 
-	keyID, err := resolveAWSKMSKeyID(publicKey)
-	if err != nil {
-		return "", err
-	}
-
-	output, err := client.Encrypt(ctx, &kms.EncryptInput{
-		KeyId:               sdkaws.String(keyID),
-		Plaintext:           []byte(text),
-		EncryptionAlgorithm: types.EncryptionAlgorithmSpecRsaesOaepSha256,
-	})
-	if err != nil {
-		return "", fmt.Errorf("aws-kms: encrypt with rsa-oaep-sha256: %w", err)
-	}
-	return base64.StdEncoding.EncodeToString(output.CiphertextBlob), nil
-}
-
-func (repository *asymmetricRepository) RSA_OAEP_Decode(ctx context.Context, privateKey, cipherText string) (string, error) {
-	if _, err := utilities.ParseRSAPrivateKeyFromBase64(privateKey); err == nil {
-		return repository.local.RSA_OAEP_Decode(ctx, privateKey, cipherText)
-	}
-
-	client, err := newAWSKMSClient(ctx)
-	if err != nil {
-		return "", err
-	}
-
-	keyID, err := resolveAWSKMSKeyID(privateKey)
-	if err != nil {
-		return "", err
-	}
-
-	ciphertext, err := base64.StdEncoding.DecodeString(cipherText)
-	if err != nil {
-		return "", fmt.Errorf("aws-kms: decode base64 ciphertext: %w", err)
-	}
-
-	output, err := client.Decrypt(ctx, &kms.DecryptInput{
-		KeyId:               sdkaws.String(keyID),
-		CiphertextBlob:      ciphertext,
-		EncryptionAlgorithm: types.EncryptionAlgorithmSpecRsaesOaepSha256,
-	})
-	if err != nil {
-		return "", fmt.Errorf("aws-kms: decrypt with rsa-oaep-sha256: %w", err)
-	}
-	return string(output.Plaintext), nil
-}
-
-func (repository *asymmetricRepository) ECDH_Encode(ctx context.Context, publicKey, text string) (string, error) {
-	if _, err := utilities.ParseECDHPublicKeyFromBase64(publicKey); err == nil {
-		return repository.local.ECDH_Encode(ctx, publicKey, text)
-	}
-
-	client, err := newAWSKMSClient(ctx)
-	if err != nil {
-		return "", err
-	}
-
-	keyID, err := resolveAWSKMSKeyID(publicKey)
+	keyID, err := resolveAWSKMSKeyID(input.PublicKey)
 	if err != nil {
 		return "", err
 	}
@@ -378,12 +357,16 @@ func (repository *asymmetricRepository) ECDH_Encode(ctx context.Context, publicK
 		return "", fmt.Errorf("aws-kms: get ecc public key: %w", err)
 	}
 
-	return repository.local.ECDH_Encode(ctx, base64.StdEncoding.EncodeToString(publicKeyOutput.PublicKey), text)
+	return repository.local.ECDH_Encode(ctx, models.ECDHEncodeRequest{
+		UID:       input.UID,
+		PublicKey: base64.StdEncoding.EncodeToString(publicKeyOutput.PublicKey),
+		Text:      input.Text,
+	})
 }
 
-func (repository *asymmetricRepository) ECDH_Decode(ctx context.Context, privateKey, cipherText string) (string, error) {
-	if _, err := utilities.ParseECDHPrivateKeyFromBase64(privateKey); err == nil {
-		return repository.local.ECDH_Decode(ctx, privateKey, cipherText)
+func (repository *asymmetricRepository) ECDH_Decode(ctx context.Context, input models.ECDHDecodeRequest) (string, error) {
+	if _, err := utilities.ParseECDHPrivateKeyFromBase64(input.PrivateKey); err == nil {
+		return repository.local.ECDH_Decode(ctx, input)
 	}
 
 	client, err := newAWSKMSClient(ctx)
@@ -391,12 +374,12 @@ func (repository *asymmetricRepository) ECDH_Decode(ctx context.Context, private
 		return "", err
 	}
 
-	keyID, err := resolveAWSKMSKeyID(privateKey)
+	keyID, err := resolveAWSKMSKeyID(input.PrivateKey)
 	if err != nil {
 		return "", err
 	}
 
-	payload, err := utilities.DecodeECCCipherPayload(cipherText)
+	payload, err := utilities.DecodeECCCipherPayload(input.CipherText)
 	if err != nil {
 		return "", err
 	}
@@ -420,7 +403,110 @@ func (repository *asymmetricRepository) ECDH_Decode(ctx context.Context, private
 		return "", err
 	}
 
-	return local.NewSymmetricRepository().DecryptAES(ctx, base64.StdEncoding.EncodeToString(derivedKey), payload.Ciphertext, &payload.Curve)
+	return local.NewSymmetricRepository().DecryptAES(ctx, models.DecryptAESRequest{
+		UID:         input.UID,
+		SecretKey:   base64.StdEncoding.EncodeToString(derivedKey),
+		CipherValue: payload.Ciphertext,
+		Additional:  &payload.Curve,
+	})
+}
+
+func (repository *asymmetricRepository) GenerateRSAKeys(ctx context.Context, input models.GenerateRSAKeyRequest) (*models.KeyData, error) {
+	client, err := newAWSKMSClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	keySpec, err := toAWSRSAKeySpec(input.Size)
+	if err != nil {
+		return nil, err
+	}
+
+	output, err := client.CreateKey(ctx, &kms.CreateKeyInput{
+		KeyUsage: types.KeyUsageTypeEncryptDecrypt,
+		KeySpec:  keySpec,
+		Tags:     awsUIDTags(input.UID),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("aws-kms: create rsa key: %w", err)
+	}
+	if output.KeyMetadata == nil || output.KeyMetadata.KeyId == nil || output.KeyMetadata.Arn == nil {
+		return nil, errors.New("aws-kms: missing key metadata from create key response")
+	}
+
+	publicKeyOutput, err := client.GetPublicKey(ctx, &kms.GetPublicKeyInput{
+		KeyId: output.KeyMetadata.KeyId,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("aws-kms: get public key: %w", err)
+	}
+
+	keyID := sdkaws.ToString(output.KeyMetadata.KeyId)
+	keyRef := sdkaws.ToString(output.KeyMetadata.Arn)
+	publicKey := base64.StdEncoding.EncodeToString(publicKeyOutput.PublicKey)
+	return &models.KeyData{
+		PublicKey: publicKey,
+		KeyID:     keyID,
+		KeyRef:    keyRef,
+		Provider:  awsProviderName,
+	}, nil
+}
+
+func (repository *asymmetricRepository) RSA_OAEP_Encode(ctx context.Context, input models.RSAOAEPEncodeRequest) (string, error) {
+	if _, err := utilities.ParseRSAPublicKeyFromBase64(input.PublicKey); err == nil {
+		return repository.local.RSA_OAEP_Encode(ctx, input)
+	}
+
+	client, err := newAWSKMSClient(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	keyID, err := resolveAWSKMSKeyID(input.PublicKey)
+	if err != nil {
+		return "", err
+	}
+
+	output, err := client.Encrypt(ctx, &kms.EncryptInput{
+		KeyId:               sdkaws.String(keyID),
+		Plaintext:           []byte(input.Text),
+		EncryptionAlgorithm: types.EncryptionAlgorithmSpecRsaesOaepSha256,
+	})
+	if err != nil {
+		return "", fmt.Errorf("aws-kms: encrypt with rsa-oaep-sha256: %w", err)
+	}
+	return base64.StdEncoding.EncodeToString(output.CiphertextBlob), nil
+}
+
+func (repository *asymmetricRepository) RSA_OAEP_Decode(ctx context.Context, input models.RSAOAEPDecodeRequest) (string, error) {
+	if _, err := utilities.ParseRSAPrivateKeyFromBase64(input.PrivateKey); err == nil {
+		return repository.local.RSA_OAEP_Decode(ctx, input)
+	}
+
+	client, err := newAWSKMSClient(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	keyID, err := resolveAWSKMSKeyID(input.PrivateKey)
+	if err != nil {
+		return "", err
+	}
+
+	ciphertext, err := base64.StdEncoding.DecodeString(input.CipherText)
+	if err != nil {
+		return "", fmt.Errorf("aws-kms: decode base64 ciphertext: %w", err)
+	}
+
+	output, err := client.Decrypt(ctx, &kms.DecryptInput{
+		KeyId:               sdkaws.String(keyID),
+		CiphertextBlob:      ciphertext,
+		EncryptionAlgorithm: types.EncryptionAlgorithmSpecRsaesOaepSha256,
+	})
+	if err != nil {
+		return "", fmt.Errorf("aws-kms: decrypt with rsa-oaep-sha256: %w", err)
+	}
+	return string(output.Plaintext), nil
 }
 
 func (repository *signatureRepository) GenerateEd255Keys(ctx context.Context) (*models.KeyData, error) {
@@ -455,7 +541,7 @@ func (repository *signatureRepository) GenerateEd255Keys(ctx context.Context) (*
 		PublicKey: publicKey,
 		KeyID:     keyID,
 		KeyRef:    keyRef,
-		Provider:  "aws-kms",
+		Provider:  awsProviderName,
 	}, nil
 }
 
@@ -673,6 +759,81 @@ func resolveAWSKMSKeyID(key string) (string, error) {
 		return configured, nil
 	}
 	return "", errAWSKMSKeyARNRequired
+}
+
+func awsUIDTags(uid string) []types.Tag {
+	if strings.TrimSpace(uid) == "" {
+		return nil
+	}
+	return []types.Tag{{
+		TagKey:   sdkaws.String("uid"),
+		TagValue: sdkaws.String(uid),
+	}}
+}
+
+func awsKMSEncryptionContext(uid string, additional *string) map[string]string {
+	context := make(map[string]string, 2)
+	if strings.TrimSpace(uid) != "" {
+		context["uid"] = uid
+	}
+	if additional != nil {
+		context["additional"] = *additional
+	}
+	if len(context) == 0 {
+		return nil
+	}
+	return context
+}
+
+func awsKeyDataFromDescribe(ctx context.Context, client kmsClient, keyID string) (*models.KeyData, error) {
+	output, err := client.DescribeKey(ctx, &kms.DescribeKeyInput{KeyId: sdkaws.String(keyID)})
+	if err != nil {
+		return nil, fmt.Errorf("aws-kms: describe key: %w", err)
+	}
+	return awsKeyDataFromMetadata(ctx, client, output.KeyMetadata)
+}
+
+func awsKeyDataFromMetadata(ctx context.Context, client kmsClient, metadata *types.KeyMetadata) (*models.KeyData, error) {
+	if metadata == nil || metadata.KeyId == nil {
+		return nil, errors.New("aws-kms: missing key metadata from describe key response")
+	}
+
+	keyID := sdkaws.ToString(metadata.KeyId)
+	keyRef := sdkaws.ToString(metadata.Arn)
+	if keyRef == "" {
+		keyRef = keyID
+	}
+
+	keyData := &models.KeyData{
+		KeyID:    keyID,
+		KeyRef:   keyRef,
+		Provider: awsProviderName,
+	}
+	if !awsKeySpecHasPublicKey(metadata.KeySpec) {
+		return keyData, nil
+	}
+
+	publicKeyOutput, err := client.GetPublicKey(ctx, &kms.GetPublicKeyInput{KeyId: sdkaws.String(keyID)})
+	if err != nil {
+		return nil, fmt.Errorf("aws-kms: get public key: %w", err)
+	}
+	keyData.PublicKey = base64.StdEncoding.EncodeToString(publicKeyOutput.PublicKey)
+	return keyData, nil
+}
+
+func awsKeySpecHasPublicKey(keySpec types.KeySpec) bool {
+	switch keySpec {
+	case types.KeySpecRsa2048,
+		types.KeySpecRsa3072,
+		types.KeySpecRsa4096,
+		types.KeySpecEccNistP256,
+		types.KeySpecEccNistP384,
+		types.KeySpecEccNistP521,
+		types.KeySpecEccNistEdwards25519:
+		return true
+	default:
+		return false
+	}
 }
 
 func toAWSRSAKeySpec(size common.SizeAsymetrycKey) (types.KeySpec, error) {

@@ -162,7 +162,7 @@ func TestNewConfiguredServiceSupportsDirectAndViperCookieNames(t *testing.T) {
 		key := "COOKIE_TEST_SECRET_DIRECT"
 		_, err := NewConfiguredService(ConfigServiceInput{
 			CookieName: "session_token",
-			JWT: jwtservice.ConfigServiceInput{
+			JWT: JWTConfigServiceInput{
 				Algorithm:     "HS256",
 				HMACSecretKey: &key,
 			},
@@ -181,7 +181,7 @@ func TestNewConfiguredServiceSupportsDirectAndViperCookieNames(t *testing.T) {
 		viper.Set("COOKIE_TEST_NAME", "session_token")
 		service, err := NewConfiguredService(ConfigServiceInput{
 			CookieNameKey: "COOKIE_TEST_NAME",
-			JWT: jwtservice.ConfigServiceInput{
+			JWT: JWTConfigServiceInput{
 				Algorithm:     "HS256",
 				HMACSecretKey: &key,
 			},
@@ -202,7 +202,7 @@ func TestNewConfiguredServiceSupportsDirectAndViperCookieNames(t *testing.T) {
 		key := "COOKIE_TEST_SECRET_DEFAULT"
 		viper.Set(key, "configured-secret")
 		service, err := NewConfiguredService(ConfigServiceInput{
-			JWT: jwtservice.ConfigServiceInput{
+			JWT: JWTConfigServiceInput{
 				Algorithm:     "HS256",
 				HMACSecretKey: &key,
 			},

@@ -510,193 +510,116 @@ func TestNewAndOptionsErrors(t *testing.T) {
 	}
 }
 
-func TestNewHMACServiceSupportsDirectSecretEnvAndOptionalValidator(t *testing.T) {
-	t.Run("direct secret without validator", func(t *testing.T) {
-		service, err := NewHMACService(HMACServiceInput{
-			Secret: "service-secret",
-		})
-		if err != nil {
-			t.Fatalf("expected service without error, got %v", err)
-		}
+func TestNewHMACServiceUsesViperSecretAndOptionalValidator(t *testing.T) {
+	viper.Set(DefaultHMACSecretKey, "service-secret")
+	defer viper.Reset()
 
-		token, err := service.Create(testClaims{UserID: "42", Role: "reader", Active: true})
-		if err != nil {
-			t.Fatalf("expected token without error, got %v", err)
-		}
-
-		var claims testClaims
-		if err := service.Read(token, &claims); err != nil {
-			t.Fatalf("expected read without error, got %v", err)
-		}
+	validatorCalled := false
+	validator := Validator(func(ctx context.Context, token Token) error {
+		validatorCalled = true
+		return nil
 	})
+	service, err := NewHMACService(&validator)
+	if err != nil {
+		t.Fatalf("expected service without error, got %v", err)
+	}
 
-	t.Run("secret from env with validator", func(t *testing.T) {
-		viper.Set("JWT_TEST_HMAC_SECRET", "env-secret")
-		defer viper.Reset()
+	token, err := service.Create(testClaims{UserID: "42", Role: "reader", Active: true})
+	if err != nil {
+		t.Fatalf("expected token without error, got %v", err)
+	}
 
-		validatorCalled := false
-		service, err := NewHMACService(HMACServiceInput{
-			SecretEnv: "JWT_TEST_HMAC_SECRET",
-			Validator: func(ctx context.Context, token Token) error {
-				validatorCalled = true
-				return nil
-			},
-		})
-		if err != nil {
-			t.Fatalf("expected service without error, got %v", err)
-		}
-
-		token, err := service.Create(testClaims{UserID: "24", Role: "admin", Active: true})
-		if err != nil {
-			t.Fatalf("expected token without error, got %v", err)
-		}
-
-		var claims testClaims
-		if _, err := service.Decode(context.Background(), token, &claims); err != nil {
-			t.Fatalf("expected decode without error, got %v", err)
-		}
-
-		if !validatorCalled {
-			t.Fatal("expected validator to run")
-		}
-	})
+	var claims testClaims
+	if _, err := service.Decode(context.Background(), token, &claims); err != nil {
+		t.Fatalf("expected decode without error, got %v", err)
+	}
+	if !validatorCalled {
+		t.Fatal("expected validator to run")
+	}
 }
 
-func TestNewRSAServiceSupportsDirectKeysEnvAndOptionalValidator(t *testing.T) {
-	t.Run("direct keys without validator", func(t *testing.T) {
-		privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
-		if err != nil {
-			t.Fatalf("expected rsa key without error, got %v", err)
-		}
+func TestNewRSAServiceUsesViperKeysAndOptionalValidator(t *testing.T) {
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("expected rsa key without error, got %v", err)
+	}
+	setRSAConfig(t, privateKey)
 
-		service, err := NewRSAService(RSAServiceInput{
-			PrivateKey: privateKey,
-			PublicKey:  &privateKey.PublicKey,
-		})
-		if err != nil {
-			t.Fatalf("expected service without error, got %v", err)
-		}
-
-		token, err := service.Create(testClaims{UserID: "99", Role: "operator", Active: true})
-		if err != nil {
-			t.Fatalf("expected token without error, got %v", err)
-		}
-
-		if err := service.ValidateSignature(token); err != nil {
-			t.Fatalf("expected valid signature, got %v", err)
-		}
+	validatorCalled := false
+	validator := Validator(func(ctx context.Context, token Token) error {
+		validatorCalled = true
+		return nil
 	})
+	service, err := NewRSAService(&validator)
+	if err != nil {
+		t.Fatalf("expected service without error, got %v", err)
+	}
 
-	t.Run("keys from env with validator", func(t *testing.T) {
-		privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
-		if err != nil {
-			t.Fatalf("expected rsa key without error, got %v", err)
-		}
+	token, err := service.Create(testClaims{UserID: "99", Role: "operator", Active: true})
+	if err != nil {
+		t.Fatalf("expected token without error, got %v", err)
+	}
 
-		privateDER, err := x509.MarshalPKCS8PrivateKey(privateKey)
-		if err != nil {
-			t.Fatalf("expected private key marshal without error, got %v", err)
-		}
-
-		publicDER, err := x509.MarshalPKIXPublicKey(&privateKey.PublicKey)
-		if err != nil {
-			t.Fatalf("expected public key marshal without error, got %v", err)
-		}
-
-		viper.Set("JWT_TEST_RSA_PRIVATE", base64.StdEncoding.EncodeToString(privateDER))
-		viper.Set("JWT_TEST_RSA_PUBLIC", base64.StdEncoding.EncodeToString(publicDER))
-		defer viper.Reset()
-
-		validatorCalled := false
-		service, err := NewRSAService(RSAServiceInput{
-			PrivateKeyEnv: "JWT_TEST_RSA_PRIVATE",
-			PublicKeyEnv:  "JWT_TEST_RSA_PUBLIC",
-			Validator: func(ctx context.Context, token Token) error {
-				validatorCalled = true
-				return nil
-			},
-		})
-		if err != nil {
-			t.Fatalf("expected service without error, got %v", err)
-		}
-
-		token, err := service.Create(testClaims{UserID: "77", Role: "admin", Active: true})
-		if err != nil {
-			t.Fatalf("expected token without error, got %v", err)
-		}
-
-		var claims testClaims
-		if _, err := service.Decode(context.Background(), token, &claims); err != nil {
-			t.Fatalf("expected decode without error, got %v", err)
-		}
-
-		if !validatorCalled {
-			t.Fatal("expected validator to run")
-		}
-	})
-
-	t.Run("keys from pem files", func(t *testing.T) {
-		privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
-		if err != nil {
-			t.Fatalf("expected rsa key without error, got %v", err)
-		}
-
-		privateDER, err := x509.MarshalPKCS8PrivateKey(privateKey)
-		if err != nil {
-			t.Fatalf("expected private key marshal without error, got %v", err)
-		}
-
-		publicDER, err := x509.MarshalPKIXPublicKey(&privateKey.PublicKey)
-		if err != nil {
-			t.Fatalf("expected public key marshal without error, got %v", err)
-		}
-
-		tempDir := t.TempDir()
-		privatePath := writeTestPEMFile(t, tempDir, "private_key.pem", "PRIVATE KEY", privateDER)
-		publicPath := writeTestPEMFile(t, tempDir, "public_key.pem", "PUBLIC KEY", publicDER)
-
-		viper.Set("JWT_TEST_RSA_PRIVATE_PEM", privatePath)
-		viper.Set("JWT_TEST_RSA_PUBLIC_PEM", publicPath)
-		defer viper.Reset()
-
-		service, err := NewRSAService(RSAServiceInput{
-			PrivateKeyEnv: "JWT_TEST_RSA_PRIVATE_PEM",
-			PublicKeyEnv:  "JWT_TEST_RSA_PUBLIC_PEM",
-		})
-		if err != nil {
-			t.Fatalf("expected service without error, got %v", err)
-		}
-
-		token, err := service.Create(testClaims{UserID: "88", Role: "admin", Active: true})
-		if err != nil {
-			t.Fatalf("expected token without error, got %v", err)
-		}
-
-		if err := service.ValidateSignature(token); err != nil {
-			t.Fatalf("expected valid signature, got %v", err)
-		}
-	})
+	var claims testClaims
+	if _, err := service.Decode(context.Background(), token, &claims); err != nil {
+		t.Fatalf("expected decode without error, got %v", err)
+	}
+	if !validatorCalled {
+		t.Fatal("expected validator to run")
+	}
 }
 
-func TestNewServicesFromEnvErrors(t *testing.T) {
+func TestNewRSAServiceSupportsPEMFiles(t *testing.T) {
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("expected rsa key without error, got %v", err)
+	}
+
+	privateDER, err := x509.MarshalPKCS8PrivateKey(privateKey)
+	if err != nil {
+		t.Fatalf("expected private key marshal without error, got %v", err)
+	}
+	publicDER, err := x509.MarshalPKIXPublicKey(&privateKey.PublicKey)
+	if err != nil {
+		t.Fatalf("expected public key marshal without error, got %v", err)
+	}
+
+	tempDir := t.TempDir()
+	viper.Set(DefaultJWTPrivateKeyKey, writeTestPEMFile(t, tempDir, "private_key.pem", "PRIVATE KEY", privateDER))
+	viper.Set(DefaultJWTPublicKeyKey, writeTestPEMFile(t, tempDir, "public_key.pem", "PUBLIC KEY", publicDER))
+	defer viper.Reset()
+
+	service, err := NewRSAService(nil)
+	if err != nil {
+		t.Fatalf("expected service without error, got %v", err)
+	}
+
+	token, err := service.Create(testClaims{UserID: "88", Role: "admin", Active: true})
+	if err != nil {
+		t.Fatalf("expected token without error, got %v", err)
+	}
+	if err := service.ValidateSignature(token); err != nil {
+		t.Fatalf("expected valid signature, got %v", err)
+	}
+}
+
+func TestNewServicesFromViperErrors(t *testing.T) {
 	t.Run("missing hmac secret", func(t *testing.T) {
 		defer viper.Reset()
-		if _, err := NewHMACService(HMACServiceInput{SecretEnv: "JWT_TEST_MISSING_SECRET"}); !errors.Is(err, ErrMissingSecret) {
+		if _, err := NewHMACService(nil); !errors.Is(err, ErrMissingSecret) {
 			t.Fatalf("expected ErrMissingSecret, got %v", err)
 		}
 	})
 
-	t.Run("invalid rsa private key env", func(t *testing.T) {
-		viper.Set("JWT_TEST_BAD_RSA_PRIVATE", "%%%")
-		viper.Set("JWT_TEST_BAD_RSA_PUBLIC", "")
+	t.Run("invalid rsa private key", func(t *testing.T) {
+		viper.Set(DefaultJWTPrivateKeyKey, "%%%")
+		viper.Set(DefaultJWTPublicKeyKey, "")
 		defer viper.Reset()
 
-		_, err := NewRSAService(RSAServiceInput{
-			PrivateKeyEnv: "JWT_TEST_BAD_RSA_PRIVATE",
-			PublicKeyEnv:  "JWT_TEST_BAD_RSA_PUBLIC",
-		})
-		if err == nil || !strings.Contains(err.Error(), "JWT_TEST_BAD_RSA_PRIVATE") {
-			t.Fatalf("expected private key env parse error, got %v", err)
+		err := error(nil)
+		_, err = NewRSAService(nil)
+		if err == nil || !strings.Contains(err.Error(), DefaultJWTPrivateKeyKey) {
+			t.Fatalf("expected private key parse error, got %v", err)
 		}
 	})
 }
@@ -707,9 +630,8 @@ func TestNewConfiguredServiceUsesViperAlgorithm(t *testing.T) {
 		viper.Set(DefaultHMACSecretKey, "configured-secret")
 		defer viper.Reset()
 
-		service, err := NewConfiguredService(ConfigServiceInput{
-			Validator: func(ctx context.Context, token Token) error { return nil },
-		})
+		validator := Validator(func(ctx context.Context, token Token) error { return nil })
+		service, err := NewConfiguredService(&validator)
 		if err != nil {
 			t.Fatalf("expected service without error, got %v", err)
 		}
@@ -718,7 +640,6 @@ func TestNewConfiguredServiceUsesViperAlgorithm(t *testing.T) {
 		if err != nil {
 			t.Fatalf("expected token without error, got %v", err)
 		}
-
 		if err := service.ValidateSignature(token); err != nil {
 			t.Fatalf("expected valid signature, got %v", err)
 		}
@@ -729,23 +650,10 @@ func TestNewConfiguredServiceUsesViperAlgorithm(t *testing.T) {
 		if err != nil {
 			t.Fatalf("expected rsa key without error, got %v", err)
 		}
-
-		privateDER, err := x509.MarshalPKCS8PrivateKey(privateKey)
-		if err != nil {
-			t.Fatalf("expected private key marshal without error, got %v", err)
-		}
-
-		publicDER, err := x509.MarshalPKIXPublicKey(&privateKey.PublicKey)
-		if err != nil {
-			t.Fatalf("expected public key marshal without error, got %v", err)
-		}
-
 		viper.Set(DefaultAlgorithmKey, "RS256")
-		viper.Set(DefaultJWTPrivateKeyKey, base64.StdEncoding.EncodeToString(privateDER))
-		viper.Set(DefaultJWTPublicKeyKey, base64.StdEncoding.EncodeToString(publicDER))
-		defer viper.Reset()
+		setRSAConfig(t, privateKey)
 
-		service, err := NewConfiguredService(ConfigServiceInput{})
+		service, err := NewConfiguredService(nil)
 		if err != nil {
 			t.Fatalf("expected service without error, got %v", err)
 		}
@@ -754,121 +662,6 @@ func TestNewConfiguredServiceUsesViperAlgorithm(t *testing.T) {
 		if err != nil {
 			t.Fatalf("expected token without error, got %v", err)
 		}
-
-		if err := service.ValidateSignature(token); err != nil {
-			t.Fatalf("expected valid signature, got %v", err)
-		}
-	})
-
-	t.Run("rs256 uses legacy keys as fallback", func(t *testing.T) {
-		privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
-		if err != nil {
-			t.Fatalf("expected rsa key without error, got %v", err)
-		}
-
-		privateDER, err := x509.MarshalPKCS8PrivateKey(privateKey)
-		if err != nil {
-			t.Fatalf("expected private key marshal without error, got %v", err)
-		}
-
-		publicDER, err := x509.MarshalPKIXPublicKey(&privateKey.PublicKey)
-		if err != nil {
-			t.Fatalf("expected public key marshal without error, got %v", err)
-		}
-
-		viper.Set(DefaultAlgorithmKey, "RS256")
-		viper.Set(DefaultRSAPrivateKeyKey, base64.StdEncoding.EncodeToString(privateDER))
-		viper.Set(DefaultRSAPublicKeyKey, base64.StdEncoding.EncodeToString(publicDER))
-		defer viper.Reset()
-
-		service, err := NewConfiguredService(ConfigServiceInput{})
-		if err != nil {
-			t.Fatalf("expected service without error, got %v", err)
-		}
-
-		token, err := service.Create(testClaims{UserID: "2-legacy", Role: "admin", Active: true})
-		if err != nil {
-			t.Fatalf("expected token without error, got %v", err)
-		}
-
-		if err := service.ValidateSignature(token); err != nil {
-			t.Fatalf("expected valid signature, got %v", err)
-		}
-	})
-
-	t.Run("rs256 direct encoded keys override pem config", func(t *testing.T) {
-		privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
-		if err != nil {
-			t.Fatalf("expected rsa key without error, got %v", err)
-		}
-
-		privateDER, err := x509.MarshalPKCS8PrivateKey(privateKey)
-		if err != nil {
-			t.Fatalf("expected private key marshal without error, got %v", err)
-		}
-
-		publicDER, err := x509.MarshalPKIXPublicKey(&privateKey.PublicKey)
-		if err != nil {
-			t.Fatalf("expected public key marshal without error, got %v", err)
-		}
-
-		viper.Set(DefaultJWTPrivateKeyKey, "./certs/jwt/key.pem")
-		viper.Set(DefaultJWTPublicKeyKey, "./certs/jwt/public.pem")
-		defer viper.Reset()
-
-		service, err := NewConfiguredService(ConfigServiceInput{
-			Algorithm:     "RS256",
-			RSAPrivateKey: base64.StdEncoding.EncodeToString(privateDER),
-			RSAPublicKey:  base64.StdEncoding.EncodeToString(publicDER),
-		})
-		if err != nil {
-			t.Fatalf("expected service without error, got %v", err)
-		}
-
-		token, err := service.Create(testClaims{UserID: "2b", Role: "admin", Active: true})
-		if err != nil {
-			t.Fatalf("expected token without error, got %v", err)
-		}
-
-		if err := service.ValidateSignature(token); err != nil {
-			t.Fatalf("expected valid signature, got %v", err)
-		}
-	})
-
-	t.Run("rs256 legacy key fields accept direct encoded values", func(t *testing.T) {
-		privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
-		if err != nil {
-			t.Fatalf("expected rsa key without error, got %v", err)
-		}
-
-		privateDER, err := x509.MarshalPKCS8PrivateKey(privateKey)
-		if err != nil {
-			t.Fatalf("expected private key marshal without error, got %v", err)
-		}
-
-		publicDER, err := x509.MarshalPKIXPublicKey(&privateKey.PublicKey)
-		if err != nil {
-			t.Fatalf("expected public key marshal without error, got %v", err)
-		}
-
-		privateValue := base64.StdEncoding.EncodeToString(privateDER)
-		publicValue := base64.StdEncoding.EncodeToString(publicDER)
-		defer viper.Reset()
-
-		service, err := NewConfiguredService(ConfigServiceInput{
-			Algorithm:        "RS256",
-			RSAPrivateKeyKey: &privateValue,
-			RSAPublicKeyKey:  &publicValue,
-		})
-		if err != nil {
-			t.Fatalf("expected service without error, got %v", err)
-		}
-
-		token, err := service.Create(testClaims{UserID: "2c", Role: "admin", Active: true})
-		if err != nil {
-			t.Fatalf("expected token without error, got %v", err)
-		}
-
 		if err := service.ValidateSignature(token); err != nil {
 			t.Fatalf("expected valid signature, got %v", err)
 		}
@@ -879,23 +672,10 @@ func TestNewConfiguredServiceUsesViperAlgorithm(t *testing.T) {
 		if err != nil {
 			t.Fatalf("expected rsa key without error, got %v", err)
 		}
-
-		privateDER, err := x509.MarshalPKCS8PrivateKey(privateKey)
-		if err != nil {
-			t.Fatalf("expected private key marshal without error, got %v", err)
-		}
-
-		publicDER, err := x509.MarshalPKIXPublicKey(&privateKey.PublicKey)
-		if err != nil {
-			t.Fatalf("expected public key marshal without error, got %v", err)
-		}
-
 		viper.Set(DefaultAlgorithmKey, "PS256")
-		viper.Set(DefaultJWTPrivateKeyKey, base64.StdEncoding.EncodeToString(privateDER))
-		viper.Set(DefaultJWTPublicKeyKey, base64.StdEncoding.EncodeToString(publicDER))
-		defer viper.Reset()
+		setRSAConfig(t, privateKey)
 
-		service, err := NewConfiguredService(ConfigServiceInput{})
+		service, err := NewConfiguredService(nil)
 		if err != nil {
 			t.Fatalf("expected service without error, got %v", err)
 		}
@@ -904,7 +684,6 @@ func TestNewConfiguredServiceUsesViperAlgorithm(t *testing.T) {
 		if err != nil {
 			t.Fatalf("expected token without error, got %v", err)
 		}
-
 		if err := service.ValidateSignature(token); err != nil {
 			t.Fatalf("expected valid signature, got %v", err)
 		}
@@ -915,23 +694,10 @@ func TestNewConfiguredServiceUsesViperAlgorithm(t *testing.T) {
 		if err != nil {
 			t.Fatalf("expected ed25519 key without error, got %v", err)
 		}
+		setEd25519Config(t, privateKey, publicKey)
+		viper.Set(DefaultAlgorithmKey, "EDDSA")
 
-		privateDER, err := x509.MarshalPKCS8PrivateKey(privateKey)
-		if err != nil {
-			t.Fatalf("expected private key marshal without error, got %v", err)
-		}
-
-		publicDER, err := x509.MarshalPKIXPublicKey(publicKey)
-		if err != nil {
-			t.Fatalf("expected public key marshal without error, got %v", err)
-		}
-
-		viper.Set(DefaultAlgorithmKey, "EdDSA")
-		viper.Set(DefaultJWTPrivateKeyKey, base64.StdEncoding.EncodeToString(privateDER))
-		viper.Set(DefaultJWTPublicKeyKey, base64.StdEncoding.EncodeToString(publicDER))
-		defer viper.Reset()
-
-		service, err := NewConfiguredService(ConfigServiceInput{})
+		service, err := NewConfiguredService(nil)
 		if err != nil {
 			t.Fatalf("expected service without error, got %v", err)
 		}
@@ -940,105 +706,8 @@ func TestNewConfiguredServiceUsesViperAlgorithm(t *testing.T) {
 		if err != nil {
 			t.Fatalf("expected token without error, got %v", err)
 		}
-
 		if err := service.ValidateSignature(token); err != nil {
 			t.Fatalf("expected valid signature, got %v", err)
-		}
-	})
-
-	t.Run("eddsa direct encoded keys override pem config", func(t *testing.T) {
-		publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
-		if err != nil {
-			t.Fatalf("expected ed25519 key without error, got %v", err)
-		}
-
-		privateDER, err := x509.MarshalPKCS8PrivateKey(privateKey)
-		if err != nil {
-			t.Fatalf("expected private key marshal without error, got %v", err)
-		}
-
-		publicDER, err := x509.MarshalPKIXPublicKey(publicKey)
-		if err != nil {
-			t.Fatalf("expected public key marshal without error, got %v", err)
-		}
-
-		viper.Set(DefaultJWTPrivateKeyKey, "./certs/jwt/ed25519-key.pem")
-		viper.Set(DefaultJWTPublicKeyKey, "./certs/jwt/ed25519-public.pem")
-		defer viper.Reset()
-
-		service, err := NewConfiguredService(ConfigServiceInput{
-			Algorithm:       "EdDSA",
-			EdDSAPrivateKey: base64.StdEncoding.EncodeToString(privateDER),
-			EdDSAPublicKey:  base64.StdEncoding.EncodeToString(publicDER),
-		})
-		if err != nil {
-			t.Fatalf("expected service without error, got %v", err)
-		}
-
-		token, err := service.Create(testClaims{UserID: "4b", Role: "admin", Active: true})
-		if err != nil {
-			t.Fatalf("expected token without error, got %v", err)
-		}
-
-		if err := service.ValidateSignature(token); err != nil {
-			t.Fatalf("expected valid signature, got %v", err)
-		}
-	})
-
-	t.Run("infers eddsa from legacy configured keys", func(t *testing.T) {
-		publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
-		if err != nil {
-			t.Fatalf("expected ed25519 key without error, got %v", err)
-		}
-
-		privateDER, err := x509.MarshalPKCS8PrivateKey(privateKey)
-		if err != nil {
-			t.Fatalf("expected private key marshal without error, got %v", err)
-		}
-
-		publicDER, err := x509.MarshalPKIXPublicKey(publicKey)
-		if err != nil {
-			t.Fatalf("expected public key marshal without error, got %v", err)
-		}
-
-		viper.Set(DefaultEdDSAPrivateKeyKey, base64.StdEncoding.EncodeToString(privateDER))
-		viper.Set(DefaultEdDSAPublicKeyKey, base64.StdEncoding.EncodeToString(publicDER))
-		defer viper.Reset()
-
-		service, err := NewConfiguredService(ConfigServiceInput{})
-		if err != nil {
-			t.Fatalf("expected service without error, got %v", err)
-		}
-
-		token, err := service.Create(testClaims{UserID: "5", Role: "admin", Active: true})
-		if err != nil {
-			t.Fatalf("expected token without error, got %v", err)
-		}
-
-		if err := service.ValidateSignature(token); err != nil {
-			t.Fatalf("expected valid signature, got %v", err)
-		}
-	})
-
-	t.Run("requires algorithm when generic keys are configured", func(t *testing.T) {
-		viper.Set(DefaultJWTPrivateKeyKey, "private")
-		viper.Set(DefaultJWTPublicKeyKey, "public")
-		defer viper.Reset()
-
-		_, err := NewConfiguredService(ConfigServiceInput{})
-		if !errors.Is(err, ErrMissingAlgorithm) {
-			t.Fatalf("expected ErrMissingAlgorithm, got %v", err)
-		}
-	})
-
-	t.Run("requires algorithm when multiple strategies are configured", func(t *testing.T) {
-		viper.Set(DefaultHMACSecretKey, "configured-secret")
-		viper.Set(DefaultEdDSAPrivateKeyKey, "private")
-		defer viper.Reset()
-
-		_, err := NewConfiguredService(ConfigServiceInput{})
-		if !errors.Is(err, ErrMissingAlgorithm) {
-			t.Fatalf("expected ErrMissingAlgorithm, got %v", err)
 		}
 	})
 
@@ -1046,11 +715,45 @@ func TestNewConfiguredServiceUsesViperAlgorithm(t *testing.T) {
 		viper.Set(DefaultAlgorithmKey, "ES256")
 		defer viper.Reset()
 
-		_, err := NewConfiguredService(ConfigServiceInput{})
+		_, err := NewConfiguredService(nil)
 		if !errors.Is(err, ErrUnsupportedAlg) {
 			t.Fatalf("expected ErrUnsupportedAlg, got %v", err)
 		}
 	})
+}
+
+func setRSAConfig(t *testing.T, privateKey *rsa.PrivateKey) {
+	t.Helper()
+
+	privateDER, err := x509.MarshalPKCS8PrivateKey(privateKey)
+	if err != nil {
+		t.Fatalf("expected private key marshal without error, got %v", err)
+	}
+	publicDER, err := x509.MarshalPKIXPublicKey(&privateKey.PublicKey)
+	if err != nil {
+		t.Fatalf("expected public key marshal without error, got %v", err)
+	}
+
+	viper.Set(DefaultJWTPrivateKeyKey, base64.StdEncoding.EncodeToString(privateDER))
+	viper.Set(DefaultJWTPublicKeyKey, base64.StdEncoding.EncodeToString(publicDER))
+	t.Cleanup(viper.Reset)
+}
+
+func setEd25519Config(t *testing.T, privateKey ed25519.PrivateKey, publicKey ed25519.PublicKey) {
+	t.Helper()
+
+	privateDER, err := x509.MarshalPKCS8PrivateKey(privateKey)
+	if err != nil {
+		t.Fatalf("expected private key marshal without error, got %v", err)
+	}
+	publicDER, err := x509.MarshalPKIXPublicKey(publicKey)
+	if err != nil {
+		t.Fatalf("expected public key marshal without error, got %v", err)
+	}
+
+	viper.Set(DefaultJWTPrivateKeyKey, base64.StdEncoding.EncodeToString(privateDER))
+	viper.Set(DefaultJWTPublicKeyKey, base64.StdEncoding.EncodeToString(publicDER))
+	t.Cleanup(viper.Reset)
 }
 
 func writeTestPEMFile(t *testing.T, dir, name, blockType string, der []byte) string {

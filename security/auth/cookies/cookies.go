@@ -40,7 +40,24 @@ type Service struct {
 type ConfigServiceInput struct {
 	CookieName    string
 	CookieNameKey string
-	JWT           jwtservice.ConfigServiceInput
+	JWT           JWTConfigServiceInput
+}
+
+// JWTConfigServiceInput adapts cookie auth configuration to the viper-backed
+// JWT constructors.
+type JWTConfigServiceInput struct {
+	Algorithm          string
+	HMACSecret         string
+	RSAPrivateKey      string
+	RSAPublicKey       string
+	EdDSAPrivateKey    string
+	EdDSAPublicKey     string
+	HMACSecretKey      *string
+	RSAPrivateKeyKey   *string
+	RSAPublicKeyKey    *string
+	EdDSAPrivateKeyKey *string
+	EdDSAPublicKeyKey  *string
+	Validator          jwtservice.Validator
 }
 
 // New builds a cookie auth service from options.
@@ -66,7 +83,8 @@ func New(options ...Option) (*Service, error) {
 // NewConfiguredService builds a cookie auth service from viper-backed JWT and
 // cookie configuration.
 func NewConfiguredService(input ConfigServiceInput) (*Service, error) {
-	jwtService, err := jwtservice.NewConfiguredService(input.JWT)
+	applyJWTConfig(input.JWT)
+	jwtService, err := jwtservice.NewConfiguredService(jwtValidatorPtr(input.JWT.Validator))
 	if err != nil {
 		return nil, err
 	}
@@ -83,6 +101,59 @@ func NewConfiguredService(input ConfigServiceInput) (*Service, error) {
 		WithJWTService(jwtService),
 		WithCookieName(cookieName),
 	)
+}
+
+func applyJWTConfig(input JWTConfigServiceInput) {
+	if strings.TrimSpace(input.Algorithm) != "" {
+		viper.Set(jwtservice.DefaultAlgorithmKey, input.Algorithm)
+	}
+	if strings.TrimSpace(input.HMACSecret) != "" {
+		viper.Set(jwtservice.DefaultHMACSecretKey, input.HMACSecret)
+	}
+	if input.HMACSecretKey != nil {
+		if value := viper.GetString(strings.TrimSpace(*input.HMACSecretKey)); value != "" {
+			viper.Set(jwtservice.DefaultHMACSecretKey, value)
+		}
+	}
+	if strings.TrimSpace(input.RSAPrivateKey) != "" {
+		viper.Set(jwtservice.DefaultJWTPrivateKeyKey, input.RSAPrivateKey)
+	}
+	if strings.TrimSpace(input.RSAPublicKey) != "" {
+		viper.Set(jwtservice.DefaultJWTPublicKeyKey, input.RSAPublicKey)
+	}
+	if input.RSAPrivateKeyKey != nil {
+		if value := viper.GetString(strings.TrimSpace(*input.RSAPrivateKeyKey)); value != "" {
+			viper.Set(jwtservice.DefaultJWTPrivateKeyKey, value)
+		}
+	}
+	if input.RSAPublicKeyKey != nil {
+		if value := viper.GetString(strings.TrimSpace(*input.RSAPublicKeyKey)); value != "" {
+			viper.Set(jwtservice.DefaultJWTPublicKeyKey, value)
+		}
+	}
+	if strings.TrimSpace(input.EdDSAPrivateKey) != "" {
+		viper.Set(jwtservice.DefaultJWTPrivateKeyKey, input.EdDSAPrivateKey)
+	}
+	if strings.TrimSpace(input.EdDSAPublicKey) != "" {
+		viper.Set(jwtservice.DefaultJWTPublicKeyKey, input.EdDSAPublicKey)
+	}
+	if input.EdDSAPrivateKeyKey != nil {
+		if value := viper.GetString(strings.TrimSpace(*input.EdDSAPrivateKeyKey)); value != "" {
+			viper.Set(jwtservice.DefaultJWTPrivateKeyKey, value)
+		}
+	}
+	if input.EdDSAPublicKeyKey != nil {
+		if value := viper.GetString(strings.TrimSpace(*input.EdDSAPublicKeyKey)); value != "" {
+			viper.Set(jwtservice.DefaultJWTPublicKeyKey, value)
+		}
+	}
+}
+
+func jwtValidatorPtr(validator jwtservice.Validator) *jwtservice.Validator {
+	if validator == nil {
+		return nil
+	}
+	return &validator
 }
 
 // WithJWTService injects the JWT service used to validate cookie values.

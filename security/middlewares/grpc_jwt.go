@@ -33,8 +33,7 @@ type jwtGRPCConfig struct {
 	bearerPrefix   string
 	claimsFactory  ClaimsFactory
 	validator      jwtservice.Validator
-	serviceConfig  jwtservice.ConfigServiceInput
-	serviceFactory func(jwtservice.ConfigServiceInput) (*jwtservice.Service, error)
+	serviceFactory func(*jwtservice.Validator) (*jwtservice.Service, error)
 
 	once       sync.Once
 	service    *jwtservice.Service
@@ -89,17 +88,9 @@ func RequireJWTStreamServerInterceptor(options ...JWTGRPCOption) grpc.StreamServ
 	}
 }
 
-// WithGRPCJWTServiceConfig customizes how gRPC JWT interceptors build the JWT
-// service from viper-backed configuration.
-func WithGRPCJWTServiceConfig(input jwtservice.ConfigServiceInput) JWTGRPCOption {
-	return func(config *jwtGRPCConfig) {
-		config.serviceConfig = input
-	}
-}
-
 // WithGRPCJWTServiceFactory overrides the service constructor used by gRPC JWT
 // interceptors. It is useful for custom JWT strategies that are not viper-backed.
-func WithGRPCJWTServiceFactory(factory func(jwtservice.ConfigServiceInput) (*jwtservice.Service, error)) JWTGRPCOption {
+func WithGRPCJWTServiceFactory(factory func(*jwtservice.Validator) (*jwtservice.Service, error)) JWTGRPCOption {
 	return func(config *jwtGRPCConfig) {
 		if factory != nil {
 			config.serviceFactory = factory
@@ -127,16 +118,13 @@ func newJWTGRPCConfig(options ...JWTGRPCOption) *jwtGRPCConfig {
 	config := &jwtGRPCConfig{
 		metadataName:   defaultGRPCAuthorizationMetadata,
 		bearerPrefix:   defaultBearerPrefix,
-		serviceFactory: jwtservice.NewConfiguredService,
+		serviceFactory: newConfiguredJWTService,
 	}
 	for _, option := range options {
 		if option == nil {
 			continue
 		}
 		option(config)
-	}
-	if config.validator != nil {
-		config.serviceConfig.Validator = config.validator
 	}
 	return config
 }
@@ -176,7 +164,7 @@ func (config *jwtGRPCConfig) authenticate(ctx context.Context) (context.Context,
 
 func (config *jwtGRPCConfig) resolveService() (*jwtservice.Service, error) {
 	config.once.Do(func() {
-		config.service, config.serviceErr = config.serviceFactory(config.serviceConfig)
+		config.service, config.serviceErr = config.serviceFactory(jwtValidatorPtr(config.validator))
 	})
 	return config.service, config.serviceErr
 }

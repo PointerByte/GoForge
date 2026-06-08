@@ -33,8 +33,8 @@ const (
 	hmacAlgorithmKey = "jwt.hmac.algorithm"
 	hmacSecretKey    = jwtservice.DefaultHMACSecretKey
 	rsaAlgorithmKey  = "jwt.rsa.algorithm"
-	rsaPrivateKeyKey = jwtservice.DefaultRSAPrivateKeyKey
-	rsaPublicKeyKey  = jwtservice.DefaultRSAPublicKeyKey
+	rsaPrivateKeyKey = jwtservice.DefaultJWTPrivateKeyKey
+	rsaPublicKeyKey  = jwtservice.DefaultJWTPublicKeyKey
 )
 
 // Example requests:
@@ -185,70 +185,61 @@ func newRouter() *gin.Engine {
 }
 
 func registerJWTExampleRoutes(group *gin.RouterGroup) {
-	jwtService, exampleName := jwtExampleServiceAndName(group.BasePath())
+	jwtService, jwtMiddlewareService, exampleName := jwtExampleServicesAndName(group.BasePath())
 
 	group.GET("/health", healthHandler(exampleName))
 	group.POST("/login", loginHandler(jwtService))
 
-	protected := group.Group("/api")
-	protected.Use(middlewares.RequireJWT(
-		middlewares.WithJWTServiceConfig(jwtConfigForExample(exampleName)),
-		middlewares.WithJWTServiceFactory(jwtServiceFactoryForExample(exampleName)),
+	jwtMiddlewareOptions := []middlewares.JWTMiddlewareOption{
 		middlewares.WithJWTClaimsFactory(func() any { return &sessionClaims{} }),
 		middlewares.WithJWTValidator(validateActiveSession),
-	))
+	}
+	if jwtMiddlewareService != nil {
+		jwtMiddlewareOptions = append(jwtMiddlewareOptions, middlewares.WithJWTService(jwtMiddlewareService))
+	}
+
+	protected := group.Group("/api")
+	protected.Use(middlewares.RequireJWT(jwtMiddlewareOptions...))
 	protected.GET("/me", meHandler(exampleName))
 	protected.GET("/admin", adminHandler(exampleName))
 }
 
-func jwtExampleServiceAndName(basePath string) (*jwtservice.Service, string) {
+func jwtExampleServicesAndName(basePath string) (*jwtservice.Service, *jwtservice.Service, string) {
 	lowerBasePath := strings.ToLower(basePath)
-	config := jwtConfigForExample(lowerBasePath)
-	serviceFactory := jwtServiceFactoryForExample(lowerBasePath)
-	service, err := serviceFactory(config)
+	if strings.Contains(lowerBasePath, "rsa") {
+		return configuredJWTExampleServices(basePath, "RS256", "RSA / RS256")
+	}
+	if strings.Contains(lowerBasePath, "custom") {
+		loginService, err := newCustomJWTService(nil)
+		if err != nil {
+			panic(fmt.Sprintf("build jwt service for %s: %v", basePath, err))
+		}
+
+		validator := jwtservice.Validator(validateActiveSession)
+		middlewareService, err := newCustomJWTService(&validator)
+		if err != nil {
+			panic(fmt.Sprintf("build jwt middleware service for %s: %v", basePath, err))
+		}
+		return loginService, middlewareService, "Custom / CUSTOM"
+	}
+	return configuredJWTExampleServices(basePath, "HS256", "HMAC / HS256")
+}
+
+func configuredJWTExampleServices(basePath string, algorithm string, exampleName string) (*jwtservice.Service, *jwtservice.Service, string) {
+	viper.Set(jwtservice.DefaultAlgorithmKey, algorithm)
+	service, err := jwtservice.NewConfiguredService(nil)
 	if err != nil {
 		panic(fmt.Sprintf("build jwt service for %s: %v", basePath, err))
 	}
-
-	if strings.Contains(lowerBasePath, "rsa") {
-		return service, "RSA / RS256"
-	}
-	if strings.Contains(lowerBasePath, "custom") {
-		return service, "Custom / CUSTOM"
-	}
-	return service, "HMAC / HS256"
+	return service, nil, exampleName
 }
 
-func jwtConfigForExample(basePath string) jwtservice.ConfigServiceInput {
-	lowerBasePath := strings.ToLower(basePath)
-	if strings.Contains(lowerBasePath, "rsa") {
-		return jwtservice.ConfigServiceInput{
-			Algorithm: "RS256",
-		}
-	}
-	if strings.Contains(lowerBasePath, "custom") {
-		return jwtservice.ConfigServiceInput{
-			Algorithm: "CUSTOM",
-		}
-	}
-	return jwtservice.ConfigServiceInput{
-		Algorithm: "HS256",
-	}
-}
-
-func jwtServiceFactoryForExample(exampleName string) func(jwtservice.ConfigServiceInput) (*jwtservice.Service, error) {
-	if strings.Contains(strings.ToLower(exampleName), "custom") {
-		return newCustomJWTService
-	}
-	return jwtservice.NewConfiguredService
-}
-
-func newCustomJWTService(config jwtservice.ConfigServiceInput) (*jwtservice.Service, error) {
+func newCustomJWTService(validator *jwtservice.Validator) (*jwtservice.Service, error) {
 	options := []jwtservice.Option{
 		jwtservice.WithCustomStrategy("CUSTOM", customJWTSign, customJWTVerify),
 	}
-	if config.Validator != nil {
-		options = append(options, jwtservice.WithValidator(config.Validator))
+	if validator != nil {
+		options = append(options, jwtservice.WithValidator(*validator))
 	}
 	return jwtservice.New(options...)
 }

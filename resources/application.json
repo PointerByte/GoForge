@@ -3,6 +3,12 @@
     "name": "GoForge-service",
     "version": "0.0.1"
   },
+  "env": {
+    "files": [
+      ".env",
+      ".env.local"
+    ]
+  },
   "server": {
     "gin": {
       "groups": [

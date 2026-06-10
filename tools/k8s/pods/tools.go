@@ -1,7 +1,7 @@
 // Copyright 2026 PointerByte Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-//go:generate mockgen -source=tools.go -destination=./mocksTools.go -package=pods
+//go:generate mockgen -source=tools.go -destination=./mocksTools_test.go -package=pods
 
 package pods
 

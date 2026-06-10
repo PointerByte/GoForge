@@ -9,7 +9,7 @@ import (
 	"github.com/PointerByte/GoForge/encrypt/models"
 )
 
-//go:generate mockgen -source=interface.go -destination=mock_repository.go -package=encrypt
+//go:generate mockgen -source=interface.go -destination=mock_repository_test.go -package=encrypt
 
 // SymmetricRepository exposes symmetric encryption helpers.
 type SymmetricRepository interface {

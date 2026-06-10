@@ -17,6 +17,7 @@ func TestGetViperData(t *testing.T) {
 
 	viper.Set(string(AppAtribute), "test-app")
 	viper.Set(string(LoggerModeTestAtribute), true)
+	viper.Set(string(LoggerSensibleKeysAtribute), map[string]any{"password": true, "token": false})
 	viper.Set(string(GRPCLoggerWithConfigSkipFunctionAtribute), []string{"SayHello"})
 
 	got := GetViperData(string(AppAtribute))
@@ -32,5 +33,11 @@ func TestGetViperData(t *testing.T) {
 	got = GetViperData(string(GRPCLoggerWithConfigSkipFunctionAtribute))
 	if gotSlice, ok := got.([]string); !ok || len(gotSlice) != 1 || gotSlice[0] != "SayHello" {
 		t.Errorf("server.grpc.LoggerWithConfig.SkipFunction = %v, want [SayHello]", got)
+	}
+
+	got = GetViperData(string(LoggerSensibleKeysAtribute))
+	gotMap, ok := got.(map[string]bool)
+	if !ok || !gotMap["password"] || gotMap["token"] {
+		t.Errorf("logger.sensibleKeys = %v, want password=true token=false", got)
 	}
 }

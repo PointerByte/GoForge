@@ -83,6 +83,11 @@ logger:
     maxBackups: 5
     maxAge: 30
     compress: true
+  sensibleKeys:
+    password: true
+    pwd: true
+    email: true
+    phone: true
 ```
 
 Claves principales:
@@ -100,6 +105,7 @@ Claves principales:
 - `logger.ignoredHeaders`: headers filtrados de los details estructurados
 - `logger.formatter`: `json`, `text` o un template Go custom
 - `logger.formatDate`: layout de timestamp
+- `logger.sensibleKeys`: keys o fragmentos de key case-insensitive cuyos valores se redactan antes de formatear
 - `logger.rotate.*`: configuracion de rotacion de archivos con `lumberjack`
 
 `viperData` cachea valores en el primer uso. En tests que cambian valores de

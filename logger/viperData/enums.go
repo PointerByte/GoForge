@@ -16,6 +16,7 @@ const (
 	LoggerIgnoredHeadersAtribute               TraceAtribute = "logger.ignoredHeaders"
 	LoggerFormatterAtribute                    TraceAtribute = "logger.formatter"
 	LoggerFormatDateAtribute                   TraceAtribute = "logger.formatDate"
+	LoggerSensibleKeysAtribute                 TraceAtribute = "logger.sensibleKeys"
 	LoggerRotateEnableAtribute                 TraceAtribute = "logger.rotate.enable"
 	LoggerRotateMaxSizeAtribute                TraceAtribute = "logger.rotate.maxSize"
 	LoggerRotateMaxBackupsAtribute             TraceAtribute = "logger.rotate.maxBackups"

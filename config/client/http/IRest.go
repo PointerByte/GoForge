@@ -1,7 +1,7 @@
 // Copyright 2026 PointerByte Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-//go:generate mockgen -source=IRest.go -destination=./mocksIRest.go -package=clientHttp
+//go:generate mockgen -source=IRest.go -destination=./mocksIRest_test.go -package=http
 
 package http
 

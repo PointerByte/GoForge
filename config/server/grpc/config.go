@@ -1,7 +1,7 @@
 // Copyright 2026 PointerByte Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-//go:generate mockgen -source=config.go -destination=./mocksConfig.go -package=grpc
+//go:generate mockgen -source=config.go -destination=./mocksConfig_test.go -package=grpc
 
 package grpc
 

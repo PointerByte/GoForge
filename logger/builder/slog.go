@@ -13,6 +13,7 @@ import (
 	"log/slog"
 
 	"github.com/PointerByte/GoForge/logger/formatter"
+	"github.com/PointerByte/GoForge/logger/sanitizer"
 	viperdata "github.com/PointerByte/GoForge/logger/viperData"
 )
 
@@ -54,6 +55,7 @@ func (h *jsonHandler) Handle(ctx context.Context, r slog.Record) error {
 	formatterAtribute := viperdata.GetViperData(string(viperdata.LoggerFormatterAtribute)).(string)
 	formatter := formatter.New(formatterAtribute)
 	logObj.Latency = ctxLogger.GetLatency()
+	logObj = sanitizer.FromViper().LogFormat(logObj)
 	jsonBytes, err = formatter.Format(logObj)
 	if err != nil {
 		panic(err)

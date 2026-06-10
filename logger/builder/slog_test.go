@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/PointerByte/GoForge/logger/formatter"
+	"github.com/PointerByte/GoForge/logger/sanitizer"
 	viperdata "github.com/PointerByte/GoForge/logger/viperData"
 	"github.com/spf13/viper"
 )
@@ -204,6 +205,60 @@ func TestJSONHandler_Handle_TextFallback(t *testing.T) {
 	}
 	if !strings.Contains(line, "trace-123") {
 		t.Fatalf("output missing trace id: %s", line)
+	}
+}
+
+func TestJSONHandler_Handle_SanitizesConfiguredKeysBeforeFormatting(t *testing.T) {
+	tests := []struct {
+		name      string
+		formatter string
+	}{
+		{name: "json", formatter: "json"},
+		{name: "text", formatter: "text"},
+		{name: "custom template", formatter: `{{json .}}`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resetBuilderViper()
+			t.Cleanup(resetBuilderViper)
+
+			viper.Set(string(viperdata.LoggerFormatDateAtribute), "2006-01-02T15:04:05.000")
+			viper.Set(string(viperdata.LoggerFormatterAtribute), tt.formatter)
+			viper.Set(string(viperdata.LoggerSensibleKeysAtribute), map[string]any{
+				"password": true,
+				"email":    true,
+				"token":    false,
+			})
+			viper.Set(string(viperdata.AppAtribute), "test-app")
+
+			buf := &bytes.Buffer{}
+			h := newHandler(slog.LevelDebug, buf)
+			ctx := newTestCtx()
+			ctx.Set(detailsKey, formatter.Details{
+				System:   "loan-service",
+				Request:  map[string]any{"password": "secret", "token": "visible"},
+				Response: `{"email":"person@example.com","ok":true}`,
+			})
+			rec := slog.NewRecord(time.Now(), slog.LevelInfo, "password=message-secret", 0)
+
+			if err := h.Handle(ctx, rec); err != nil {
+				t.Fatalf("Handle() error = %v", err)
+			}
+
+			out := buf.String()
+			for _, secret := range []string{"secret", "message-secret", "person@example.com"} {
+				if strings.Contains(out, secret) {
+					t.Fatalf("output still contains %q: %s", secret, out)
+				}
+			}
+			if !strings.Contains(out, sanitizer.RedactedValue) {
+				t.Fatalf("output missing redaction marker: %s", out)
+			}
+			if !strings.Contains(out, "visible") {
+				t.Fatalf("disabled sensitive key was redacted unexpectedly: %s", out)
+			}
+		})
 	}
 }
 

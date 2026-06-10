@@ -1,6 +1,6 @@
 module github.com/PointerByte/GoForge
 
-go 1.26.0
+go 1.25.0
 
 replace (
 	github.com/PointerByte/GoForge/encrypt => ./encrypt
@@ -10,7 +10,7 @@ replace (
 
 require (
 	github.com/PointerByte/GoForge/logger v0.0.33
-	github.com/PointerByte/GoForge/security v0.0.42
+	github.com/PointerByte/GoForge/security v0.0.43
 	github.com/aws/aws-sdk-go-v2 v1.42.0
 	github.com/aws/aws-sdk-go-v2/config v1.32.24
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.82.4
@@ -48,7 +48,7 @@ require (
 )
 
 require (
-	github.com/PointerByte/GoForge/encrypt v0.0.18 // indirect
+	github.com/PointerByte/GoForge/encrypt v0.0.19 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.23 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.29 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.29 // indirect

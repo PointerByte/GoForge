@@ -6,8 +6,12 @@ package code
 import (
 	"crypto/ecdsa"
 	"crypto/ed25519"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
+	"encoding/base64"
+	"encoding/json"
 	"encoding/pem"
 	"os"
 	"path/filepath"
@@ -364,6 +368,163 @@ func TestGenerateCertificatesErrors(t *testing.T) {
 	}
 }
 
+func TestReadPrivateKeyPEMFileSupportsLegacyFormats(t *testing.T) {
+	tempDir := t.TempDir()
+
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("expected rsa key without error, got %v", err)
+	}
+	rsaPath := writePEMFile(t, tempDir, "rsa-key.pem", "RSA PRIVATE KEY", x509.MarshalPKCS1PrivateKey(rsaKey))
+	gotRSAKey, err := ReadPrivateKeyFile(rsaPath, "")
+	if err != nil {
+		t.Fatalf("expected PKCS#1 rsa key without error, got %v", err)
+	}
+	if _, ok := gotRSAKey.(*rsa.PrivateKey); !ok {
+		t.Fatalf("expected rsa private key, got %T", gotRSAKey)
+	}
+
+	ecKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatalf("expected ecdsa key without error, got %v", err)
+	}
+	ecDER, err := x509.MarshalECPrivateKey(ecKey)
+	if err != nil {
+		t.Fatalf("expected ecdsa key marshal without error, got %v", err)
+	}
+	ecPath := writePEMFile(t, tempDir, "ec-key.pem", "EC PRIVATE KEY", ecDER)
+	gotECKey, err := ReadPrivateKeyFile(ecPath, "")
+	if err != nil {
+		t.Fatalf("expected EC private key without error, got %v", err)
+	}
+	if _, ok := gotECKey.(*ecdsa.PrivateKey); !ok {
+		t.Fatalf("expected ecdsa private key, got %T", gotECKey)
+	}
+}
+
+func TestPEMReadAndDecryptErrors(t *testing.T) {
+	tempDir := t.TempDir()
+	noPEMPath := filepath.Join(tempDir, "not-pem.txt")
+	if err := os.WriteFile(noPEMPath, []byte("not pem"), 0o600); err != nil {
+		t.Fatalf("expected write without error, got %v", err)
+	}
+
+	if _, err := ReadCertificateFile(noPEMPath, ""); err == nil || !strings.Contains(err.Error(), "decode certificate PEM") {
+		t.Fatalf("expected certificate PEM decode error, got %v", err)
+	}
+	if _, err := ReadPrivateKeyFile(noPEMPath, ""); err == nil || !strings.Contains(err.Error(), "decode private key PEM") {
+		t.Fatalf("expected private key PEM decode error, got %v", err)
+	}
+	if _, err := ReadPublicKeyFile(noPEMPath, ""); err == nil || !strings.Contains(err.Error(), "decode public key PEM") {
+		t.Fatalf("expected public key PEM decode error, got %v", err)
+	}
+
+	badPublicPath := writePEMFile(t, tempDir, "bad-public.pem", "PUBLIC KEY", []byte("not der"))
+	if _, err := ReadPublicKeyFile(badPublicPath, ""); err == nil || !strings.Contains(err.Error(), "parse public key") {
+		t.Fatalf("expected public key parse error, got %v", err)
+	}
+
+	plain, err := DecryptPEM([]byte("not pem"), "")
+	if err != nil {
+		t.Fatalf("expected plain content without error, got %v", err)
+	}
+	if string(plain) != "not pem" {
+		t.Fatalf("expected plain content back, got %q", plain)
+	}
+
+	tests := []struct {
+		name    string
+		content []byte
+		want    string
+	}{
+		{
+			name:    "invalid json",
+			content: encryptedTestPEM(t, encryptedKindCertificate, []byte("{")),
+			want:    "decode encrypted PEM payload",
+		},
+		{
+			name: "unsupported version",
+			content: encryptedPayloadPEM(t, encryptedKindCertificate, encryptedPEMPayload{
+				Version:    encryptedPEMVersion + 1,
+				Algorithm:  encryptedPEMAlgorithm,
+				Nonce:      base64.StdEncoding.EncodeToString(make([]byte, 12)),
+				Ciphertext: base64.StdEncoding.EncodeToString([]byte("cipher")),
+			}),
+			want: "unsupported encrypted PEM version",
+		},
+		{
+			name: "unsupported algorithm",
+			content: encryptedPayloadPEM(t, encryptedKindCertificate, encryptedPEMPayload{
+				Version:    encryptedPEMVersion,
+				Algorithm:  "AES-128-GCM",
+				Nonce:      base64.StdEncoding.EncodeToString(make([]byte, 12)),
+				Ciphertext: base64.StdEncoding.EncodeToString([]byte("cipher")),
+			}),
+			want: "unsupported encrypted PEM algorithm",
+		},
+		{
+			name: "invalid nonce",
+			content: encryptedPayloadPEM(t, encryptedKindCertificate, encryptedPEMPayload{
+				Version:    encryptedPEMVersion,
+				Algorithm:  encryptedPEMAlgorithm,
+				Nonce:      "%%%",
+				Ciphertext: base64.StdEncoding.EncodeToString([]byte("cipher")),
+			}),
+			want: "decode encrypted PEM nonce",
+		},
+		{
+			name: "invalid ciphertext",
+			content: encryptedPayloadPEM(t, encryptedKindCertificate, encryptedPEMPayload{
+				Version:    encryptedPEMVersion,
+				Algorithm:  encryptedPEMAlgorithm,
+				Nonce:      base64.StdEncoding.EncodeToString(make([]byte, 12)),
+				Ciphertext: "%%%",
+			}),
+			want: "decode encrypted PEM ciphertext",
+		},
+		{
+			name: "invalid nonce size",
+			content: encryptedPayloadPEM(t, encryptedKindCertificate, encryptedPEMPayload{
+				Version:    encryptedPEMVersion,
+				Algorithm:  encryptedPEMAlgorithm,
+				Nonce:      base64.StdEncoding.EncodeToString([]byte("short")),
+				Ciphertext: base64.StdEncoding.EncodeToString([]byte("cipher")),
+			}),
+			want: "invalid encrypted PEM nonce size",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := DecryptPEM(test.content, testEncryptionSecret)
+			if err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("expected %q error, got %v", test.want, err)
+			}
+		})
+	}
+
+	if err := requireEncryptedPEM([]byte("not pem"), encryptedKindCertificate); err == nil || !strings.Contains(err.Error(), "no PEM data") {
+		t.Fatalf("expected no PEM data error, got %v", err)
+	}
+	plainPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: []byte("cert")})
+	if err := requireEncryptedPEM(plainPEM, encryptedKindCertificate); err == nil || !strings.Contains(err.Error(), "not encrypted") {
+		t.Fatalf("expected not encrypted error, got %v", err)
+	}
+	if err := requireEncryptedPEM(encryptedTestPEM(t, encryptedKindPrivateKey, []byte("{}")), encryptedKindCertificate); err == nil || !strings.Contains(err.Error(), "want") {
+		t.Fatalf("expected encrypted kind error, got %v", err)
+	}
+}
+
+func TestParseIPAddresses(t *testing.T) {
+	got := parseIPAddresses([]string{" 127.0.0.1 ", "not-ip", "::1"})
+	if len(got) != 2 {
+		t.Fatalf("expected two parsed IPs, got %v", got)
+	}
+	if got[0].String() != "127.0.0.1" || got[1].String() != "::1" {
+		t.Fatalf("unexpected parsed IPs: %v", got)
+	}
+}
+
 func parseCertificateFile(t *testing.T, path string) *x509.Certificate {
 	t.Helper()
 
@@ -428,4 +589,35 @@ func parsePrivateKeyBlock(t *testing.T, block *pem.Block) any {
 		t.Fatalf("expected private key parsing without error, got %v", err)
 	}
 	return privateKey
+}
+
+func writePEMFile(t *testing.T, dir string, name string, blockType string, der []byte) string {
+	t.Helper()
+
+	path := filepath.Join(dir, name)
+	content := pem.EncodeToMemory(&pem.Block{Type: blockType, Bytes: der})
+	if err := os.WriteFile(path, content, 0o600); err != nil {
+		t.Fatalf("expected write PEM file without error, got %v", err)
+	}
+	return path
+}
+
+func encryptedPayloadPEM(t *testing.T, kind string, payload encryptedPEMPayload) []byte {
+	t.Helper()
+
+	content, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("expected encrypted payload marshal without error, got %v", err)
+	}
+	return encryptedTestPEM(t, kind, content)
+}
+
+func encryptedTestPEM(t *testing.T, kind string, content []byte) []byte {
+	t.Helper()
+
+	return pem.EncodeToMemory(&pem.Block{
+		Type:    encryptedPEMBlockType,
+		Headers: map[string]string{"Kind": kind},
+		Bytes:   content,
+	})
 }

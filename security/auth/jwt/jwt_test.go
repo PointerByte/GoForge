@@ -29,6 +29,28 @@ type testClaims struct {
 	Active bool   `json:"active"`
 }
 
+type simpleStrategy struct {
+	algorithm string
+	signature []byte
+	signErr   error
+	verifyErr error
+}
+
+func (strategy simpleStrategy) Algorithm() string {
+	return strategy.algorithm
+}
+
+func (strategy simpleStrategy) Sign([]byte) ([]byte, error) {
+	if strategy.signErr != nil {
+		return nil, strategy.signErr
+	}
+	return strategy.signature, nil
+}
+
+func (strategy simpleStrategy) Verify([]byte, []byte) error {
+	return strategy.verifyErr
+}
+
 func TestSetJWTAsymmetricKeys(t *testing.T) {
 	t.Run("rsa uses defaults when keys are unset", func(t *testing.T) {
 		viper.Reset()
@@ -569,6 +591,68 @@ func TestNewRSAServiceUsesViperKeysAndOptionalValidator(t *testing.T) {
 	}
 }
 
+func TestNewRSAPSSServiceUsesViperKeysAndOptionalValidator(t *testing.T) {
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("expected rsa key without error, got %v", err)
+	}
+	setRSAConfig(t, privateKey)
+
+	validatorCalled := false
+	validator := Validator(func(ctx context.Context, token Token) error {
+		validatorCalled = true
+		return nil
+	})
+	service, err := NewRSAPSSService(&validator)
+	if err != nil {
+		t.Fatalf("expected service without error, got %v", err)
+	}
+
+	token, err := service.Create(testClaims{UserID: "99", Role: "operator", Active: true})
+	if err != nil {
+		t.Fatalf("expected token without error, got %v", err)
+	}
+
+	var claims testClaims
+	if _, err := service.Decode(context.Background(), token, &claims); err != nil {
+		t.Fatalf("expected decode without error, got %v", err)
+	}
+	if !validatorCalled {
+		t.Fatal("expected validator to run")
+	}
+}
+
+func TestNewEd25519ServiceUsesViperKeysAndOptionalValidator(t *testing.T) {
+	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("expected ed25519 key without error, got %v", err)
+	}
+	setEd25519Config(t, privateKey, publicKey)
+
+	validatorCalled := false
+	validator := Validator(func(ctx context.Context, token Token) error {
+		validatorCalled = true
+		return nil
+	})
+	service, err := NewEd25519Service(&validator)
+	if err != nil {
+		t.Fatalf("expected service without error, got %v", err)
+	}
+
+	token, err := service.Create(testClaims{UserID: "99", Role: "operator", Active: true})
+	if err != nil {
+		t.Fatalf("expected token without error, got %v", err)
+	}
+
+	var claims testClaims
+	if _, err := service.Decode(context.Background(), token, &claims); err != nil {
+		t.Fatalf("expected decode without error, got %v", err)
+	}
+	if !validatorCalled {
+		t.Fatal("expected validator to run")
+	}
+}
+
 func TestNewRSAServiceSupportsPEMFiles(t *testing.T) {
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
@@ -718,6 +802,15 @@ func TestNewConfiguredServiceUsesViperAlgorithm(t *testing.T) {
 		_, err := NewConfiguredService(nil)
 		if !errors.Is(err, ErrUnsupportedAlg) {
 			t.Fatalf("expected ErrUnsupportedAlg, got %v", err)
+		}
+	})
+
+	t.Run("missing algorithm", func(t *testing.T) {
+		defer viper.Reset()
+
+		_, err := NewConfiguredService(nil)
+		if !errors.Is(err, ErrMissingAlgorithm) {
+			t.Fatalf("expected ErrMissingAlgorithm, got %v", err)
 		}
 	})
 }
@@ -902,6 +995,112 @@ func TestStrategySpecificErrorsAndHelpers(t *testing.T) {
 
 	if _, err := decodeSegment("%%%"); err == nil {
 		t.Fatal("expected decodeSegment error")
+	}
+}
+
+func TestStrategyWrappersAndContextFallbacks(t *testing.T) {
+	strategy, err := NewCustomStrategy(
+		"CUSTOM",
+		func(ctx context.Context, signingInput []byte) ([]byte, error) {
+			return append([]byte("signed:"), signingInput...), ctx.Err()
+		},
+		func(ctx context.Context, signingInput []byte, signature []byte) error {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			if string(signature) != "signed:"+string(signingInput) {
+				return ErrInvalidSignature
+			}
+			return nil
+		},
+	)
+	if err != nil {
+		t.Fatalf("expected custom strategy without error, got %v", err)
+	}
+
+	signature, err := strategy.Sign([]byte("input"))
+	if err != nil {
+		t.Fatalf("expected custom sign without error, got %v", err)
+	}
+	if string(signature) != "signed:input" {
+		t.Fatalf("expected custom signature, got %q", signature)
+	}
+	if err := strategy.Verify([]byte("input"), signature); err != nil {
+		t.Fatalf("expected custom verify without error, got %v", err)
+	}
+
+	if _, err := (&customStrategy{algorithm: "CUSTOM"}).Sign([]byte("input")); !errors.Is(err, ErrMissingSignFunc) {
+		t.Fatalf("expected ErrMissingSignFunc, got %v", err)
+	}
+	if err := (&customStrategy{algorithm: "CUSTOM"}).Verify([]byte("input"), []byte("signature")); !errors.Is(err, ErrMissingVerifyFunc) {
+		t.Fatalf("expected ErrMissingVerifyFunc, got %v", err)
+	}
+
+	service, err := New(
+		WithStrategy(simpleStrategy{algorithm: "SIMPLE", signature: []byte("signature")}),
+		WithContextTimeout(0),
+	)
+	if err != nil {
+		t.Fatalf("expected service without error, got %v", err)
+	}
+	if service.contextTimeoutOn {
+		t.Fatal("expected context timeout to be disabled")
+	}
+
+	gotSignature, err := signStrategy(context.Background(), service.strategy, []byte("input"))
+	if err != nil {
+		t.Fatalf("expected fallback sign without error, got %v", err)
+	}
+	if string(gotSignature) != "signature" {
+		t.Fatalf("expected fallback signature, got %q", gotSignature)
+	}
+	if err := verifyStrategy(context.Background(), service.strategy, []byte("input"), gotSignature); err != nil {
+		t.Fatalf("expected fallback verify without error, got %v", err)
+	}
+
+	signErr := errors.New("sign failed")
+	if _, err := signStrategy(context.Background(), simpleStrategy{algorithm: "SIMPLE", signErr: signErr}, []byte("input")); !errors.Is(err, signErr) {
+		t.Fatalf("expected sign error, got %v", err)
+	}
+
+	verifyErr := errors.New("verify failed")
+	if err := verifyStrategy(context.Background(), simpleStrategy{algorithm: "SIMPLE", verifyErr: verifyErr}, []byte("input"), []byte("signature")); !errors.Is(err, verifyErr) {
+		t.Fatalf("expected verify error, got %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := signStrategy(ctx, simpleStrategy{algorithm: "SIMPLE"}, []byte("input")); !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected canceled sign, got %v", err)
+	}
+
+	started := make(chan struct{})
+	release := make(chan struct{})
+	waitCtx, waitCancel := context.WithCancel(context.Background())
+	go func() {
+		<-started
+		waitCancel()
+	}()
+	_, err = runStrategyWithContext(waitCtx, func() (string, error) {
+		close(started)
+		<-release
+		return "late", nil
+	})
+	close(release)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context canceled from waiting operation, got %v", err)
+	}
+}
+
+func TestSignatureErrorPreservesContextErrors(t *testing.T) {
+	if err := signatureError(context.Canceled); !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled, got %v", err)
+	}
+	if err := signatureError(context.DeadlineExceeded); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expected context.DeadlineExceeded, got %v", err)
+	}
+	if err := signatureError(errors.New("crypto")); !errors.Is(err, ErrInvalidSignature) {
+		t.Fatalf("expected ErrInvalidSignature, got %v", err)
 	}
 }
 

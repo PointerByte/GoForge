@@ -7,6 +7,8 @@ import (
 	"bytes"
 	"context"
 	"crypto/ecdh"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
@@ -975,26 +977,45 @@ func azureECJWKFromPublicKeyDER(publicKeyDER []byte) (*azureECJWKPublic, error) 
 		return nil, fmt.Errorf("parse ecdh public key: %w", err)
 	}
 
-	publicKey, ok := publicKeyAny.(*ecdh.PublicKey)
-	if !ok {
+	switch publicKey := publicKeyAny.(type) {
+	case *ecdh.PublicKey:
+		curveName, coordinateSize, err := azureCurveNameFromECDH(publicKey.Curve())
+		if err != nil {
+			return nil, err
+		}
+		publicKeyBytes := publicKey.Bytes()
+		if len(publicKeyBytes) != 1+2*coordinateSize || publicKeyBytes[0] != 0x04 {
+			return nil, errors.New("invalid ECDH public key encoding")
+		}
+
+		return &azureECJWKPublic{
+			KeyType: string(azkeys.KeyTypeEC),
+			Curve:   string(curveName),
+			X:       base64.RawURLEncoding.EncodeToString(publicKeyBytes[1 : 1+coordinateSize]),
+			Y:       base64.RawURLEncoding.EncodeToString(publicKeyBytes[1+coordinateSize:]),
+		}, nil
+	case *ecdsa.PublicKey:
+		curveName, coordinateSize, err := azureCurveNameFromECDSA(publicKey.Curve)
+		if err != nil {
+			return nil, err
+		}
+		x, err := leftPadCoordinate(publicKey.X.Bytes(), coordinateSize)
+		if err != nil {
+			return nil, fmt.Errorf("invalid ECDH public key x coordinate: %w", err)
+		}
+		y, err := leftPadCoordinate(publicKey.Y.Bytes(), coordinateSize)
+		if err != nil {
+			return nil, fmt.Errorf("invalid ECDH public key y coordinate: %w", err)
+		}
+		return &azureECJWKPublic{
+			KeyType: string(azkeys.KeyTypeEC),
+			Curve:   string(curveName),
+			X:       base64.RawURLEncoding.EncodeToString(x),
+			Y:       base64.RawURLEncoding.EncodeToString(y),
+		}, nil
+	default:
 		return nil, errors.New("public key is not an ECDH key")
 	}
-
-	curveName, coordinateSize, err := azureCurveNameFromECDH(publicKey.Curve())
-	if err != nil {
-		return nil, err
-	}
-	publicKeyBytes := publicKey.Bytes()
-	if len(publicKeyBytes) != 1+2*coordinateSize || publicKeyBytes[0] != 0x04 {
-		return nil, errors.New("invalid ECDH public key encoding")
-	}
-
-	return &azureECJWKPublic{
-		KeyType: string(azkeys.KeyTypeEC),
-		Curve:   string(curveName),
-		X:       base64.RawURLEncoding.EncodeToString(publicKeyBytes[1 : 1+coordinateSize]),
-		Y:       base64.RawURLEncoding.EncodeToString(publicKeyBytes[1+coordinateSize:]),
-	}, nil
 }
 
 func ecdhCurveFromAzureName(curve azkeys.CurveName) (ecdh.Curve, int, error) {
@@ -1017,6 +1038,19 @@ func azureCurveNameFromECDH(curve ecdh.Curve) (azkeys.CurveName, int, error) {
 	case ecdh.P384():
 		return azkeys.CurveNameP384, 48, nil
 	case ecdh.P521():
+		return azkeys.CurveNameP521, 66, nil
+	default:
+		return "", 0, errors.New("unsupported ECDH curve")
+	}
+}
+
+func azureCurveNameFromECDSA(curve elliptic.Curve) (azkeys.CurveName, int, error) {
+	switch curve {
+	case elliptic.P256():
+		return azkeys.CurveNameP256, 32, nil
+	case elliptic.P384():
+		return azkeys.CurveNameP384, 48, nil
+	case elliptic.P521():
 		return azkeys.CurveNameP521, 66, nil
 	default:
 		return "", 0, errors.New("unsupported ECDH curve")

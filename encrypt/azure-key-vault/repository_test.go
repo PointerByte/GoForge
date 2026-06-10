@@ -13,6 +13,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -30,6 +32,12 @@ type fakeTokenCredential struct{}
 
 func (fakeTokenCredential) GetToken(context.Context, policy.TokenRequestOptions) (azcore.AccessToken, error) {
 	return azcore.AccessToken{}, nil
+}
+
+type failingTokenCredential struct{}
+
+func (failingTokenCredential) GetToken(context.Context, policy.TokenRequestOptions) (azcore.AccessToken, error) {
+	return azcore.AccessToken{}, errors.New("token boom")
 }
 
 type fakeAzureKeysClient struct {
@@ -754,6 +762,184 @@ func TestAzureRepositoryMetadataFallbackPaths(t *testing.T) {
 	}
 	if key, err := NewAsymmetricRepository().GenerateRSAKeys(context.Background(), models.GenerateRSAKeyRequest{Size: common.Key2048Bits}); err != nil || key.KeyRef != "https://vault.test/keys/"+key.KeyID {
 		t.Fatalf("GenerateRSAKeys() fallback metadata = %#v, %v", key, err)
+	}
+}
+
+func TestAzureECDHAndBundleHelpers(t *testing.T) {
+	if got, err := azureECDHCurveName(common.CurveP384); err != nil || got != azkeys.CurveNameP384 {
+		t.Fatalf("azureECDHCurveName(P384) = %q, %v", got, err)
+	}
+	if got, err := azureECDHCurveName(common.CurveP521); err != nil || got != azkeys.CurveNameP521 {
+		t.Fatalf("azureECDHCurveName(P521) = %q, %v", got, err)
+	}
+	if _, err := azureECDHCurveName("P-111"); err == nil {
+		t.Fatal("expected azureECDHCurveName() unsupported curve error")
+	}
+
+	if curve, size, err := ecdhCurveFromAzureName(azkeys.CurveNameP384); err != nil || curve != ecdh.P384() || size != 48 {
+		t.Fatalf("ecdhCurveFromAzureName(P-384) = %#v, %d, %v", curve, size, err)
+	}
+	if curve, size, err := ecdhCurveFromAzureName(azkeys.CurveNameP521); err != nil || curve != ecdh.P521() || size != 66 {
+		t.Fatalf("ecdhCurveFromAzureName(P-521) = %#v, %d, %v", curve, size, err)
+	}
+	if _, _, err := ecdhCurveFromAzureName("P-111"); err == nil {
+		t.Fatal("expected ecdhCurveFromAzureName() unsupported curve error")
+	}
+
+	if name, size, err := azureCurveNameFromECDH(ecdh.P256()); err != nil || name != azkeys.CurveNameP256 || size != 32 {
+		t.Fatalf("azureCurveNameFromECDH(P256) = %q, %d, %v", name, size, err)
+	}
+	if name, size, err := azureCurveNameFromECDH(ecdh.P384()); err != nil || name != azkeys.CurveNameP384 || size != 48 {
+		t.Fatalf("azureCurveNameFromECDH(P384) = %q, %d, %v", name, size, err)
+	}
+	if name, size, err := azureCurveNameFromECDH(ecdh.P521()); err != nil || name != azkeys.CurveNameP521 || size != 66 {
+		t.Fatalf("azureCurveNameFromECDH(P521) = %q, %d, %v", name, size, err)
+	}
+	if _, _, err := azureCurveNameFromECDH(nil); err == nil {
+		t.Fatal("expected azureCurveNameFromECDH() unsupported curve error")
+	}
+
+	privateKey, err := ecdh.P256().GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("ecdh.GenerateKey() error = %v", err)
+	}
+	publicDER, err := x509.MarshalPKIXPublicKey(privateKey.PublicKey())
+	if err != nil {
+		t.Fatalf("x509.MarshalPKIXPublicKey() error = %v", err)
+	}
+	jwk, err := azureECJWKFromPublicKeyDER(publicDER)
+	if err != nil {
+		t.Fatalf("azureECJWKFromPublicKeyDER() error = %v", err)
+	}
+	if jwk.KeyType != string(azkeys.KeyTypeEC) || jwk.Curve != string(azkeys.CurveNameP256) || jwk.X == "" || jwk.Y == "" {
+		t.Fatalf("azureECJWKFromPublicKeyDER() = %#v", jwk)
+	}
+	if _, err := azureECJWKFromPublicKeyDER([]byte("bad der")); err == nil {
+		t.Fatal("expected azureECJWKFromPublicKeyDER() parse error")
+	}
+	rsaPublicDER, err := x509.MarshalPKIXPublicKey(&mustAzureRSAKey(t).PublicKey)
+	if err != nil {
+		t.Fatalf("x509.MarshalPKIXPublicKey() RSA error = %v", err)
+	}
+	if _, err := azureECJWKFromPublicKeyDER(rsaPublicDER); err == nil {
+		t.Fatal("expected azureECJWKFromPublicKeyDER() non-ECDH error")
+	}
+
+	publicBytes := privateKey.PublicKey().Bytes()
+	ecBundle := azkeys.KeyBundle{Key: &azkeys.JSONWebKey{
+		Kty: ptr(azkeys.KeyTypeECHSM),
+		Crv: ptr(azkeys.CurveNameP256),
+		X:   publicBytes[1:33],
+		Y:   publicBytes[33:],
+	}}
+	if !azureBundleHasECKey(ecBundle) {
+		t.Fatal("expected azureBundleHasECKey() true")
+	}
+	ecKeyData, err := azureKeyDataFromBundle(ecBundle, "https://vault.test", "ec-key")
+	if err != nil || ecKeyData.PublicKey == "" {
+		t.Fatalf("azureKeyDataFromBundle() EC = %#v, %v", ecKeyData, err)
+	}
+	if _, err := ecdhPublicKeyFromAzureBundle(azkeys.KeyBundle{Key: &azkeys.JSONWebKey{Kty: ptr(azkeys.KeyTypeEC)}}); err == nil {
+		t.Fatal("expected ecdhPublicKeyFromAzureBundle() missing material error")
+	}
+
+	rsaBundle := azkeys.KeyBundle{Key: &azkeys.JSONWebKey{Kty: ptr(azkeys.KeyTypeRSAHSM)}}
+	if !azureBundleHasRSAKey(rsaBundle) {
+		t.Fatal("expected azureBundleHasRSAKey() true for RSA-HSM")
+	}
+	if azureBundleHasRSAKey(azkeys.KeyBundle{}) || azureBundleHasECKey(azkeys.KeyBundle{}) {
+		t.Fatal("nil key bundles should not report key material")
+	}
+}
+
+func TestHTTPAzureECDHDeriver(t *testing.T) {
+	privateKey, err := ecdh.P256().GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("ecdh.GenerateKey() error = %v", err)
+	}
+	publicDER, err := x509.MarshalPKIXPublicKey(privateKey.PublicKey())
+	if err != nil {
+		t.Fatalf("x509.MarshalPKIXPublicKey() error = %v", err)
+	}
+
+	t.Run("success", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodPost {
+				t.Fatalf("method = %s, want POST", r.Method)
+			}
+			if got := r.Header.Get("Authorization"); got != "Bearer" {
+				t.Fatalf("Authorization = %q, want empty bearer", got)
+			}
+			var request azureECDHDeriveRequest
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+				t.Fatalf("decode request body: %v", err)
+			}
+			if request.Algorithm != "ECDH" || request.Public.X == "" || request.Public.Y == "" {
+				t.Fatalf("request body = %#v", request)
+			}
+			_ = json.NewEncoder(w).Encode(azureECDHDeriveResponse{
+				Value: base64.RawURLEncoding.EncodeToString([]byte("shared-secret")),
+			})
+		}))
+		defer server.Close()
+
+		deriver := httpAzureECDHDeriver{credential: fakeTokenCredential{}, httpClient: server.Client()}
+		sharedSecret, err := deriver.DeriveSharedSecret(context.Background(), azureKeyReference{
+			VaultURL: server.URL,
+			Name:     "ec-key",
+			Version:  "v1",
+		}, publicDER)
+		if err != nil {
+			t.Fatalf("DeriveSharedSecret() error = %v", err)
+		}
+		if string(sharedSecret) != "shared-secret" {
+			t.Fatalf("DeriveSharedSecret() = %q", sharedSecret)
+		}
+	})
+
+	t.Run("token error", func(t *testing.T) {
+		deriver := httpAzureECDHDeriver{credential: failingTokenCredential{}, httpClient: http.DefaultClient}
+		if _, err := deriver.DeriveSharedSecret(context.Background(), azureKeyReference{VaultURL: "https://vault.test", Name: "ec-key", Version: "v1"}, publicDER); err == nil {
+			t.Fatal("expected token error")
+		}
+	})
+
+	for _, tt := range []struct {
+		name   string
+		status int
+		body   string
+	}{
+		{name: "status error", status: http.StatusInternalServerError, body: "boom"},
+		{name: "decode error", status: http.StatusOK, body: "{"},
+		{name: "missing value", status: http.StatusOK, body: `{}`},
+		{name: "invalid value", status: http.StatusOK, body: `{"value":"%%%"}`},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(tt.status)
+				_, _ = w.Write([]byte(tt.body))
+			}))
+			defer server.Close()
+
+			deriver := httpAzureECDHDeriver{credential: fakeTokenCredential{}, httpClient: server.Client()}
+			if _, err := deriver.DeriveSharedSecret(context.Background(), azureKeyReference{VaultURL: server.URL, Name: "ec-key", Version: "v1"}, publicDER); err == nil {
+				t.Fatal("expected DeriveSharedSecret() error")
+			}
+		})
+	}
+}
+
+func TestAzureBase64URLDecode(t *testing.T) {
+	raw := base64.RawURLEncoding.EncodeToString([]byte("raw"))
+	if got, err := decodeAzureBase64URL(raw); err != nil || string(got) != "raw" {
+		t.Fatalf("decodeAzureBase64URL(raw) = %q, %v", got, err)
+	}
+	padded := base64.URLEncoding.EncodeToString([]byte("padded"))
+	if got, err := decodeAzureBase64URL(padded); err != nil || string(got) != "padded" {
+		t.Fatalf("decodeAzureBase64URL(padded) = %q, %v", got, err)
+	}
+	if _, err := decodeAzureBase64URL("%%%"); err == nil {
+		t.Fatal("expected decodeAzureBase64URL() error")
 	}
 }
 

@@ -135,6 +135,10 @@ func TestNewAndOptionsErrors(t *testing.T) {
 		t.Fatalf("expected ErrNilJWTService, got %v", err)
 	}
 
+	if _, err := New(nil); !errors.Is(err, ErrNilJWTService) {
+		t.Fatalf("expected ErrNilJWTService with nil option, got %v", err)
+	}
+
 	if _, err := New(WithCookieName("access_token")); !errors.Is(err, ErrNilJWTService) {
 		t.Fatalf("expected ErrNilJWTService, got %v", err)
 	}
@@ -154,6 +158,109 @@ func TestNewAndOptionsErrors(t *testing.T) {
 
 	if _, err := New(WithJWTService(jwtSvc), WithCookieName("")); !errors.Is(err, ErrMissingCookieKey) {
 		t.Fatalf("expected ErrMissingCookieKey from option, got %v", err)
+	}
+}
+
+func TestNilServiceAndCookieName(t *testing.T) {
+	var service *Service
+	request := httptest.NewRequest(http.MethodGet, "/private", nil)
+
+	if service.CookieName() != "" {
+		t.Fatalf("nil service CookieName() = %q, want empty", service.CookieName())
+	}
+	if _, err := service.TokenFromRequest(request); !errors.Is(err, ErrNilJWTService) {
+		t.Fatalf("nil service TokenFromRequest() error = %v, want ErrNilJWTService", err)
+	}
+	if err := service.ValidateRequest(request); !errors.Is(err, ErrNilJWTService) {
+		t.Fatalf("nil service ValidateRequest() error = %v, want ErrNilJWTService", err)
+	}
+	if _, err := service.Decode(context.Background(), request, &testClaims{}); !errors.Is(err, ErrNilJWTService) {
+		t.Fatalf("nil service Decode() error = %v, want ErrNilJWTService", err)
+	}
+}
+
+func TestValidateRequestAndDecodeErrors(t *testing.T) {
+	jwtSvc, err := jwtservice.New(jwtservice.WithHMACSHA256("cookie-secret"))
+	if err != nil {
+		t.Fatalf("expected jwt service without error, got %v", err)
+	}
+
+	service, err := New(
+		WithJWTService(jwtSvc),
+		WithCookieName("access_token"),
+	)
+	if err != nil {
+		t.Fatalf("expected cookie service without error, got %v", err)
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "/private", nil)
+	if err := service.ValidateRequest(request); !errors.Is(err, ErrMissingCookie) {
+		t.Fatalf("ValidateRequest() error = %v, want ErrMissingCookie", err)
+	}
+	if _, err := service.Decode(context.Background(), request, &testClaims{}); !errors.Is(err, ErrMissingCookie) {
+		t.Fatalf("Decode() error = %v, want ErrMissingCookie", err)
+	}
+
+	request.AddCookie(&http.Cookie{Name: "access_token", Value: "not-a-token"})
+	if err := service.ValidateRequest(request); err == nil {
+		t.Fatal("ValidateRequest() succeeded with invalid token")
+	}
+}
+
+func TestJWTValidatorPtr(t *testing.T) {
+	validator := jwtservice.Validator(func(context.Context, jwtservice.Token) error {
+		return nil
+	})
+	if got := jwtValidatorPtr(nil); got != nil {
+		t.Fatalf("jwtValidatorPtr(nil) = %#v, want nil", got)
+	}
+	got := jwtValidatorPtr(validator)
+	if got == nil {
+		t.Fatal("jwtValidatorPtr(non-nil) = nil")
+	}
+}
+
+func TestApplyJWTConfig(t *testing.T) {
+	viper.Reset()
+	defer viper.Reset()
+
+	hmacKey := "COOKIE_HMAC_SECRET"
+	rsaPrivateKey := "COOKIE_RSA_PRIVATE"
+	rsaPublicKey := "COOKIE_RSA_PUBLIC"
+	eddsaPrivateKey := "COOKIE_EDDSA_PRIVATE"
+	eddsaPublicKey := "COOKIE_EDDSA_PUBLIC"
+
+	viper.Set(hmacKey, "hmac-from-key")
+	viper.Set(rsaPrivateKey, "rsa-private-from-key")
+	viper.Set(rsaPublicKey, "rsa-public-from-key")
+	viper.Set(eddsaPrivateKey, "eddsa-private-from-key")
+	viper.Set(eddsaPublicKey, "eddsa-public-from-key")
+
+	applyJWTConfig(JWTConfigServiceInput{
+		Algorithm:          "EdDSA",
+		HMACSecret:         "hmac-direct",
+		HMACSecretKey:      &hmacKey,
+		RSAPrivateKey:      "rsa-private-direct",
+		RSAPublicKey:       "rsa-public-direct",
+		RSAPrivateKeyKey:   &rsaPrivateKey,
+		RSAPublicKeyKey:    &rsaPublicKey,
+		EdDSAPrivateKey:    "eddsa-private-direct",
+		EdDSAPublicKey:     "eddsa-public-direct",
+		EdDSAPrivateKeyKey: &eddsaPrivateKey,
+		EdDSAPublicKeyKey:  &eddsaPublicKey,
+	})
+
+	if got := viper.GetString(jwtservice.DefaultAlgorithmKey); got != "EdDSA" {
+		t.Fatalf("algorithm = %q, want EdDSA", got)
+	}
+	if got := viper.GetString(jwtservice.DefaultHMACSecretKey); got != "hmac-from-key" {
+		t.Fatalf("hmac secret = %q, want hmac-from-key", got)
+	}
+	if got := viper.GetString(jwtservice.DefaultJWTPrivateKeyKey); got != "eddsa-private-from-key" {
+		t.Fatalf("private key = %q, want eddsa-private-from-key", got)
+	}
+	if got := viper.GetString(jwtservice.DefaultJWTPublicKeyKey); got != "eddsa-public-from-key" {
+		t.Fatalf("public key = %q, want eddsa-public-from-key", got)
 	}
 }
 

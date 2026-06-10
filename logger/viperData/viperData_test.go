@@ -41,3 +41,38 @@ func TestGetViperData(t *testing.T) {
 		t.Errorf("logger.sensibleKeys = %v, want password=true token=false", got)
 	}
 }
+
+func TestGetStringMapBool(t *testing.T) {
+	viper.Reset()
+	t.Cleanup(viper.Reset)
+
+	if got := getStringMapBool("missing"); len(got) != 0 {
+		t.Fatalf("getStringMapBool(missing) = %#v, want empty map", got)
+	}
+
+	viper.Set("sensible", map[string]any{
+		" password ": true,
+		"token":      "false",
+		"email":      "true",
+		"phone":      "not-bool",
+		"":           true,
+		"count":      1,
+	})
+
+	got := getStringMapBool("sensible")
+	if !got["password"] {
+		t.Fatalf("password = false, want true in %#v", got)
+	}
+	if got["token"] {
+		t.Fatalf("token = true, want false in %#v", got)
+	}
+	if !got["email"] {
+		t.Fatalf("email = false, want true in %#v", got)
+	}
+	if got["phone"] || got["count"] {
+		t.Fatalf("invalid values should be false in %#v", got)
+	}
+	if _, ok := got[""]; ok {
+		t.Fatalf("blank key was not ignored in %#v", got)
+	}
+}

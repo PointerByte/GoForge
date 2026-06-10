@@ -666,6 +666,157 @@ func TestGCPRepositoryErrorBranches(t *testing.T) {
 	}
 }
 
+func TestGCPHelperBranches(t *testing.T) {
+	t.Cleanup(viper.Reset)
+
+	viper.Set(defaultGCPKeyIDKey, "projects/test/locations/global/keyRings/ring/cryptoKeys/default/cryptoKeyVersions/7")
+	keyName, versionName, err := resolveGCPKeyLookupNames("")
+	if err != nil || keyName != "projects/test/locations/global/keyRings/ring/cryptoKeys/default" || versionName != "projects/test/locations/global/keyRings/ring/cryptoKeys/default/cryptoKeyVersions/7" {
+		t.Fatalf("resolveGCPKeyLookupNames(default) = %q, %q, %v", keyName, versionName, err)
+	}
+	keyName, versionName, err = resolveGCPKeyLookupNames("projects/test/locations/global/keyRings/ring/cryptoKeys/direct")
+	if err != nil || keyName != "projects/test/locations/global/keyRings/ring/cryptoKeys/direct" || versionName != "" {
+		t.Fatalf("resolveGCPKeyLookupNames(key) = %q, %q, %v", keyName, versionName, err)
+	}
+	keyName, versionName, err = resolveGCPKeyLookupNames("short")
+	if err != nil || keyName != "projects/test/locations/global/keyRings/ring/cryptoKeys/short" || versionName != "" {
+		t.Fatalf("resolveGCPKeyLookupNames(short) = %q, %q, %v", keyName, versionName, err)
+	}
+	viper.Reset()
+	if _, _, err := resolveGCPKeyLookupNames(""); err == nil {
+		t.Fatal("expected resolveGCPKeyLookupNames() missing key error")
+	}
+
+	if got, err := gcpRotationAlgorithm(&kmspb.CryptoKey{VersionTemplate: &kmspb.CryptoKeyVersionTemplate{Algorithm: kmspb.CryptoKeyVersion_RSA_SIGN_PSS_2048_SHA256}}); err != nil || got != kmspb.CryptoKeyVersion_RSA_SIGN_PSS_2048_SHA256 {
+		t.Fatalf("gcpRotationAlgorithm(template) = %s, %v", got, err)
+	}
+	if got, err := gcpRotationAlgorithm(&kmspb.CryptoKey{Purpose: kmspb.CryptoKey_ENCRYPT_DECRYPT}); err != nil || got != kmspb.CryptoKeyVersion_GOOGLE_SYMMETRIC_ENCRYPTION {
+		t.Fatalf("gcpRotationAlgorithm(symmetric) = %s, %v", got, err)
+	}
+	if _, err := gcpRotationAlgorithm(&kmspb.CryptoKey{Purpose: kmspb.CryptoKey_ASYMMETRIC_SIGN}); err == nil {
+		t.Fatal("expected gcpRotationAlgorithm() missing algorithm error")
+	}
+
+	if got := gcpPublicVersionName("key", &kmspb.CryptoKey{}, "explicit"); got != "explicit" {
+		t.Fatalf("gcpPublicVersionName(explicit) = %q", got)
+	}
+	if got := gcpPublicVersionName("key", &kmspb.CryptoKey{Primary: &kmspb.CryptoKeyVersion{Name: "primary"}}, ""); got != "primary" {
+		t.Fatalf("gcpPublicVersionName(primary) = %q", got)
+	}
+	if got := gcpPublicVersionName("key/", &kmspb.CryptoKey{}, ""); got != "key/cryptoKeyVersions/1" {
+		t.Fatalf("gcpPublicVersionName(fallback) = %q", got)
+	}
+
+	if got := gcpLabelValue("___"); got != "" {
+		t.Fatalf("gcpLabelValue(only separators) = %q, want empty", got)
+	}
+	long := strings.Repeat("a", 70)
+	if got := gcpLabelValue(long); len(got) != 63 {
+		t.Fatalf("gcpLabelValue(long) len = %d, want 63", len(got))
+	}
+}
+
+func TestGCPKeyDataAndKEMHelpers(t *testing.T) {
+	privateKey := mustGCPRSAKey(t)
+	publicDER, err := x509.MarshalPKIXPublicKey(&privateKey.PublicKey)
+	if err != nil {
+		t.Fatalf("x509.MarshalPKIXPublicKey() error = %v", err)
+	}
+	kemPrivate768, err := mlkem.GenerateKey768()
+	if err != nil {
+		t.Fatalf("mlkem.GenerateKey768() error = %v", err)
+	}
+	kemPrivate1024, err := mlkem.GenerateKey1024()
+	if err != nil {
+		t.Fatalf("mlkem.GenerateKey1024() error = %v", err)
+	}
+
+	client := fakeGCPClient{
+		getPublicKeyFn: func(_ context.Context, req *kmspb.GetPublicKeyRequest) (*kmspb.PublicKey, error) {
+			if req.PublicKeyFormat == kmspb.PublicKey_NIST_PQC {
+				return &kmspb.PublicKey{
+					Algorithm: kmspb.CryptoKeyVersion_ML_KEM_768,
+					PublicKey: &kmspb.ChecksummedData{Data: kemPrivate768.EncapsulationKey().Bytes()},
+				}, nil
+			}
+			return &kmspb.PublicKey{Pem: string(pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: publicDER}))}, nil
+		},
+	}
+
+	if _, err := gcpKeyDataFromCryptoKey(context.Background(), client, &kmspb.CryptoKey{}, "", ""); err == nil {
+		t.Fatal("expected gcpKeyDataFromCryptoKey() missing metadata error")
+	}
+	keyData, err := gcpKeyDataFromCryptoKey(context.Background(), client, &kmspb.CryptoKey{Purpose: kmspb.CryptoKey_ENCRYPT_DECRYPT}, "projects/test/locations/global/keyRings/ring/cryptoKeys/sym", "")
+	if err != nil || keyData.KeyID != "sym" || keyData.KeyRef != "projects/test/locations/global/keyRings/ring/cryptoKeys/sym" || keyData.Provider != gcpProviderName {
+		t.Fatalf("gcpKeyDataFromCryptoKey(symmetric) = %#v, %v", keyData, err)
+	}
+	keyData, err = gcpKeyDataFromCryptoKey(context.Background(), client, &kmspb.CryptoKey{
+		Name:    "projects/test/locations/global/keyRings/ring/cryptoKeys/rsa",
+		Purpose: kmspb.CryptoKey_ASYMMETRIC_DECRYPT,
+	}, "", "projects/test/locations/global/keyRings/ring/cryptoKeys/rsa/cryptoKeyVersions/3")
+	if err != nil || keyData.PublicKey == "" || keyData.KeyRef != "projects/test/locations/global/keyRings/ring/cryptoKeys/rsa/cryptoKeyVersions/3" {
+		t.Fatalf("gcpKeyDataFromCryptoKey(asymmetric) = %#v, %v", keyData, err)
+	}
+	keyData, err = gcpKeyDataFromCryptoKey(context.Background(), client, &kmspb.CryptoKey{
+		Name:    "projects/test/locations/global/keyRings/ring/cryptoKeys/kem",
+		Purpose: kmspb.CryptoKey_KEY_ENCAPSULATION,
+	}, "", "")
+	if err != nil || keyData.PublicKey == "" || !strings.HasSuffix(keyData.KeyRef, "/cryptoKeyVersions/1") {
+		t.Fatalf("gcpKeyDataFromCryptoKey(kem) = %#v, %v", keyData, err)
+	}
+
+	if got, err := gcpKEMAlgorithm(common.CurveP384); err != nil || got != kmspb.CryptoKeyVersion_ML_KEM_1024 {
+		t.Fatalf("gcpKEMAlgorithm(P384) = %s, %v", got, err)
+	}
+	if got, err := gcpKEMAlgorithm(common.CurveP521); err != nil || got != kmspb.CryptoKeyVersion_ML_KEM_1024 {
+		t.Fatalf("gcpKEMAlgorithm(P521) = %s, %v", got, err)
+	}
+	if _, err := gcpKEMAlgorithm("P-111"); err == nil {
+		t.Fatal("expected gcpKEMAlgorithm() unsupported curve error")
+	}
+	if got, err := gcpKEMAlgorithmName(kmspb.CryptoKeyVersion_ML_KEM_1024); err != nil || got != "ML_KEM_1024" {
+		t.Fatalf("gcpKEMAlgorithmName(1024) = %q, %v", got, err)
+	}
+	if _, err := gcpKEMAlgorithmName(kmspb.CryptoKeyVersion_RSA_SIGN_PKCS1_2048_SHA256); err == nil {
+		t.Fatal("expected gcpKEMAlgorithmName() unsupported algorithm error")
+	}
+	if got, err := gcpKEMAlgorithmFromPublicKey(kemPrivate768.EncapsulationKey().Bytes()); err != nil || got != kmspb.CryptoKeyVersion_ML_KEM_768 {
+		t.Fatalf("gcpKEMAlgorithmFromPublicKey(768) = %s, %v", got, err)
+	}
+	if got, err := gcpKEMAlgorithmFromPublicKey(kemPrivate1024.EncapsulationKey().Bytes()); err != nil || got != kmspb.CryptoKeyVersion_ML_KEM_1024 {
+		t.Fatalf("gcpKEMAlgorithmFromPublicKey(1024) = %s, %v", got, err)
+	}
+	if _, err := gcpKEMAlgorithmFromPublicKey([]byte("bad")); err == nil {
+		t.Fatal("expected gcpKEMAlgorithmFromPublicKey() size error")
+	}
+
+	sharedSecret, ciphertext, err := encapsulateGCPKEM(kemPrivate1024.EncapsulationKey().Bytes(), kmspb.CryptoKeyVersion_ML_KEM_1024)
+	if err != nil || len(sharedSecret) == 0 || len(ciphertext) == 0 {
+		t.Fatalf("encapsulateGCPKEM(1024) = %d, %d, %v", len(sharedSecret), len(ciphertext), err)
+	}
+	if _, _, err := encapsulateGCPKEM([]byte("bad"), kmspb.CryptoKeyVersion_ML_KEM_768); err == nil {
+		t.Fatal("expected encapsulateGCPKEM() parse error")
+	}
+	if _, _, err := encapsulateGCPKEM(kemPrivate768.EncapsulationKey().Bytes(), kmspb.CryptoKeyVersion_RSA_SIGN_PKCS1_2048_SHA256); err == nil {
+		t.Fatal("expected encapsulateGCPKEM() unsupported algorithm error")
+	}
+
+	if _, _, err := fetchGCPKEMPublicKey(context.Background(), fakeGCPClient{
+		getPublicKeyFn: func(context.Context, *kmspb.GetPublicKeyRequest) (*kmspb.PublicKey, error) {
+			return &kmspb.PublicKey{Algorithm: kmspb.CryptoKeyVersion_RSA_SIGN_PKCS1_2048_SHA256}, nil
+		},
+	}, "name"); err == nil {
+		t.Fatal("expected fetchGCPKEMPublicKey() unsupported algorithm error")
+	}
+	if _, _, err := fetchGCPKEMPublicKey(context.Background(), fakeGCPClient{
+		getPublicKeyFn: func(context.Context, *kmspb.GetPublicKeyRequest) (*kmspb.PublicKey, error) {
+			return &kmspb.PublicKey{Algorithm: kmspb.CryptoKeyVersion_ML_KEM_768, PublicKey: &kmspb.ChecksummedData{}}, nil
+		},
+	}, "name"); err == nil {
+		t.Fatal("expected fetchGCPKEMPublicKey() missing material error")
+	}
+}
+
 func TestGCPClientAdapterMethodsEnterWrappedCalls(t *testing.T) {
 	adapter := &gcpClientAdapter{KeyManagementClient: (*kms.KeyManagementClient)(nil)}
 	assertGCPPanic(t, func() { _, _ = adapter.CreateCryptoKey(context.Background(), &kmspb.CreateCryptoKeyRequest{}) })

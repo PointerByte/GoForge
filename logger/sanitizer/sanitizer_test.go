@@ -20,6 +20,14 @@ type loginRequest struct {
 	Public   string `json:"public"`
 }
 
+type unsupportedLoginRequest struct {
+	Password chan int `json:"password"`
+}
+
+func (unsupportedLoginRequest) String() string {
+	return "password=secret"
+}
+
 func TestLogFormatRedactsSensitiveKeys(t *testing.T) {
 	s := New(map[string]bool{
 		"password": true,
@@ -147,5 +155,112 @@ func TestDisabledSanitizerReturnsOriginalValue(t *testing.T) {
 	got := s.Value(value)
 	if got == nil || got.(map[string]any)["password"] != "secret" {
 		t.Fatalf("disabled sanitizer changed value: %#v", got)
+	}
+}
+
+func TestSanitizerCoversCompositeValues(t *testing.T) {
+	s := New(map[string]bool{"password": true, "email": true, "phone": true})
+
+	stringMap := s.Value(map[string]string{
+		"password": "secret",
+		"note":     "email=person@example.com",
+	}).(map[string]string)
+	if stringMap["password"] != RedactedValue || strings.Contains(stringMap["note"], "person@example.com") {
+		t.Fatalf("map[string]string was not sanitized: %#v", stringMap)
+	}
+
+	stringSliceMap := s.Value(map[string][]string{
+		"phone": {"555-0100", "555-0101"},
+		"note":  {"email=person@example.com"},
+	}).(map[string][]string)
+	if stringSliceMap["phone"][0] != RedactedValue || strings.Contains(stringSliceMap["note"][0], "person@example.com") {
+		t.Fatalf("map[string][]string was not sanitized: %#v", stringSliceMap)
+	}
+
+	values := s.Value([]any{
+		map[string]any{"password": "secret"},
+		"email=person@example.com",
+	}).([]any)
+	if values[0].(map[string]any)["password"] != RedactedValue || strings.Contains(values[1].(string), "person@example.com") {
+		t.Fatalf("[]any was not sanitized: %#v", values)
+	}
+
+	stringsValue := s.Value([]string{"email=person@example.com"}).([]string)
+	if strings.Contains(stringsValue[0], "person@example.com") {
+		t.Fatalf("[]string was not sanitized: %#v", stringsValue)
+	}
+
+	bytesValue := s.Value([]byte(`{"password":"secret"}`)).(string)
+	if strings.Contains(bytesValue, "secret") {
+		t.Fatalf("[]byte json was not sanitized: %s", bytesValue)
+	}
+}
+
+func TestSanitizerCoversReflectionValues(t *testing.T) {
+	s := New(map[string]bool{"password": true, "email": true})
+
+	var nilRequest *loginRequest
+	if got := s.Value(nilRequest); got != nil {
+		t.Fatalf("nil pointer value = %#v, want nil", got)
+	}
+
+	pointerValue := s.Value(&loginRequest{Email: "person@example.com", Password: "secret", Public: "ok"}).(map[string]any)
+	if pointerValue["email"] != RedactedValue || pointerValue["password"] != RedactedValue || pointerValue["public"] != "ok" {
+		t.Fatalf("pointer struct was not sanitized: %#v", pointerValue)
+	}
+
+	mapValue := s.Value(map[int]any{7: map[string]any{"password": "secret"}}).(map[string]any)
+	if mapValue["7"].(map[string]any)["password"] != RedactedValue {
+		t.Fatalf("reflect map was not sanitized: %#v", mapValue)
+	}
+
+	arrayValue := s.Value([2]any{"email=person@example.com", 3}).([]any)
+	if strings.Contains(arrayValue[0].(string), "person@example.com") || arrayValue[1].(int) != 3 {
+		t.Fatalf("array was not sanitized: %#v", arrayValue)
+	}
+
+	if got := s.Value(42); got != 42 {
+		t.Fatalf("scalar value = %#v, want 42", got)
+	}
+
+	if got := s.Value(unsupportedLoginRequest{Password: make(chan int)}).(string); !strings.Contains(got, RedactedValue) {
+		t.Fatalf("unsupported struct fallback was not sanitized: %s", got)
+	}
+}
+
+func TestSanitizerCoversGuardBranches(t *testing.T) {
+	disabled := New(nil)
+	details := formatter.Details{Client: "email=person@example.com"}
+	if got := disabled.LogFormat(formatter.LogFormat{Message: "password=secret"}); got.Message != "password=secret" {
+		t.Fatalf("disabled LogFormat changed message: %#v", got)
+	}
+	if got := disabled.Details(details); got.Client != details.Client {
+		t.Fatalf("disabled Details changed value: %#v", got)
+	}
+	if got := disabled.Service(formatter.Service{Server: "email=person@example.com"}); got.Server != "email=person@example.com" {
+		t.Fatalf("disabled Service changed value: %#v", got)
+	}
+	if got := disabled.Headers(http.Header{"Email": {"person@example.com"}}); got.Get("Email") != "person@example.com" {
+		t.Fatalf("disabled Headers changed value: %#v", got)
+	}
+
+	s := New(map[string]bool{"password": true})
+	if got := s.Headers(nil); got != nil {
+		t.Fatalf("Headers(nil) = %#v, want nil", got)
+	}
+	if got := s.value("", "secret", maxDepth+1); got != "secret" {
+		t.Fatalf("max depth guard changed value: %#v", got)
+	}
+	if s.isSensitive("") {
+		t.Fatal("empty key must not be sensitive")
+	}
+}
+
+func TestSanitizeJSONStringRejectsPartialJSON(t *testing.T) {
+	s := New(map[string]bool{"password": true})
+
+	got := s.Value(`{"password":"secret"} trailing`).(string)
+	if strings.Contains(got, "secret") || !strings.Contains(got, "trailing") {
+		t.Fatalf("partial json string was not sanitized as raw text: %s", got)
 	}
 }

@@ -9,7 +9,7 @@ replace (
 )
 
 require (
-	github.com/PointerByte/GoForge/logger v0.0.33
+	github.com/PointerByte/GoForge/logger v0.0.34
 	github.com/PointerByte/GoForge/security v0.0.44
 	github.com/aws/aws-sdk-go-v2 v1.42.0
 	github.com/aws/aws-sdk-go-v2/config v1.32.24

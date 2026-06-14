@@ -351,7 +351,6 @@ func Start(srv *http.Server) {
 	startJobsFn()
 	port := viper.GetString("server.gin.port")
 	ctxLogger.Info(fmt.Sprintf("Server started on port %s", port))
-
 	shutdownFn(srv)
 }
 

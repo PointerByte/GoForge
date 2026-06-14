@@ -8,10 +8,11 @@
 // scheduler exposed by package-level helpers.
 //
 // Main entry points:
-//   - Job to register fixed-interval work
-//   - CronJob to register jobs aligned to a daily trigger
+//   - Job and JobWithID to register fixed-interval work
+//   - CronJob and CronJobWithID to register jobs aligned to a cron trigger
 //   - StartJobs to start registered global jobs
 //   - RestartJobs to restart them without clearing definitions
+//   - PauseJob, ResumeJob, and StopJob to control jobs by id
 //   - StopAllJobs to stop global jobs, optionally clearing them
 //
 // Jobs are not started when they are registered. They begin running only after

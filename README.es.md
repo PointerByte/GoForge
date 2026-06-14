@@ -380,15 +380,26 @@ quieras construir transportes desde `viper`.
 
 `tools/jobs` ofrece jobs en proceso con intervalo fijo. Los jobs arrancan
 cuando se ejecuta `jobs.StartJobs()`; `config/server/gin.Start(...)` lo llama
-automaticamente. Cuando `server.modeTest=true`, los jobs no arrancan.
+automaticamente. Cuando `server.modeTest=true`, los jobs no arrancan. Usa un
+id cuando un job deba pausarse, reanudarse o detenerse individualmente.
 
 ```go
-func registerJobs() {
+func registerJobs() error {
 	timeout := 30 * time.Minute
 
-	jobs.Job(func() {
+	if err := jobs.JobWithID("refresh-cache", func() {
 		refreshCache()
-	}, time.Minute, &timeout)
+	}, time.Minute, &timeout); err != nil {
+		return err
+	}
+
+	if err := jobs.PauseJob("refresh-cache"); err != nil {
+		return err
+	}
+	if err := jobs.ResumeJob("refresh-cache"); err != nil {
+		return err
+	}
+	return jobs.StopJob("refresh-cache")
 }
 ```
 

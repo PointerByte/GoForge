@@ -378,15 +378,26 @@ client transports to be built from `viper`.
 
 `tools/jobs` provides fixed-interval in-process jobs. Jobs begin when
 `jobs.StartJobs()` runs; `config/server/gin.Start(...)` calls it automatically.
-When `server.modeTest=true`, jobs are not started.
+When `server.modeTest=true`, jobs are not started. Use an id when a job must be
+paused, resumed, or stopped individually.
 
 ```go
-func registerJobs() {
+func registerJobs() error {
 	timeout := 30 * time.Minute
 
-	jobs.Job(func() {
+	if err := jobs.JobWithID("refresh-cache", func() {
 		refreshCache()
-	}, time.Minute, &timeout)
+	}, time.Minute, &timeout); err != nil {
+		return err
+	}
+
+	if err := jobs.PauseJob("refresh-cache"); err != nil {
+		return err
+	}
+	if err := jobs.ResumeJob("refresh-cache"); err != nil {
+		return err
+	}
+	return jobs.StopJob("refresh-cache")
 }
 ```
 

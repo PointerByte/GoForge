@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/PointerByte/GoForge/logger/builder"
+	"github.com/PointerByte/GoForge/logger/common"
 	"github.com/PointerByte/GoForge/logger/formatter"
 	"github.com/gin-gonic/gin/binding"
 )
@@ -113,6 +114,20 @@ func traceClient(ctx context.Context, system, process string, disableTraceBody b
 	return service, ctxLogger.TraceEnd
 }
 
+func headersWithTraceID(ctx context.Context, header http.Header) http.Header {
+	headers := header.Clone()
+	if headers == nil {
+		headers = http.Header{}
+	}
+	if headers.Get(common.TraceIDHeader) != "" {
+		return headers
+	}
+	if traceID := builder.New(ctx).TraceID(); traceID != "" {
+		headers.Set(common.TraceIDHeader, traceID)
+	}
+	return headers
+}
+
 // buildService enriches the trace service entry with data extracted from the
 // HTTP response and request objects used by the REST client.
 //
@@ -194,7 +209,7 @@ func (gr *RestGeneric) PostGeneric(ctx context.Context, input RequestGeneric) er
 	}
 	gr.newIRest.SetRequest(input.HttpRequest)
 	gr.newIRest.SetContext(ctx)
-	gr.newIRest.SetHeaders(input.Header)
+	gr.newIRest.SetHeaders(headersWithTraceID(ctx, input.Header))
 
 	resp, err := gr.newIRest.Post(pathEncode, binding.MIMEJSON, bytes.NewReader(req), input.Response)
 	if err != nil {
@@ -254,7 +269,7 @@ func (gr *RestGeneric) GetGeneric(ctx context.Context, input RequestGeneric) err
 	}
 	gr.newIRest.SetRequest(input.HttpRequest)
 	gr.newIRest.SetContext(ctx)
-	gr.newIRest.SetHeaders(input.Header)
+	gr.newIRest.SetHeaders(headersWithTraceID(ctx, input.Header))
 
 	resp, err := gr.newIRest.Get(pathEncode, binding.MIMEJSON, input.Response)
 	if err != nil {
@@ -291,7 +306,7 @@ func (gr *RestGeneric) PutGeneric(ctx context.Context, input RequestGeneric) err
 	}
 	gr.newIRest.SetRequest(input.HttpRequest)
 	gr.newIRest.SetContext(ctx)
-	gr.newIRest.SetHeaders(input.Header)
+	gr.newIRest.SetHeaders(headersWithTraceID(ctx, input.Header))
 
 	resp, err := gr.newIRest.Put(pathEncode, binding.MIMEJSON, bytes.NewReader(req), input.Response)
 	if err != nil {
@@ -328,7 +343,7 @@ func (gr *RestGeneric) PatchGeneric(ctx context.Context, input RequestGeneric) e
 	}
 	gr.newIRest.SetRequest(input.HttpRequest)
 	gr.newIRest.SetContext(ctx)
-	gr.newIRest.SetHeaders(input.Header)
+	gr.newIRest.SetHeaders(headersWithTraceID(ctx, input.Header))
 
 	resp, err := gr.newIRest.Patch(pathEncode, binding.MIMEJSON, bytes.NewReader(req), input.Response)
 	if err != nil {
@@ -366,7 +381,7 @@ func (gr *RestGeneric) OptionGeneric(ctx context.Context, input RequestGeneric) 
 	}
 	gr.newIRest.SetRequest(input.HttpRequest)
 	gr.newIRest.SetContext(ctx)
-	gr.newIRest.SetHeaders(input.Header)
+	gr.newIRest.SetHeaders(headersWithTraceID(ctx, input.Header))
 
 	resp, err := gr.newIRest.Option(pathEncode, binding.MIMEJSON, bytes.NewReader(req), input.Response)
 	if err != nil {

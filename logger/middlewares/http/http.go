@@ -47,9 +47,15 @@ func InitLogger() gin.HandlerFunc {
 		)
 
 		// ---- Get TraceID ----
-		traceID := span.SpanContext().TraceID()
-		if traceID.IsValid() {
-			ctxLogger.Set(common.TraceIDKey, traceID.String())
+		traceID := ctx.Request.Header.Get(common.TraceIDHeader)
+		if traceID == "" {
+			otelTraceID := span.SpanContext().TraceID()
+			if otelTraceID.IsValid() {
+				traceID = otelTraceID.String()
+			}
+		}
+		if traceID != "" {
+			ctxLogger.SetTraceID(traceID)
 		}
 
 		details := formatter.Details{

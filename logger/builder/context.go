@@ -86,7 +86,7 @@ func New(parent context.Context) *Context {
 
 	// Initialize traceID
 	traceID := strings.ReplaceAll(uuid.NewString(), "-", "")
-	newContext.Set(traceIDKey, traceID)
+	newContext.SetTraceID(traceID)
 
 	// Initialize service collection
 	services := make([]formatter.Service, 0)
@@ -119,6 +119,31 @@ func (c *Context) GetTraceCallerSkip() int {
 // Set adds a key-value pair to the context.
 func (c *Context) Set(key any, value any) {
 	c.fields[key] = value
+}
+
+// SetTraceID stores the correlation trace id used by structured logs and
+// fallback propagation headers.
+func (c *Context) SetTraceID(id string) {
+	if id == "" {
+		return
+	}
+	c.Set(traceIDKey, id)
+	c.Set(common.TraceIDKey, id)
+}
+
+// TraceID returns the current correlation trace id.
+func (c *Context) TraceID() string {
+	if v, ok := c.Get(traceIDKey); ok {
+		if traceID, ok := v.(string); ok && traceID != "" {
+			return traceID
+		}
+	}
+	if v, ok := c.Get(common.TraceIDKey); ok {
+		if traceID, ok := v.(string); ok {
+			return traceID
+		}
+	}
+	return ""
 }
 
 // Get retrieves a value from the context.

@@ -245,9 +245,21 @@ func newGRPCLoggerContext(parent context.Context, incoming context.Context) (con
 		trace.WithSpanKind(trace.SpanKindServer),
 	)
 
-	traceID := span.SpanContext().TraceID()
-	if traceID.IsValid() {
-		ctxLogger.Set(common.TraceIDKey, traceID.String())
+	traceID := ""
+	if md, ok := metadata.FromIncomingContext(incoming); ok {
+		values := md.Get(strings.ToLower(common.TraceIDHeader))
+		if len(values) > 0 {
+			traceID = values[0]
+		}
+	}
+	if traceID == "" {
+		otelTraceID := span.SpanContext().TraceID()
+		if otelTraceID.IsValid() {
+			traceID = otelTraceID.String()
+		}
+	}
+	if traceID != "" {
+		ctxLogger.SetTraceID(traceID)
 	}
 
 	details := formatter.Details{

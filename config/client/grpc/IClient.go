@@ -19,6 +19,7 @@ import (
 	"sync"
 
 	"github.com/PointerByte/GoForge/logger/builder"
+	"github.com/PointerByte/GoForge/logger/common"
 	"github.com/PointerByte/GoForge/logger/formatter"
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
@@ -243,6 +244,19 @@ func traceClient(ctx context.Context, system, process string, disableTraceBody b
 	return service, ctxLogger.TraceEnd
 }
 
+func contextWithTraceIDMetadata(ctx context.Context) context.Context {
+	traceID := builder.New(ctx).TraceID()
+	if traceID == "" {
+		return ctx
+	}
+
+	key := strings.ToLower(common.TraceIDHeader)
+	if md, ok := metadata.FromOutgoingContext(ctx); ok && len(md.Get(key)) > 0 {
+		return ctx
+	}
+	return metadata.AppendToOutgoingContext(ctx, key, traceID)
+}
+
 func buildService(service *formatter.Service, reqBody, object any, method, target string, ctx context.Context, err error) error {
 	if service == nil {
 		return nil
@@ -359,6 +373,7 @@ func parseTLSVersion(raw string) uint16 {
 
 func traceUnaryClientInterceptor() grpc.UnaryClientInterceptor {
 	return func(ctx context.Context, method string, req, reply any, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
+		ctx = contextWithTraceIDMetadata(ctx)
 		system, process := grpcServiceMethod(method)
 		service, traceEnd := traceClient(ctx, system, process, false)
 		defer traceEnd(service)
@@ -370,6 +385,7 @@ func traceUnaryClientInterceptor() grpc.UnaryClientInterceptor {
 
 func traceStreamClientInterceptor() grpc.StreamClientInterceptor {
 	return func(ctx context.Context, desc *grpc.StreamDesc, cc *grpc.ClientConn, method string, streamer grpc.Streamer, opts ...grpc.CallOption) (grpc.ClientStream, error) {
+		ctx = contextWithTraceIDMetadata(ctx)
 		system, process := grpcServiceMethod(method)
 		service, traceEnd := traceClient(ctx, system, process, false)
 

@@ -44,24 +44,20 @@ func TestInitLogger(t *testing.T) {
 
 			r.GET("/test", func(ctx *gin.Context) {
 				ctxLogger := builder.New(ctx.Request.Context())
-				if v, ok := ctxLogger.Get(common.TraceIDKey); ok {
-					if s, ok := v.(string); ok {
-						ctx.String(http.StatusOK, s)
-						return
-					}
-					ctx.String(http.StatusOK, "")
-					return
-				}
-				ctx.String(http.StatusOK, "")
+				ctx.String(http.StatusOK, ctxLogger.TraceID())
 			})
 
 			req := httptest.NewRequest(http.MethodGet, "/test", nil)
+			req.Header.Set(common.TraceIDHeader, tt.traceHeader)
 			w := httptest.NewRecorder()
 
 			r.ServeHTTP(w, req)
 
 			if w.Code != http.StatusOK {
 				t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
+			}
+			if body := w.Body.String(); body != tt.wantValue {
+				t.Fatalf("trace id = %q, want %q", body, tt.wantValue)
 			}
 		})
 	}

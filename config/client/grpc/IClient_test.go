@@ -17,11 +17,13 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	pb "github.com/PointerByte/GoForge/config/proto"
 	"github.com/PointerByte/GoForge/logger/builder"
+	"github.com/PointerByte/GoForge/logger/common"
 	"github.com/PointerByte/GoForge/logger/formatter"
 	"github.com/golang/mock/gomock"
 	"github.com/spf13/viper"
@@ -587,7 +589,9 @@ func TestTraceUnaryClientInterceptorBuildsService(t *testing.T) {
 	resetClientGRPCTestState(t)
 
 	ctxLogger := builder.New(context.Background())
+	ctxLogger.SetTraceID("trace-grpc-out")
 	ctx := metadata.AppendToOutgoingContext(ctxLogger, "x-request-id", "req-1")
+	var gotTraceID string
 	reply := &pb.HelloReply{}
 	conn, err := grpc.NewClient("passthrough:///trace-unary", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
@@ -603,6 +607,12 @@ func TestTraceUnaryClientInterceptorBuildsService(t *testing.T) {
 		reply,
 		conn,
 		func(ctx context.Context, method string, req, reply any, _ *grpc.ClientConn, _ ...grpc.CallOption) error {
+			if md, ok := metadata.FromOutgoingContext(ctx); ok {
+				values := md.Get("x-trace-id")
+				if len(values) > 0 {
+					gotTraceID = values[0]
+				}
+			}
 			response, ok := reply.(*pb.HelloReply)
 			if !ok {
 				t.Fatalf("reply type = %T", reply)
@@ -616,6 +626,27 @@ func TestTraceUnaryClientInterceptorBuildsService(t *testing.T) {
 	}
 	if reply.GetMessage() != "hello Trace" {
 		t.Fatalf("reply.GetMessage() = %q, want %q", reply.GetMessage(), "hello Trace")
+	}
+	if gotTraceID != "trace-grpc-out" {
+		t.Fatalf("x-trace-id = %q, want %q", gotTraceID, "trace-grpc-out")
+	}
+}
+
+func TestContextWithTraceIDMetadataPreservesExistingTraceID(t *testing.T) {
+	resetClientGRPCTestState(t)
+
+	ctxLogger := builder.New(context.Background())
+	ctxLogger.SetTraceID("trace-generated")
+	ctx := metadata.AppendToOutgoingContext(ctxLogger, strings.ToLower(common.TraceIDHeader), "trace-existing")
+
+	gotCtx := contextWithTraceIDMetadata(ctx)
+	md, ok := metadata.FromOutgoingContext(gotCtx)
+	if !ok {
+		t.Fatal("expected outgoing metadata")
+	}
+	values := md.Get(strings.ToLower(common.TraceIDHeader))
+	if len(values) != 1 || values[0] != "trace-existing" {
+		t.Fatalf("x-trace-id metadata = %#v, want [trace-existing]", values)
 	}
 }
 

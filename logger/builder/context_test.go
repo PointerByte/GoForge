@@ -7,6 +7,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/PointerByte/GoForge/logger/common"
 )
 
 // ---- Helpers ----
@@ -73,4 +75,19 @@ func TestLoggerContext_All(t *testing.T) {
 func TestContext_DisableTrace(t *testing.T) {
 	c := New(context.Background())
 	c.DisableTrace()
+}
+
+func TestContextTraceIDAccessors(t *testing.T) {
+	c := New(context.Background())
+	if got := c.TraceID(); got == "" {
+		t.Fatal("TraceID() is empty")
+	}
+
+	c.SetTraceID("trace-local")
+	if got := c.TraceID(); got != "trace-local" {
+		t.Fatalf("TraceID() = %q, want %q", got, "trace-local")
+	}
+	if got, ok := c.Get(common.TraceIDKey); !ok || got != "trace-local" {
+		t.Fatalf("common TraceIDKey = %#v, %t; want trace-local, true", got, ok)
+	}
 }

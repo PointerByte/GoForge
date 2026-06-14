@@ -17,6 +17,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/PointerByte/GoForge/logger/builder"
+	"github.com/PointerByte/GoForge/logger/common"
 	"github.com/golang/mock/gomock"
 )
 
@@ -180,6 +182,65 @@ func TestGenericRest_GetGeneric(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestGenericRestAddsTraceIDHeader(t *testing.T) {
+	type response struct {
+		Message string `json:"message"`
+	}
+
+	var receivedTraceID string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedTraceID = r.Header.Get(common.TraceIDHeader)
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(response{Message: "ok"})
+	}))
+	defer ts.Close()
+
+	ctxLogger := builder.New(context.Background())
+	ctxLogger.SetTraceID("trace-http-out")
+
+	respObj := &response{}
+	gr := NewGenericRest(time.Second, getDefaultTransport()).(*RestGeneric)
+	if err := gr.GetGeneric(ctxLogger, RequestGeneric{
+		Url:      ts.URL + "/items",
+		Response: respObj,
+	}); err != nil {
+		t.Fatalf("GetGeneric() failed: %v", err)
+	}
+	if receivedTraceID != "trace-http-out" {
+		t.Fatalf("%s = %q, want %q", common.TraceIDHeader, receivedTraceID, "trace-http-out")
+	}
+}
+
+func TestGenericRestPreservesExistingTraceIDHeader(t *testing.T) {
+	type response struct {
+		Message string `json:"message"`
+	}
+
+	var receivedTraceID string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedTraceID = r.Header.Get(common.TraceIDHeader)
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(response{Message: "ok"})
+	}))
+	defer ts.Close()
+
+	ctxLogger := builder.New(context.Background())
+	ctxLogger.SetTraceID("trace-http-out")
+
+	respObj := &response{}
+	gr := NewGenericRest(time.Second, getDefaultTransport()).(*RestGeneric)
+	if err := gr.GetGeneric(ctxLogger, RequestGeneric{
+		Url:      ts.URL + "/items",
+		Header:   http.Header{common.TraceIDHeader: []string{"trace-existing"}},
+		Response: respObj,
+	}); err != nil {
+		t.Fatalf("GetGeneric() failed: %v", err)
+	}
+	if receivedTraceID != "trace-existing" {
+		t.Fatalf("%s = %q, want %q", common.TraceIDHeader, receivedTraceID, "trace-existing")
 	}
 }
 

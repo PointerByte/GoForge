@@ -91,10 +91,10 @@ func TestClassifyStatus(t *testing.T) {
 			expected: formatter.SUCCESS,
 		},
 		{
-			name:     "error 4xx",
+			name:     "other 4xx",
 			code:     404,
 			initial:  formatter.SUCCESS,
-			expected: formatter.ERROR,
+			expected: formatter.OTHER,
 		},
 		{
 			name:     "error 5xx",
@@ -103,10 +103,10 @@ func TestClassifyStatus(t *testing.T) {
 			expected: formatter.ERROR,
 		},
 		{
-			name:     "other 3xx",
+			name:     "error 3xx",
 			code:     302,
 			initial:  formatter.SUCCESS,
-			expected: formatter.OTHER,
+			expected: formatter.ERROR,
 		},
 		{
 			name:     "code zero keeps previous status",
@@ -219,7 +219,7 @@ func TestTraceInitAndTraceEnd_SuccessFlow(t *testing.T) {
 func TestTraceEnd_ErrorAndOtherFlow(t *testing.T) {
 	resetViperForTest()
 
-	t.Run("error 4xx", func(t *testing.T) {
+	t.Run("other 4xx", func(t *testing.T) {
 		ctx := New(context.Background())
 		services := make([]formatter.Service, 0)
 		ctx.Set(servicesKey, &services)
@@ -233,8 +233,8 @@ func TestTraceEnd_ErrorAndOtherFlow(t *testing.T) {
 		ctx.TraceInit(process)
 		ctx.TraceEnd(process)
 
-		if process.Status != formatter.ERROR {
-			t.Fatalf("expected ERROR, got %q", process.Status)
+		if process.Status != formatter.OTHER {
+			t.Fatalf("expected OTHER, got %q", process.Status)
 		}
 
 		if len(services) != 1 {
@@ -242,7 +242,7 @@ func TestTraceEnd_ErrorAndOtherFlow(t *testing.T) {
 		}
 	})
 
-	t.Run("other 3xx", func(t *testing.T) {
+	t.Run("error 3xx", func(t *testing.T) {
 		ctx := New(context.Background())
 		services := make([]formatter.Service, 0)
 		ctx.Set(servicesKey, &services)
@@ -256,8 +256,8 @@ func TestTraceEnd_ErrorAndOtherFlow(t *testing.T) {
 		ctx.TraceInit(process)
 		ctx.TraceEnd(process)
 
-		if process.Status != formatter.OTHER {
-			t.Fatalf("expected OTHER, got %q", process.Status)
+		if process.Status != formatter.ERROR {
+			t.Fatalf("expected ERROR, got %q", process.Status)
 		}
 
 		if len(services) != 1 {

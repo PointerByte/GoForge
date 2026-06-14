@@ -6,6 +6,7 @@ package common
 type KeyContex string
 
 const (
+	TraceIDHeader                         = "X-Trace-Id"
 	TraceIDKey                  KeyContex = "traceID"
 	DetailsKey                  KeyContex = "details"
 	DisableRequestBodyKey       KeyContex = "disableRequestBody"

@@ -29,10 +29,7 @@ func (c *Context) customLogFormat() map[string]any {
 	funcName, line := c.getMethodLine(6)
 
 	// ---------- TraceID ----------
-	var traceID string
-	if v, ok := c.Get(traceIDKey); ok {
-		traceID = v.(string)
-	}
+	traceID := c.TraceID()
 
 	// ---------- Details ----------
 	var details formatter.Details
@@ -201,10 +198,10 @@ func classifyStatus(process *formatter.Service) {
 	switch {
 	case process.Code >= 200 && process.Code < 300:
 		process.Status = formatter.SUCCESS
-	case process.Code >= 400 && process.Code < 600:
-		process.Status = formatter.ERROR
-	default:
+	case process.Code >= 400 && process.Code < 500:
 		process.Status = formatter.OTHER
+	default:
+		process.Status = formatter.ERROR
 	}
 }
 

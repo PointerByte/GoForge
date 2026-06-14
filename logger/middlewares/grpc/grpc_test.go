@@ -81,7 +81,10 @@ func resetGRPCTestState(t *testing.T) {
 func TestInitLoggerUnaryServerInterceptor(t *testing.T) {
 	resetGRPCTestState(t)
 
-	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("x-request-id", "abc123"))
+	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs(
+		"x-request-id", "abc123",
+		"x-trace-id", "trace-grpc-in",
+	))
 	ctx = peer.NewContext(ctx, &peer.Peer{Addr: &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 8080}})
 
 	var gotCtxLogger *builder.Context
@@ -110,6 +113,9 @@ func TestInitLoggerUnaryServerInterceptor(t *testing.T) {
 	}
 	if got := details.Headers.Get("x-request-id"); got != "abc123" {
 		t.Fatalf("details.Headers[x-request-id] = %q, want %q", got, "abc123")
+	}
+	if got := gotCtxLogger.TraceID(); got != "trace-grpc-in" {
+		t.Fatalf("TraceID() = %q, want %q", got, "trace-grpc-in")
 	}
 }
 

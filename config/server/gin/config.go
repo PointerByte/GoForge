@@ -17,12 +17,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/PointerByte/GoForge/config/utilities"
-	"github.com/PointerByte/GoForge/config/utilities/traces"
 	"github.com/PointerByte/GoForge/logger/builder"
 	httpMiddlewaresLogger "github.com/PointerByte/GoForge/logger/middlewares/http"
 	"github.com/PointerByte/GoForge/security/middlewares"
 	"github.com/PointerByte/GoForge/tools/jobs"
+	"github.com/PointerByte/GoForge/tools/utilities"
+	"github.com/PointerByte/GoForge/tools/utilities/traces"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/viper"
@@ -305,7 +305,6 @@ func CreateApp() (*http.Server, error) {
 	groups := viper.GetStringSlice("server.gin.groups")
 	for _, g := range groups {
 		routes[g] = engine.Group(g)
-		routes[g].GET("/refresh", refresh())
 		routes[g].GET("/health", healthGin())
 	}
 	setRoute(routes)

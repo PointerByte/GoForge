@@ -19,11 +19,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/PointerByte/GoForge/config/utilities"
 	"github.com/PointerByte/GoForge/logger/builder"
 	viperdata "github.com/PointerByte/GoForge/logger/viperData"
 	jwtservice "github.com/PointerByte/GoForge/security/auth/jwt"
 	"github.com/PointerByte/GoForge/security/middlewares"
+	"github.com/PointerByte/GoForge/tools/utilities"
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/viper"
 	sdklog "go.opentelemetry.io/otel/sdk/log"

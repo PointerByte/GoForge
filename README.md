@@ -66,7 +66,7 @@ go install github.com/PointerByte/GoForge/cmd/go-openssl@latest
 ## Configuration
 
 GoForge applications keep runtime configuration under `resources/`.
-`config/utilities.LoadEnv(prefixPath)` is the shared runtime configuration
+`tools/utilities.LoadEnv(prefixPath)` is the shared runtime configuration
 loader. It loads the selected application file into `viper`, merges optional
 environment files, and applies process environment overrides before the server,
 logger, OpenTelemetry, clients, and JWT helpers read configuration.

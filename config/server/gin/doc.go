@@ -8,7 +8,7 @@
 // health handlers, and graceful shutdown coordination.
 //
 // In a typical application flow this package:
-//   - loads configuration through config/utilities
+//   - loads configuration through tools/utilities
 //   - initializes logger and OpenTelemetry
 //   - creates the shared gin.Engine
 //   - registers the common middleware stack

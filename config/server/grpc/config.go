@@ -19,10 +19,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/PointerByte/GoForge/config/utilities"
-	"github.com/PointerByte/GoForge/config/utilities/traces"
 	"github.com/PointerByte/GoForge/logger/builder"
 	loggerGRPCMiddlewares "github.com/PointerByte/GoForge/logger/middlewares/grpc"
+	"github.com/PointerByte/GoForge/tools/utilities"
+	"github.com/PointerByte/GoForge/tools/utilities/traces"
 	"github.com/spf13/viper"
 	"golang.org/x/time/rate"
 	"google.golang.org/grpc"

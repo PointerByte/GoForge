@@ -192,15 +192,18 @@ func (c *Context) setTraceID(process *formatter.Service) {
 }
 
 func classifyStatus(process *formatter.Service) {
+	process.Status = formatter.UNKNOWN
 	if process.Code == 0 {
 		return
 	}
 	switch {
 	case process.Code >= 200 && process.Code < 300:
 		process.Status = formatter.SUCCESS
-	case process.Code >= 400 && process.Code < 500:
+	case process.Code >= 300 && process.Code < 400:
 		process.Status = formatter.OTHER
-	default:
+	case process.Code >= 400 && process.Code < 500:
+		process.Status = formatter.CLIENT_ERROR
+	case process.Code >= 500 && process.Code < 600:
 		process.Status = formatter.ERROR
 	}
 }

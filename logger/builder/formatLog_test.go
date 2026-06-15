@@ -91,10 +91,34 @@ func TestClassifyStatus(t *testing.T) {
 			expected: formatter.SUCCESS,
 		},
 		{
-			name:     "other 4xx",
-			code:     404,
+			name:     "success upper boundary",
+			code:     299,
+			initial:  formatter.OTHER,
+			expected: formatter.SUCCESS,
+		},
+		{
+			name:     "other 3xx",
+			code:     302,
 			initial:  formatter.SUCCESS,
 			expected: formatter.OTHER,
+		},
+		{
+			name:     "other upper boundary",
+			code:     399,
+			initial:  formatter.SUCCESS,
+			expected: formatter.OTHER,
+		},
+		{
+			name:     "client error 4xx",
+			code:     404,
+			initial:  formatter.SUCCESS,
+			expected: formatter.CLIENT_ERROR,
+		},
+		{
+			name:     "client error upper boundary",
+			code:     499,
+			initial:  formatter.SUCCESS,
+			expected: formatter.CLIENT_ERROR,
 		},
 		{
 			name:     "error 5xx",
@@ -103,16 +127,22 @@ func TestClassifyStatus(t *testing.T) {
 			expected: formatter.ERROR,
 		},
 		{
-			name:     "error 3xx",
-			code:     302,
+			name:     "unknown below success range",
+			code:     199,
 			initial:  formatter.SUCCESS,
-			expected: formatter.ERROR,
+			expected: formatter.UNKNOWN,
 		},
 		{
-			name:     "code zero keeps previous status",
+			name:     "unknown above error range",
+			code:     600,
+			initial:  formatter.SUCCESS,
+			expected: formatter.UNKNOWN,
+		},
+		{
+			name:     "code zero is unknown",
 			code:     0,
 			initial:  formatter.SUCCESS,
-			expected: formatter.SUCCESS,
+			expected: formatter.UNKNOWN,
 		},
 	}
 
@@ -216,10 +246,10 @@ func TestTraceInitAndTraceEnd_SuccessFlow(t *testing.T) {
 	}
 }
 
-func TestTraceEnd_ErrorAndOtherFlow(t *testing.T) {
+func TestTraceEnd_StatusClassificationFlow(t *testing.T) {
 	resetViperForTest()
 
-	t.Run("other 4xx", func(t *testing.T) {
+	t.Run("client error 4xx", func(t *testing.T) {
 		ctx := New(context.Background())
 		services := make([]formatter.Service, 0)
 		ctx.Set(servicesKey, &services)
@@ -228,6 +258,29 @@ func TestTraceEnd_ErrorAndOtherFlow(t *testing.T) {
 			System:  "unit-test-system",
 			Process: "trace-error-flow",
 			Code:    404,
+		}
+
+		ctx.TraceInit(process)
+		ctx.TraceEnd(process)
+
+		if process.Status != formatter.CLIENT_ERROR {
+			t.Fatalf("expected CLIENT_ERROR, got %q", process.Status)
+		}
+
+		if len(services) != 1 {
+			t.Fatalf("expected 1 service appended, got %d", len(services))
+		}
+	})
+
+	t.Run("other 3xx", func(t *testing.T) {
+		ctx := New(context.Background())
+		services := make([]formatter.Service, 0)
+		ctx.Set(servicesKey, &services)
+
+		process := &formatter.Service{
+			System:  "unit-test-system",
+			Process: "trace-other-flow",
+			Code:    302,
 		}
 
 		ctx.TraceInit(process)
@@ -242,15 +295,15 @@ func TestTraceEnd_ErrorAndOtherFlow(t *testing.T) {
 		}
 	})
 
-	t.Run("error 3xx", func(t *testing.T) {
+	t.Run("error 5xx", func(t *testing.T) {
 		ctx := New(context.Background())
 		services := make([]formatter.Service, 0)
 		ctx.Set(servicesKey, &services)
 
 		process := &formatter.Service{
 			System:  "unit-test-system",
-			Process: "trace-other-flow",
-			Code:    302,
+			Process: "trace-error-flow",
+			Code:    500,
 		}
 
 		ctx.TraceInit(process)
@@ -258,6 +311,29 @@ func TestTraceEnd_ErrorAndOtherFlow(t *testing.T) {
 
 		if process.Status != formatter.ERROR {
 			t.Fatalf("expected ERROR, got %q", process.Status)
+		}
+
+		if len(services) != 1 {
+			t.Fatalf("expected 1 service appended, got %d", len(services))
+		}
+	})
+
+	t.Run("unknown code", func(t *testing.T) {
+		ctx := New(context.Background())
+		services := make([]formatter.Service, 0)
+		ctx.Set(servicesKey, &services)
+
+		process := &formatter.Service{
+			System:  "unit-test-system",
+			Process: "trace-unknown-flow",
+			Code:    0,
+		}
+
+		ctx.TraceInit(process)
+		ctx.TraceEnd(process)
+
+		if process.Status != formatter.UNKNOWN {
+			t.Fatalf("expected UNKNOWN, got %q", process.Status)
 		}
 
 		if len(services) != 1 {

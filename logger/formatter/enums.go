@@ -15,7 +15,9 @@ const (
 type Status string
 
 const (
-	SUCCESS Status = "SUCCESS"
-	ERROR   Status = "ERROR"
-	OTHER   Status = "OTHER"
+	SUCCESS      Status = "SUCCESS"
+	ERROR        Status = "ERROR"
+	CLIENT_ERROR Status = "CLIENT_ERROR"
+	OTHER        Status = "OTHER"
+	UNKNOWN      Status = "UNKNOWN"
 )

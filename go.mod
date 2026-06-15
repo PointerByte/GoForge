@@ -9,7 +9,7 @@ replace (
 )
 
 require (
-	github.com/PointerByte/GoForge/logger v0.0.37
+	github.com/PointerByte/GoForge/logger v0.0.38
 	github.com/PointerByte/GoForge/security v0.0.45
 	github.com/gin-contrib/cors v1.7.7
 	github.com/gin-gonic/gin v1.12.0

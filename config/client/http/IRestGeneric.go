@@ -140,36 +140,41 @@ func headersWithTraceID(ctx context.Context, header http.Header) http.Header {
 // If JSON decoding fails, the function tries to read the remaining body and
 // stores its raw string representation instead.
 func (gr *RestGeneric) buildService(service *formatter.Service, reqBody, object any, resp *http.Response) error {
-	if gr.disableTrace {
+	if gr.disableTrace || service == nil || resp == nil {
+		return nil
+	}
+
+	service.Code = int64(resp.StatusCode)
+	service.Protocol = resp.Proto
+
+	if resp.Request != nil {
+		req := resp.Request
+		if req.URL != nil {
+			service.Server = req.URL.Host
+			service.Path = req.URL.Path
+		}
+		service.Headers = &req.Header
+		service.Method = req.Method
+		service.Request = reqBody
+	}
+
+	if resp.Body == nil {
 		return nil
 	}
 	defer func() {
 		io.Copy(io.Discard, resp.Body)
 		resp.Body.Close()
 	}()
-	if resp.Request != nil {
-		req := resp.Request
-		service.Server = req.URL.Host
-		service.Headers = &req.Header
-		service.Method = req.Method
-		service.Path = req.URL.Path
-		if !gr.disableTrace {
-			service.Request = reqBody
-		}
-	}
-	if resp != nil && !gr.disableTrace {
-		service.Code = int64(resp.StatusCode)
-		service.Protocol = resp.Proto
 
-		if err := json.NewDecoder(resp.Body).Decode(object); err != nil {
-			_respBody, err := io.ReadAll(resp.Body)
-			if err != nil {
-				return fmt.Errorf("problem decoding the response: %w", err)
-			}
-			service.Response = string(_respBody)
+	if err := json.NewDecoder(resp.Body).Decode(object); err != nil {
+		_respBody, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("problem decoding the response: %w", err)
 		}
-		service.Response = object
+		service.Response = string(_respBody)
+		return nil
 	}
+	service.Response = object
 	return nil
 }
 
@@ -299,9 +304,6 @@ func (gr *RestGeneric) PutGeneric(ctx context.Context, input RequestGeneric) err
 
 	req, err := json.Marshal(input.Request)
 	if err != nil {
-		if gr.disableTrace {
-			process.Status = formatter.ERROR
-		}
 		return err
 	}
 	gr.newIRest.SetRequest(input.HttpRequest)
@@ -336,9 +338,6 @@ func (gr *RestGeneric) PatchGeneric(ctx context.Context, input RequestGeneric) e
 
 	req, err := json.Marshal(input.Request)
 	if err != nil {
-		if gr.disableTrace {
-			process.Status = formatter.ERROR
-		}
 		return err
 	}
 	gr.newIRest.SetRequest(input.HttpRequest)
@@ -374,9 +373,6 @@ func (gr *RestGeneric) OptionGeneric(ctx context.Context, input RequestGeneric) 
 
 	req, err := json.Marshal(input.Request)
 	if err != nil {
-		if gr.disableTrace {
-			process.Status = formatter.ERROR
-		}
 		return err
 	}
 	gr.newIRest.SetRequest(input.HttpRequest)

@@ -139,10 +139,10 @@ func TestClassifyStatus(t *testing.T) {
 			expected: formatter.UNKNOWN,
 		},
 		{
-			name:     "code zero is unknown",
+			name:     "code zero is success",
 			code:     0,
 			initial:  formatter.SUCCESS,
-			expected: formatter.UNKNOWN,
+			expected: formatter.SUCCESS,
 		},
 	}
 
@@ -318,7 +318,7 @@ func TestTraceEnd_StatusClassificationFlow(t *testing.T) {
 		}
 	})
 
-	t.Run("unknown code", func(t *testing.T) {
+	t.Run("zero code success", func(t *testing.T) {
 		ctx := New(context.Background())
 		services := make([]formatter.Service, 0)
 		ctx.Set(servicesKey, &services)
@@ -332,8 +332,8 @@ func TestTraceEnd_StatusClassificationFlow(t *testing.T) {
 		ctx.TraceInit(process)
 		ctx.TraceEnd(process)
 
-		if process.Status != formatter.UNKNOWN {
-			t.Fatalf("expected UNKNOWN, got %q", process.Status)
+		if process.Status != formatter.SUCCESS {
+			t.Fatalf("expected SUCCESS, got %q", process.Status)
 		}
 
 		if len(services) != 1 {

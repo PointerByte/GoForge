@@ -19,6 +19,7 @@ import (
 
 	"github.com/PointerByte/GoForge/logger/builder"
 	"github.com/PointerByte/GoForge/logger/common"
+	"github.com/PointerByte/GoForge/logger/formatter"
 	"github.com/golang/mock/gomock"
 )
 
@@ -242,6 +243,91 @@ func TestGenericRestPreservesExistingTraceIDHeader(t *testing.T) {
 	if receivedTraceID != "trace-existing" {
 		t.Fatalf("%s = %q, want %q", common.TraceIDHeader, receivedTraceID, "trace-existing")
 	}
+}
+
+func TestRestGenericBuildService(t *testing.T) {
+	type response struct {
+		Message string `json:"message"`
+	}
+
+	t.Run("fills trace fields from response and request", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "http://api.example.test/v1/items", nil)
+		req.Header.Set("X-Test", "ok")
+		respObj := &response{}
+		service := &formatter.Service{}
+		gr := &RestGeneric{}
+
+		err := gr.buildService(service, map[string]any{"name": "Manuel"}, respObj, &http.Response{
+			StatusCode: http.StatusCreated,
+			Proto:      "HTTP/1.1",
+			Request:    req,
+			Body:       io.NopCloser(strings.NewReader(`{"message":"created"}`)),
+		})
+		if err != nil {
+			t.Fatalf("buildService() failed: %v", err)
+		}
+
+		if service.Code != http.StatusCreated {
+			t.Fatalf("Code = %d, want %d", service.Code, http.StatusCreated)
+		}
+		if service.Protocol != "HTTP/1.1" {
+			t.Fatalf("Protocol = %q, want %q", service.Protocol, "HTTP/1.1")
+		}
+		if service.Server != "api.example.test" {
+			t.Fatalf("Server = %q, want %q", service.Server, "api.example.test")
+		}
+		if service.Method != http.MethodPost {
+			t.Fatalf("Method = %q, want %q", service.Method, http.MethodPost)
+		}
+		if service.Path != "/v1/items" {
+			t.Fatalf("Path = %q, want %q", service.Path, "/v1/items")
+		}
+		if service.Headers == nil || service.Headers.Get("X-Test") != "ok" {
+			t.Fatalf("Headers = %#v, want X-Test=ok", service.Headers)
+		}
+		if respObj.Message != "created" {
+			t.Fatalf("decoded response = %+v, want message created", respObj)
+		}
+		if service.Response != respObj {
+			t.Fatalf("Response = %#v, want response object pointer", service.Response)
+		}
+	})
+
+	t.Run("keeps response metadata without request or body", func(t *testing.T) {
+		service := &formatter.Service{}
+		gr := &RestGeneric{}
+
+		err := gr.buildService(service, nil, nil, &http.Response{
+			StatusCode: http.StatusNoContent,
+			Proto:      "HTTP/2.0",
+		})
+		if err != nil {
+			t.Fatalf("buildService() failed: %v", err)
+		}
+
+		if service.Code != http.StatusNoContent {
+			t.Fatalf("Code = %d, want %d", service.Code, http.StatusNoContent)
+		}
+		if service.Protocol != "HTTP/2.0" {
+			t.Fatalf("Protocol = %q, want %q", service.Protocol, "HTTP/2.0")
+		}
+		if service.Headers != nil {
+			t.Fatalf("Headers = %#v, want nil", service.Headers)
+		}
+		if service.Response != nil {
+			t.Fatalf("Response = %#v, want nil", service.Response)
+		}
+	})
+
+	t.Run("ignores nil inputs", func(t *testing.T) {
+		gr := &RestGeneric{}
+		if err := gr.buildService(&formatter.Service{}, nil, nil, nil); err != nil {
+			t.Fatalf("buildService(nil response) error = %v", err)
+		}
+		if err := gr.buildService(nil, nil, nil, &http.Response{}); err != nil {
+			t.Fatalf("buildService(nil service) error = %v", err)
+		}
+	})
 }
 
 func TestGenericRest_PutGeneric(t *testing.T) {

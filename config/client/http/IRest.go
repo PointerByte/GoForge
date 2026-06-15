@@ -120,7 +120,7 @@ func (sr *Rest) cloneRequest(req *http.Request) *http.Request {
 	return req.Clone(ctx)
 }
 
-func (sr *Rest) doRequest(object any) (*http.Response, error) {
+func (sr *Rest) doRequest() (*http.Response, error) {
 	if sr.initErr != nil {
 		return nil, sr.initErr
 	}
@@ -151,7 +151,7 @@ func (sr *Rest) doRequest(object any) (*http.Response, error) {
 }
 
 func (sr *Rest) Do(object any) (*http.Response, error) {
-	return sr.doRequest(object)
+	return sr.doRequest()
 }
 
 func (sr *Rest) SetHeaders(header http.Header) {
@@ -184,7 +184,7 @@ func (sr *Rest) Get(url, contentType string, object any) (*http.Response, error)
 	h := sr.hdr.Load().(http.Header)
 	sr.req.Header = h.Clone()
 	sr.req.Header.Set("Content-Type", contentType)
-	return sr.doRequest(object)
+	return sr.doRequest()
 }
 
 func (sr *Rest) Post(url, contentType string, body io.Reader, object any) (*http.Response, error) {
@@ -205,7 +205,7 @@ func (sr *Rest) Post(url, contentType string, body io.Reader, object any) (*http
 	h := sr.hdr.Load().(http.Header)
 	sr.req.Header = h.Clone()
 	sr.req.Header.Set("Content-Type", contentType)
-	return sr.doRequest(object)
+	return sr.doRequest()
 }
 
 func (sr *Rest) Put(url, contentType string, body io.Reader, object any) (*http.Response, error) {
@@ -226,7 +226,7 @@ func (sr *Rest) Put(url, contentType string, body io.Reader, object any) (*http.
 	h := sr.hdr.Load().(http.Header)
 	sr.req.Header = h.Clone()
 	sr.req.Header.Set("Content-Type", contentType)
-	return sr.doRequest(object)
+	return sr.doRequest()
 }
 
 func (sr *Rest) Patch(url, contentType string, body io.Reader, object any) (*http.Response, error) {
@@ -247,7 +247,7 @@ func (sr *Rest) Patch(url, contentType string, body io.Reader, object any) (*htt
 	h := sr.hdr.Load().(http.Header)
 	sr.req.Header = h.Clone()
 	sr.req.Header.Set("Content-Type", contentType)
-	return sr.doRequest(object)
+	return sr.doRequest()
 }
 
 func (sr *Rest) Option(url, contentType string, body io.Reader, object any) (*http.Response, error) {
@@ -268,5 +268,5 @@ func (sr *Rest) Option(url, contentType string, body io.Reader, object any) (*ht
 	h := sr.hdr.Load().(http.Header)
 	sr.req.Header = h.Clone()
 	sr.req.Header.Set("Content-Type", contentType)
-	return sr.doRequest(object)
+	return sr.doRequest()
 }

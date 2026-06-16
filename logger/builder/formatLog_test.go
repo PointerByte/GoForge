@@ -129,14 +129,24 @@ func TestClassifyStatus(t *testing.T) {
 		{
 			name:     "unknown below success range",
 			code:     199,
-			initial:  formatter.SUCCESS,
 			expected: formatter.UNKNOWN,
 		},
 		{
 			name:     "unknown above error range",
 			code:     600,
-			initial:  formatter.SUCCESS,
 			expected: formatter.UNKNOWN,
+		},
+		{
+			name:     "keeps preset status below success range",
+			code:     199,
+			initial:  formatter.SUCCESS,
+			expected: formatter.SUCCESS,
+		},
+		{
+			name:     "keeps preset status above error range",
+			code:     600,
+			initial:  formatter.SUCCESS,
+			expected: formatter.SUCCESS,
 		},
 		{
 			name:     "code zero is success",

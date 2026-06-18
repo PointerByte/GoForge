@@ -4,6 +4,8 @@
 **/.gocache
 **/.idea
 **/.codex
+**/.claude
+**/CLAUDE.md
 **/AGENTS.md
 /scripts
 push.txt

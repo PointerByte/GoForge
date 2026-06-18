@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/PointerByte/GoForge/encrypt/common"
+	"github.com/PointerByte/GoForge/encrypt/internal/trace"
 	"github.com/PointerByte/GoForge/encrypt/local"
 	"github.com/PointerByte/GoForge/encrypt/models"
 	"github.com/PointerByte/GoForge/encrypt/utilities"
@@ -106,7 +107,9 @@ func NewRepository() *Repository {
 	}
 }
 
-func (repository *symmetricRepository) GenerateSymetrycKeys(ctx context.Context, input models.GenerateSymmetricKeyRequest) (*models.KeyData, error) {
+func (repository *symmetricRepository) GenerateSymetrycKeys(ctx context.Context, input models.GenerateSymmetricKeyRequest) (data *models.KeyData, err error) {
+	end := trace.Start(ctx, "aws-kms/GenerateSymetrycKeys")
+	defer func() { end(err) }()
 	keySpec, err := toAWSSymmetricKeySpec(input.Size)
 	if err != nil {
 		return nil, err
@@ -140,7 +143,9 @@ func (repository *symmetricRepository) GenerateSymetrycKeys(ctx context.Context,
 	}, nil
 }
 
-func (repository *keyRepository) RotateKey(ctx context.Context, input models.RotateKeyRequest) (*models.KeyData, error) {
+func (repository *keyRepository) RotateKey(ctx context.Context, input models.RotateKeyRequest) (data *models.KeyData, err error) {
+	end := trace.Start(ctx, "aws-kms/RotateKey")
+	defer func() { end(err) }()
 	client, err := newAWSKMSClient(ctx)
 	if err != nil {
 		return nil, err
@@ -170,7 +175,9 @@ func (repository *keyRepository) RotateKey(ctx context.Context, input models.Rot
 	return awsKeyDataFromDescribe(ctx, client, keyID)
 }
 
-func (repository *keyRepository) GetKey(ctx context.Context, input models.GetKeyRequest) (*models.KeyData, error) {
+func (repository *keyRepository) GetKey(ctx context.Context, input models.GetKeyRequest) (data *models.KeyData, err error) {
+	end := trace.Start(ctx, "aws-kms/GetKey")
+	defer func() { end(err) }()
 	client, err := newAWSKMSClient(ctx)
 	if err != nil {
 		return nil, err
@@ -184,7 +191,9 @@ func (repository *keyRepository) GetKey(ctx context.Context, input models.GetKey
 	return awsKeyDataFromDescribe(ctx, client, keyID)
 }
 
-func (repository *keyRepository) DeactivateKey(ctx context.Context, input models.DeactivateKeyRequest) error {
+func (repository *keyRepository) DeactivateKey(ctx context.Context, input models.DeactivateKeyRequest) (err error) {
+	end := trace.Start(ctx, "aws-kms/DeactivateKey")
+	defer func() { end(err) }()
 	client, err := newAWSKMSClient(ctx)
 	if err != nil {
 		return err
@@ -201,7 +210,9 @@ func (repository *keyRepository) DeactivateKey(ctx context.Context, input models
 	return nil
 }
 
-func (repository *symmetricRepository) EncryptAES(ctx context.Context, input models.EncryptAESRequest) (string, error) {
+func (repository *symmetricRepository) EncryptAES(ctx context.Context, input models.EncryptAESRequest) (out string, err error) {
+	end := trace.Start(ctx, "aws-kms/EncryptAES")
+	defer func() { end(err) }()
 	if utilities.IsLocalAESKey(input.SecretKey) {
 		return repository.local.EncryptAES(ctx, input)
 	}
@@ -231,7 +242,9 @@ func (repository *symmetricRepository) EncryptAES(ctx context.Context, input mod
 	return base64.StdEncoding.EncodeToString(output.CiphertextBlob), nil
 }
 
-func (repository *symmetricRepository) DecryptAES(ctx context.Context, input models.DecryptAESRequest) (string, error) {
+func (repository *symmetricRepository) DecryptAES(ctx context.Context, input models.DecryptAESRequest) (out string, err error) {
+	end := trace.Start(ctx, "aws-kms/DecryptAES")
+	defer func() { end(err) }()
 	if utilities.IsLocalAESKey(input.SecretKey) {
 		return repository.local.DecryptAES(ctx, input)
 	}
@@ -267,6 +280,7 @@ func (repository *symmetricRepository) DecryptAES(ctx context.Context, input mod
 }
 
 func (repository *hashRepository) HMAC(ctx context.Context, secretKey, message string) string {
+	defer trace.Start(ctx, "aws-kms/HMAC")(nil)
 	if !looksLikeAWSKMSKeyReference(secretKey) {
 		return repository.local.HMAC(ctx, secretKey, message)
 	}
@@ -293,14 +307,18 @@ func (repository *hashRepository) HMAC(ctx context.Context, secretKey, message s
 }
 
 func (repository *hashRepository) Sha256Hex(ctx context.Context, message string) string {
+	defer trace.Start(ctx, "aws-kms/Sha256Hex")(nil)
 	return repository.local.Sha256Hex(ctx, message)
 }
 
 func (repository *hashRepository) Blake3(ctx context.Context, message string) string {
+	defer trace.Start(ctx, "aws-kms/Blake3")(nil)
 	return repository.local.Blake3(ctx, message)
 }
 
-func (repository *asymmetricRepository) GenerateECDHCurveKeys(ctx context.Context, input models.GenerateECDHCurveKeyRequest) (*models.KeyData, error) {
+func (repository *asymmetricRepository) GenerateECDHCurveKeys(ctx context.Context, input models.GenerateECDHCurveKeyRequest) (data *models.KeyData, err error) {
+	end := trace.Start(ctx, "aws-kms/GenerateECDHCurveKeys")
+	defer func() { end(err) }()
 	client, err := newAWSKMSClient(ctx)
 	if err != nil {
 		return nil, err
@@ -337,7 +355,9 @@ func (repository *asymmetricRepository) GenerateECDHCurveKeys(ctx context.Contex
 	}, nil
 }
 
-func (repository *asymmetricRepository) ECDH_Encode(ctx context.Context, input models.ECDHEncodeRequest) (string, error) {
+func (repository *asymmetricRepository) ECDH_Encode(ctx context.Context, input models.ECDHEncodeRequest) (out string, err error) {
+	end := trace.Start(ctx, "aws-kms/ECDH_Encode")
+	defer func() { end(err) }()
 	if _, err := utilities.ParseECDHPublicKeyFromBase64(input.PublicKey); err == nil {
 		return repository.local.ECDH_Encode(ctx, input)
 	}
@@ -364,7 +384,9 @@ func (repository *asymmetricRepository) ECDH_Encode(ctx context.Context, input m
 	})
 }
 
-func (repository *asymmetricRepository) ECDH_Decode(ctx context.Context, input models.ECDHDecodeRequest) (string, error) {
+func (repository *asymmetricRepository) ECDH_Decode(ctx context.Context, input models.ECDHDecodeRequest) (out string, err error) {
+	end := trace.Start(ctx, "aws-kms/ECDH_Decode")
+	defer func() { end(err) }()
 	if _, err := utilities.ParseECDHPrivateKeyFromBase64(input.PrivateKey); err == nil {
 		return repository.local.ECDH_Decode(ctx, input)
 	}
@@ -411,7 +433,9 @@ func (repository *asymmetricRepository) ECDH_Decode(ctx context.Context, input m
 	})
 }
 
-func (repository *asymmetricRepository) GenerateRSAKeys(ctx context.Context, input models.GenerateRSAKeyRequest) (*models.KeyData, error) {
+func (repository *asymmetricRepository) GenerateRSAKeys(ctx context.Context, input models.GenerateRSAKeyRequest) (data *models.KeyData, err error) {
+	end := trace.Start(ctx, "aws-kms/GenerateRSAKeys")
+	defer func() { end(err) }()
 	client, err := newAWSKMSClient(ctx)
 	if err != nil {
 		return nil, err
@@ -452,7 +476,9 @@ func (repository *asymmetricRepository) GenerateRSAKeys(ctx context.Context, inp
 	}, nil
 }
 
-func (repository *asymmetricRepository) RSA_OAEP_Encode(ctx context.Context, input models.RSAOAEPEncodeRequest) (string, error) {
+func (repository *asymmetricRepository) RSA_OAEP_Encode(ctx context.Context, input models.RSAOAEPEncodeRequest) (out string, err error) {
+	end := trace.Start(ctx, "aws-kms/RSA_OAEP_Encode")
+	defer func() { end(err) }()
 	if _, err := utilities.ParseRSAPublicKeyFromBase64(input.PublicKey); err == nil {
 		return repository.local.RSA_OAEP_Encode(ctx, input)
 	}
@@ -478,7 +504,9 @@ func (repository *asymmetricRepository) RSA_OAEP_Encode(ctx context.Context, inp
 	return base64.StdEncoding.EncodeToString(output.CiphertextBlob), nil
 }
 
-func (repository *asymmetricRepository) RSA_OAEP_Decode(ctx context.Context, input models.RSAOAEPDecodeRequest) (string, error) {
+func (repository *asymmetricRepository) RSA_OAEP_Decode(ctx context.Context, input models.RSAOAEPDecodeRequest) (out string, err error) {
+	end := trace.Start(ctx, "aws-kms/RSA_OAEP_Decode")
+	defer func() { end(err) }()
 	if _, err := utilities.ParseRSAPrivateKeyFromBase64(input.PrivateKey); err == nil {
 		return repository.local.RSA_OAEP_Decode(ctx, input)
 	}
@@ -509,7 +537,9 @@ func (repository *asymmetricRepository) RSA_OAEP_Decode(ctx context.Context, inp
 	return string(output.Plaintext), nil
 }
 
-func (repository *signatureRepository) GenerateEd255Keys(ctx context.Context) (*models.KeyData, error) {
+func (repository *signatureRepository) GenerateEd255Keys(ctx context.Context) (data *models.KeyData, err error) {
+	end := trace.Start(ctx, "aws-kms/GenerateEd255Keys")
+	defer func() { end(err) }()
 	client, err := newAWSKMSClient(ctx)
 	if err != nil {
 		return nil, err
@@ -545,7 +575,9 @@ func (repository *signatureRepository) GenerateEd255Keys(ctx context.Context) (*
 	}, nil
 }
 
-func (repository *signatureRepository) SignEd25519(ctx context.Context, privateKey, text string) (string, error) {
+func (repository *signatureRepository) SignEd25519(ctx context.Context, privateKey, text string) (out string, err error) {
+	end := trace.Start(ctx, "aws-kms/SignEd25519")
+	defer func() { end(err) }()
 	if _, err := utilities.ParseEd25519PrivateKeyFromBase64(privateKey); err == nil {
 		return repository.local.SignEd25519(ctx, privateKey, text)
 	}
@@ -572,7 +604,9 @@ func (repository *signatureRepository) SignEd25519(ctx context.Context, privateK
 	return base64.StdEncoding.EncodeToString(output.Signature), nil
 }
 
-func (repository *signatureRepository) VerifyEd25519(ctx context.Context, publicKey, text, signature string) error {
+func (repository *signatureRepository) VerifyEd25519(ctx context.Context, publicKey, text, signature string) (err error) {
+	end := trace.Start(ctx, "aws-kms/VerifyEd25519")
+	defer func() { end(err) }()
 	if _, err := utilities.ParseEd25519PublicKeyFromBase64(publicKey); err == nil {
 		return repository.local.VerifyEd25519(ctx, publicKey, text, signature)
 	}
@@ -608,7 +642,9 @@ func (repository *signatureRepository) VerifyEd25519(ctx context.Context, public
 	return nil
 }
 
-func (repository *signatureRepository) SignRSAPSS(ctx context.Context, privateKey, text string) (string, error) {
+func (repository *signatureRepository) SignRSAPSS(ctx context.Context, privateKey, text string) (out string, err error) {
+	end := trace.Start(ctx, "aws-kms/SignRSAPSS")
+	defer func() { end(err) }()
 	if _, err := utilities.ParseRSAPrivateKeyFromBase64(privateKey); err == nil {
 		return repository.local.SignRSAPSS(ctx, privateKey, text)
 	}
@@ -635,7 +671,9 @@ func (repository *signatureRepository) SignRSAPSS(ctx context.Context, privateKe
 	return base64.StdEncoding.EncodeToString(output.Signature), nil
 }
 
-func (repository *signatureRepository) VerifyRSAPSS(ctx context.Context, publicKey, text, signature string) error {
+func (repository *signatureRepository) VerifyRSAPSS(ctx context.Context, publicKey, text, signature string) (err error) {
+	end := trace.Start(ctx, "aws-kms/VerifyRSAPSS")
+	defer func() { end(err) }()
 	if _, err := utilities.ParseRSAPublicKeyFromBase64(publicKey); err == nil {
 		return repository.local.VerifyRSAPSS(ctx, publicKey, text, signature)
 	}
@@ -671,7 +709,9 @@ func (repository *signatureRepository) VerifyRSAPSS(ctx context.Context, publicK
 	return nil
 }
 
-func (repository *signatureRepository) Sign_RSA_PKCS1v15_SHA256(ctx context.Context, privateKey, data string) (string, error) {
+func (repository *signatureRepository) Sign_RSA_PKCS1v15_SHA256(ctx context.Context, privateKey, data string) (out string, err error) {
+	end := trace.Start(ctx, "aws-kms/Sign_RSA_PKCS1v15_SHA256")
+	defer func() { end(err) }()
 	if privateKey != "" && !looksLikeAWSKMSKeyReference(privateKey) {
 		return repository.local.Sign_RSA_PKCS1v15_SHA256(ctx, privateKey, data)
 	}
@@ -698,7 +738,9 @@ func (repository *signatureRepository) Sign_RSA_PKCS1v15_SHA256(ctx context.Cont
 	return base64.StdEncoding.EncodeToString(output.Signature), nil
 }
 
-func (repository *signatureRepository) Verify_RSA_PKCS1v15_SHA256(ctx context.Context, data, publicKey string, signature string) error {
+func (repository *signatureRepository) Verify_RSA_PKCS1v15_SHA256(ctx context.Context, data, publicKey string, signature string) (err error) {
+	end := trace.Start(ctx, "aws-kms/Verify_RSA_PKCS1v15_SHA256")
+	defer func() { end(err) }()
 	if publicKey != "" && !looksLikeAWSKMSKeyReference(publicKey) {
 		return repository.local.Verify_RSA_PKCS1v15_SHA256(ctx, data, publicKey, signature)
 	}

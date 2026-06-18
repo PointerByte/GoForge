@@ -116,7 +116,7 @@ func promptRequired(reader *bufio.Reader, output io.Writer, label string, fallba
 }
 
 const (
-	defaultGoForgeVersion       = "v0.1.3"
+	defaultGoForgeVersion       = "v0.1.4"
 	defaultGoForgeLoggerVersion = "v0.0.40"
 )
 

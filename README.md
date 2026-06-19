@@ -489,11 +489,38 @@ cd logger
 go test ./...
 ```
 
-Run security scanning while skipping generated protobuf files:
+### Security and vulnerability scanning
+
+Run these checks as part of the local quality pass before opening a change.
+Each tool covers a different class of problem, so they complement Staticcheck
+and `go test` rather than replace them.
+
+Scan the source for known vulnerabilities in the dependencies and the standard
+library (reports only vulnerabilities reachable from your code):
 
 ```bash
-gosec -exclude-generated ./...
+go install golang.org/x/vuln/cmd/govulncheck@latest
+govulncheck ./...
 ```
+
+Run the static security analyzer. `-exclude-generated` skips generated protobuf
+files; `-exclude G402` skips the TLS-settings rule, which is handled through the
+server/client TLS configuration rather than hard-coded:
+
+```bash
+go install github.com/securego/gosec/v2/cmd/gosec@latest
+gosec -exclude G402 -exclude-generated ./...
+```
+
+Scan the working tree and git history for committed secrets. Document known
+false positives in `.gitleaksignore` instead of disabling the rule:
+
+```bash
+gitleaks detect --source .
+```
+
+Run `govulncheck` and `gosec` from each workspace module (as shown for
+Staticcheck above) when you need to cover the submodules as well as the root.
 
 Generate protobuf files after editing `config/proto/methods.proto`:
 

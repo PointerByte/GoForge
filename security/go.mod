@@ -2,17 +2,20 @@ module github.com/PointerByte/GoForge/security
 
 go 1.25.0
 
-replace github.com/PointerByte/GoForge/encrypt => ../encrypt
+replace (
+	github.com/PointerByte/GoForge/encrypt => ../encrypt
+	github.com/PointerByte/GoForge/logger => ../logger
+)
 
 require (
-	github.com/PointerByte/GoForge/encrypt v0.0.21
+	github.com/PointerByte/GoForge/encrypt v0.0.22
 	github.com/gin-gonic/gin v1.12.0
 	github.com/spf13/viper v1.21.0
 	google.golang.org/grpc v1.81.1
 )
 
 require (
-	github.com/PointerByte/GoForge/logger v0.0.40 // indirect
+	github.com/PointerByte/GoForge/logger v0.0.41 // indirect
 	github.com/bytedance/gopkg v0.1.4 // indirect
 	github.com/bytedance/sonic v1.15.2 // indirect
 	github.com/bytedance/sonic/loader v0.5.1 // indirect

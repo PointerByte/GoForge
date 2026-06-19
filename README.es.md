@@ -491,11 +491,42 @@ cd logger
 go test ./...
 ```
 
-Ejecutar analisis de seguridad omitiendo protobuf generado:
+### Analisis de seguridad y vulnerabilidades
+
+Ejecuta estas comprobaciones como parte de la revision local de calidad antes
+de abrir un cambio. Cada herramienta cubre una clase distinta de problema, por
+lo que complementan a Staticcheck y `go test` en lugar de reemplazarlos.
+
+Analiza el codigo en busca de vulnerabilidades conocidas en las dependencias y
+la biblioteca estandar (solo reporta vulnerabilidades alcanzables desde tu
+codigo):
 
 ```bash
-gosec -exclude-generated ./...
+go install golang.org/x/vuln/cmd/govulncheck@latest
+govulncheck ./...
 ```
+
+Ejecuta el analizador estatico de seguridad. `-exclude-generated` omite los
+archivos protobuf generados; `-exclude G402` omite la regla de configuracion
+TLS, que se gestiona mediante la configuracion TLS de servidor/cliente y no de
+forma fija en el codigo:
+
+```bash
+go install github.com/securego/gosec/v2/cmd/gosec@latest
+gosec -exclude G402 -exclude-generated ./...
+```
+
+Analiza el arbol de trabajo y el historial de git en busca de secretos
+filtrados. Documenta los falsos positivos conocidos en `.gitleaksignore` en
+lugar de desactivar la regla:
+
+```bash
+gitleaks detect --source .
+```
+
+Ejecuta `govulncheck` y `gosec` desde cada modulo del workspace (como se
+muestra arriba para Staticcheck) cuando necesites cubrir los submodulos ademas
+del modulo raiz.
 
 Generar archivos protobuf despues de editar `config/proto/methods.proto`:
 

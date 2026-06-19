@@ -91,10 +91,10 @@ github.com/PointerByte/GoForge/cmd/qgo/code/templates.go:66.23,81.2 1 2
 github.com/PointerByte/GoForge/cmd/qgo/code/templates.go:82.10,83.12 1 1
 github.com/PointerByte/GoForge/cmd/qgo/code/templates.go:88.70,89.36 1 9
 github.com/PointerByte/GoForge/cmd/qgo/code/templates.go:89.36,157.3 1 4
-github.com/PointerByte/GoForge/cmd/qgo/code/templates.go:159.2,247.12 1 5
-github.com/PointerByte/GoForge/cmd/qgo/code/templates.go:251.79,282.36 2 2
-github.com/PointerByte/GoForge/cmd/qgo/code/templates.go:282.36,337.3 4 1
-github.com/PointerByte/GoForge/cmd/qgo/code/templates.go:337.8,418.3 4 1
-github.com/PointerByte/GoForge/cmd/qgo/code/templates.go:420.2,421.16 2 2
-github.com/PointerByte/GoForge/cmd/qgo/code/templates.go:421.16,423.3 1 0
-github.com/PointerByte/GoForge/cmd/qgo/code/templates.go:424.2,424.36 1 2
+github.com/PointerByte/GoForge/cmd/qgo/code/templates.go:159.2,248.12 1 5
+github.com/PointerByte/GoForge/cmd/qgo/code/templates.go:252.79,283.36 2 2
+github.com/PointerByte/GoForge/cmd/qgo/code/templates.go:283.36,338.3 4 1
+github.com/PointerByte/GoForge/cmd/qgo/code/templates.go:338.8,420.3 4 1
+github.com/PointerByte/GoForge/cmd/qgo/code/templates.go:422.2,423.16 2 2
+github.com/PointerByte/GoForge/cmd/qgo/code/templates.go:423.16,425.3 1 0
+github.com/PointerByte/GoForge/cmd/qgo/code/templates.go:426.2,426.36 1 2

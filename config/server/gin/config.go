@@ -42,6 +42,7 @@ func loadConfigDefaultGin() {
 	viper.SetDefault("server.gin.UseH2C", true)
 	viper.SetDefault("server.gin.rate.Limit", 1000)
 	viper.SetDefault("server.gin.rate.burst", 2000)
+	viper.SetDefault("server.gin.readHeaderTimeout", "5s")
 	viper.SetDefault("jwt.transport", "header")
 }
 
@@ -316,9 +317,10 @@ func CreateApp() (*http.Server, error) {
 		return nil, err
 	}
 	return &http.Server{
-		Addr:      viper.GetString("server.gin.port"),
-		Handler:   engine,
-		TLSConfig: tlsConfig,
+		Addr:              viper.GetString("server.gin.port"),
+		Handler:           engine,
+		TLSConfig:         tlsConfig,
+		ReadHeaderTimeout: viper.GetDuration("server.gin.readHeaderTimeout"),
 	}, nil
 }
 
@@ -364,7 +366,9 @@ func shutdownFn(srv *http.Server) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	for _, s := range shutdownList {
-		s(ctx)
+		if err := s(ctx); err != nil {
+			ctxLogger.Error(fmt.Errorf("shutdown handler: %w", err))
+		}
 	}
 
 	if err := shutdownServerFn(srv, ctx); err != nil {

@@ -4,6 +4,7 @@
 package builder
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -74,6 +75,33 @@ func TestTraceCaller(t *testing.T) {
 	}
 	if line <= 0 {
 		t.Fatalf("expected line > 0, got %d", line)
+	}
+}
+
+func TestFormattedLogMethods(t *testing.T) {
+	resetViperForTest()
+
+	oldLogger := slog.Default()
+	var buf bytes.Buffer
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	})))
+	defer slog.SetDefault(oldLogger)
+
+	ctx := New(context.Background())
+	ctx.Infof("info %s", "formatted")
+	ctx.Debugf("debug %d", 42)
+	ctx.Warnf("warn %s", "formatted")
+
+	got := buf.String()
+	for _, want := range []string{
+		"info formatted",
+		"debug 42",
+		"warn formatted",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("expected formatted logs to contain %q, got %q", want, got)
+		}
 	}
 }
 

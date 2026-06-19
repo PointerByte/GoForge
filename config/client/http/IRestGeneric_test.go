@@ -40,6 +40,15 @@ func getDefaultTransport() *http.Transport {
 	}
 }
 
+type closeErrorReadCloser struct {
+	io.Reader
+	err error
+}
+
+func (b closeErrorReadCloser) Close() error {
+	return b.err
+}
+
 func TestNewGenericRest(t *testing.T) {
 	NewGenericRest(time.Second, getDefaultTransport())
 }
@@ -326,6 +335,25 @@ func TestRestGenericBuildService(t *testing.T) {
 		}
 		if err := gr.buildService(nil, nil, nil, &http.Response{}); err != nil {
 			t.Fatalf("buildService(nil service) error = %v", err)
+		}
+	})
+
+	t.Run("returns body close error", func(t *testing.T) {
+		wantErr := errors.New("close body")
+		service := &formatter.Service{}
+		respObj := &response{}
+		gr := &RestGeneric{}
+
+		err := gr.buildService(service, nil, respObj, &http.Response{
+			StatusCode: http.StatusOK,
+			Proto:      "HTTP/1.1",
+			Body: closeErrorReadCloser{
+				Reader: strings.NewReader(`{"message":"ok"}`),
+				err:    wantErr,
+			},
+		})
+		if !errors.Is(err, wantErr) {
+			t.Fatalf("buildService() error = %v, want %v", err, wantErr)
 		}
 	})
 }

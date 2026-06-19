@@ -171,6 +171,7 @@ server:
       - /api/v1
     port: ":8080"
     mode: release
+    readHeaderTimeout: 5s
     UseH2C: true
     rate:
       limit: 1000
@@ -337,10 +338,11 @@ func buildApplicationJSON(serviceType string, appName string) (string, error) {
 	} else {
 		data["server"] = map[string]any{
 			"gin": map[string]any{
-				"groups": []string{"/api/v1"},
-				"port":   ":8080",
-				"mode":   "release",
-				"UseH2C": true,
+				"groups":            []string{"/api/v1"},
+				"port":              ":8080",
+				"mode":              "release",
+				"readHeaderTimeout": "5s",
+				"UseH2C":            true,
 				"rate": map[string]any{
 					"limit": 1000,
 					"burst": 2000,

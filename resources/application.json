@@ -16,6 +16,7 @@
       ],
       "port": ":8080",
       "mode": "release",
+      "readHeaderTimeout": "5s",
       "UseH2C": true,
       "rate": {
         "limit": 1000,

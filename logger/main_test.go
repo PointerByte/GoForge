@@ -149,6 +149,9 @@ func TestLoadConfig(t *testing.T) {
 		if gotDir != expectedPath {
 			t.Fatalf("expected path %q, got %q", expectedPath, gotDir)
 		}
+		if got := viper.GetDuration("server.gin.readHeaderTimeout"); got != 5*time.Second {
+			t.Fatalf("readHeaderTimeout = %s, want 5s", got)
+		}
 	})
 }
 

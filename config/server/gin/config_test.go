@@ -150,6 +150,9 @@ func TestLoadConfigDefaultGin(t *testing.T) {
 	if got := viper.GetInt("server.gin.rate.burst"); got != 2000 {
 		t.Fatalf("expected burst 2000, got %d", got)
 	}
+	if got := viper.GetDuration("server.gin.readHeaderTimeout"); got != 5*time.Second {
+		t.Fatalf("expected read header timeout 5s, got %s", got)
+	}
 }
 
 func TestLoadConfig(t *testing.T) {
@@ -324,6 +327,9 @@ func TestCreateApp(t *testing.T) {
 		}
 		if srv.Addr != ":8080" {
 			t.Fatalf("expected :8080, got %q", srv.Addr)
+		}
+		if srv.ReadHeaderTimeout != 5*time.Second {
+			t.Fatalf("expected read header timeout 5s, got %s", srv.ReadHeaderTimeout)
 		}
 		if GetEngine() == nil {
 			t.Fatal("expected engine to be set")
@@ -681,6 +687,37 @@ func TestStartAndShutdown(t *testing.T) {
 		}
 
 		shutdownFn(&http.Server{})
+	})
+
+	t.Run("shutdown handler errors do not stop remaining cleanup", func(t *testing.T) {
+		resetServerTestState(t)
+		var handlerCalls int32
+		var shutdownCalls int32
+
+		waitForShutdownSignalFn = func() {}
+		shutdownList = []handlerShutdown{
+			func(context.Context) error {
+				atomic.AddInt32(&handlerCalls, 1)
+				return errors.New("handler failed")
+			},
+			func(context.Context) error {
+				atomic.AddInt32(&handlerCalls, 1)
+				return nil
+			},
+		}
+		shutdownServerFn = func(*http.Server, context.Context) error {
+			atomic.AddInt32(&shutdownCalls, 1)
+			return nil
+		}
+
+		shutdownFn(&http.Server{})
+
+		if atomic.LoadInt32(&handlerCalls) != 2 {
+			t.Fatalf("expected 2 shutdown handlers, got %d", handlerCalls)
+		}
+		if atomic.LoadInt32(&shutdownCalls) != 1 {
+			t.Fatalf("expected server shutdown to run once, got %d", shutdownCalls)
+		}
 	})
 }
 

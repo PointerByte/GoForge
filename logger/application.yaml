@@ -8,6 +8,7 @@ server:
 
   gin:
     port: ":8080"
+    readHeaderTimeout: 5s
     LoggerWithConfig:
       enabled: true
       SkipPaths:

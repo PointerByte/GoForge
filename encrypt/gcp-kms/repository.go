@@ -36,7 +36,7 @@ const (
 	gcpSymmetricKeyPrefix  = "GoForge-symmetric"
 	gcpAsymmetricKeyPrefix = "GoForge-rsa"
 	gcpKEMKeyPrefix        = "GoForge-kem"
-	gcpEd25519KeyPrefix    = "GoForge-ed25519"
+	gcpEd25519KeyPrefix    = "GoForge-ed25519" // gitleaks:allow
 )
 
 var (

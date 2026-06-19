@@ -5,6 +5,7 @@ package builder
 
 import (
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -26,7 +27,10 @@ func (c *Context) getMethodLine(skip int) (funcName string, line int) {
 
 func (c *Context) customLogFormat() map[string]any {
 	// ---------- Get Line ----------
-	funcName, line := c.getMethodLine(6)
+	if c.tracerCallerSkip == 0 {
+		c.SetTraceCallerSkip(6)
+	}
+	funcName, line := c.getMethodLine(c.GetTraceCallerSkip())
 
 	// ---------- TraceID ----------
 	traceID := c.TraceID()
@@ -239,6 +243,24 @@ func (c *Context) Info(message string) {
 	c.startTime = time.Now()
 }
 
+// Infof logs a formatted informational message using the current context.
+func (c *Context) Infof(format string, args ...any) {
+	if viperdata.GetViperData(string(viperdata.LoggerModeTestAtribute)).(bool) {
+		return
+	}
+	v, ok := c.Get(detailsKey)
+	if ok {
+		Details := v.(formatter.Details)
+		c.Details.System = Details.System
+		c.Details.Client = Details.Client
+		c.Details.Method = Details.Method
+		c.Details.Protocol = Details.Protocol
+	}
+	c.Set(detailsKey, c.Details)
+	slog.InfoContext(c, fmt.Sprintf(format, args...))
+	c.startTime = time.Now()
+}
+
 // Debug logs a debug-level message using the current context.
 //
 // If the context already contains details base information, it copies the System,
@@ -267,6 +289,23 @@ func (c *Context) Debug(message string) {
 	slog.DebugContext(c, message)
 }
 
+// Debugf logs a formatted debug-level message using the current context.
+func (c *Context) Debugf(format string, args ...any) {
+	if viperdata.GetViperData(string(viperdata.LoggerModeTestAtribute)).(bool) {
+		return
+	}
+	v, ok := c.Get(detailsKey)
+	if ok {
+		Details := v.(formatter.Details)
+		c.Details.System = Details.System
+		c.Details.Client = Details.Client
+		c.Details.Method = Details.Method
+		c.Details.Protocol = Details.Protocol
+	}
+	c.Set(detailsKey, c.Details)
+	slog.DebugContext(c, fmt.Sprintf(format, args...))
+}
+
 // Warn logs a warning message using the current context.
 //
 // If the context already contains details base information, it copies the System,
@@ -289,6 +328,23 @@ func (c *Context) Warn(message string) {
 	}
 	c.Set(detailsKey, c.Details)
 	slog.WarnContext(c, message)
+}
+
+// Warnf logs a formatted warning message using the current context.
+func (c *Context) Warnf(format string, args ...any) {
+	if viperdata.GetViperData(string(viperdata.LoggerModeTestAtribute)).(bool) {
+		return
+	}
+	v, ok := c.Get(detailsKey)
+	if ok {
+		Details := v.(formatter.Details)
+		c.Details.System = Details.System
+		c.Details.Client = Details.Client
+		c.Details.Method = Details.Method
+		c.Details.Protocol = Details.Protocol
+	}
+	c.Set(detailsKey, c.Details)
+	slog.WarnContext(c, fmt.Sprintf(format, args...))
 }
 
 // Error logs an error message using `slog` with the current context.

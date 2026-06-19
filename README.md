@@ -143,6 +143,7 @@ server:
   gin:
     port: ":8080"
     mode: release
+    readHeaderTimeout: 5s
     groups:
       - /api/v1
     UseH2C: true
@@ -198,6 +199,7 @@ jwt:
 
 - `server.gin.port`: HTTP listen address
 - `server.gin.mode`: Gin mode, for example `debug`, `release`, or `test`
+- `server.gin.readHeaderTimeout`: maximum time allowed to read request headers
 - `server.gin.groups`: route groups created by `config/server/gin`
 - `server.gin.UseH2C`: enables HTTP/2 cleartext support
 - `server.gin.rate.limit`: request rate for the built-in limiter; `0` disables it
@@ -485,6 +487,12 @@ Run tests for a workspace module:
 ```bash
 cd logger
 go test ./...
+```
+
+Run security scanning while skipping generated protobuf files:
+
+```bash
+gosec -exclude-generated ./...
 ```
 
 Generate protobuf files after editing `config/proto/methods.proto`:

@@ -139,7 +139,7 @@ func headersWithTraceID(ctx context.Context, header http.Header) http.Header {
 // The response body is always drained and closed before the function returns.
 // If JSON decoding fails, the function tries to read the remaining body and
 // stores its raw string representation instead.
-func (gr *RestGeneric) buildService(service *formatter.Service, reqBody, object any, resp *http.Response) error {
+func (gr *RestGeneric) buildService(service *formatter.Service, reqBody, object any, resp *http.Response) (err error) {
 	if gr.disableTrace || service == nil || resp == nil {
 		return nil
 	}
@@ -162,8 +162,12 @@ func (gr *RestGeneric) buildService(service *formatter.Service, reqBody, object 
 		return nil
 	}
 	defer func() {
-		io.Copy(io.Discard, resp.Body)
-		resp.Body.Close()
+		if _, copyErr := io.Copy(io.Discard, resp.Body); copyErr != nil && err == nil {
+			err = fmt.Errorf("problem draining response body: %w", copyErr)
+		}
+		if closeErr := resp.Body.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("problem closing response body: %w", closeErr)
+		}
 	}()
 
 	if err := json.NewDecoder(resp.Body).Decode(object); err != nil {

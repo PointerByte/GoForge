@@ -42,6 +42,7 @@ func loadConfig(ctx context.Context) (*sdklog.LoggerProvider, error) {
 	if err := loadEnv(); err != nil {
 		return nil, err
 	}
+	viper.SetDefault("server.gin.readHeaderTimeout", "5s")
 	return initLogger(ctx, filepath.Join(".", "logs"))
 }
 
@@ -101,8 +102,9 @@ func main() {
 	}
 
 	srv := &http.Server{
-		Addr:    viper.GetString("server.gin.port"),
-		Handler: engine,
+		Addr:              viper.GetString("server.gin.port"),
+		Handler:           engine,
+		ReadHeaderTimeout: viper.GetDuration("server.gin.readHeaderTimeout"),
 	}
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {

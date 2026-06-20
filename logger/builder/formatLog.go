@@ -218,6 +218,32 @@ func classifyStatus(process *formatter.Service) {
 	}
 }
 
+func (c *Context) prepareLog() bool {
+	if viperdata.GetViperData(string(viperdata.LoggerModeTestAtribute)).(bool) {
+		return false
+	}
+	if v, ok := c.Get(detailsKey); ok {
+		details := v.(formatter.Details)
+		c.Details.System = details.System
+		c.Details.Client = details.Client
+		c.Details.Method = details.Method
+		c.Details.Protocol = details.Protocol
+	}
+	c.Set(detailsKey, c.Details)
+	return true
+}
+
+func (c *Context) log(level slog.Level, message string) {
+	if !c.prepareLog() {
+		return
+	}
+	slog.Log(c, level, message)
+}
+
+func (c *Context) logf(level slog.Level, format string, args ...any) {
+	c.log(level, fmt.Sprintf(format, args...))
+}
+
 // Info logs an informational message using the current context.
 //
 // If the context already contains details base information, it copies the System,
@@ -227,38 +253,12 @@ func classifyStatus(process *formatter.Service) {
 //
 // This function only logs the message; it does not create spans or measure latency on its own.
 func (c *Context) Info(message string) {
-	if viperdata.GetViperData(string(viperdata.LoggerModeTestAtribute)).(bool) {
-		return
-	}
-	v, ok := c.Get(detailsKey)
-	if ok {
-		Details := v.(formatter.Details)
-		c.Details.System = Details.System
-		c.Details.Client = Details.Client
-		c.Details.Method = Details.Method
-		c.Details.Protocol = Details.Protocol
-	}
-	c.Set(detailsKey, c.Details)
-	slog.InfoContext(c, message)
-	c.startTime = time.Now()
+	c.log(slog.LevelInfo, message)
 }
 
 // Infof logs a formatted informational message using the current context.
 func (c *Context) Infof(format string, args ...any) {
-	if viperdata.GetViperData(string(viperdata.LoggerModeTestAtribute)).(bool) {
-		return
-	}
-	v, ok := c.Get(detailsKey)
-	if ok {
-		Details := v.(formatter.Details)
-		c.Details.System = Details.System
-		c.Details.Client = Details.Client
-		c.Details.Method = Details.Method
-		c.Details.Protocol = Details.Protocol
-	}
-	c.Set(detailsKey, c.Details)
-	slog.InfoContext(c, fmt.Sprintf(format, args...))
-	c.startTime = time.Now()
+	c.logf(slog.LevelInfo, format, args...)
 }
 
 // Debug logs a debug-level message using the current context.
@@ -274,36 +274,12 @@ func (c *Context) Infof(format string, args ...any) {
 //
 // This function only logs the message; it does not create spans or measure latency on its own.
 func (c *Context) Debug(message string) {
-	if viperdata.GetViperData(string(viperdata.LoggerModeTestAtribute)).(bool) {
-		return
-	}
-	v, ok := c.Get(detailsKey)
-	if ok {
-		Details := v.(formatter.Details)
-		c.Details.System = Details.System
-		c.Details.Client = Details.Client
-		c.Details.Method = Details.Method
-		c.Details.Protocol = Details.Protocol
-	}
-	c.Set(detailsKey, c.Details)
-	slog.DebugContext(c, message)
+	c.log(slog.LevelDebug, message)
 }
 
 // Debugf logs a formatted debug-level message using the current context.
 func (c *Context) Debugf(format string, args ...any) {
-	if viperdata.GetViperData(string(viperdata.LoggerModeTestAtribute)).(bool) {
-		return
-	}
-	v, ok := c.Get(detailsKey)
-	if ok {
-		Details := v.(formatter.Details)
-		c.Details.System = Details.System
-		c.Details.Client = Details.Client
-		c.Details.Method = Details.Method
-		c.Details.Protocol = Details.Protocol
-	}
-	c.Set(detailsKey, c.Details)
-	slog.DebugContext(c, fmt.Sprintf(format, args...))
+	c.logf(slog.LevelDebug, format, args...)
 }
 
 // Warn logs a warning message using the current context.
@@ -315,36 +291,12 @@ func (c *Context) Debugf(format string, args ...any) {
 //
 // This function only logs the message; it does not create spans or measure latency on its own.
 func (c *Context) Warn(message string) {
-	if viperdata.GetViperData(string(viperdata.LoggerModeTestAtribute)).(bool) {
-		return
-	}
-	v, ok := c.Get(detailsKey)
-	if ok {
-		Details := v.(formatter.Details)
-		c.Details.System = Details.System
-		c.Details.Client = Details.Client
-		c.Details.Method = Details.Method
-		c.Details.Protocol = Details.Protocol
-	}
-	c.Set(detailsKey, c.Details)
-	slog.WarnContext(c, message)
+	c.log(slog.LevelWarn, message)
 }
 
 // Warnf logs a formatted warning message using the current context.
 func (c *Context) Warnf(format string, args ...any) {
-	if viperdata.GetViperData(string(viperdata.LoggerModeTestAtribute)).(bool) {
-		return
-	}
-	v, ok := c.Get(detailsKey)
-	if ok {
-		Details := v.(formatter.Details)
-		c.Details.System = Details.System
-		c.Details.Client = Details.Client
-		c.Details.Method = Details.Method
-		c.Details.Protocol = Details.Protocol
-	}
-	c.Set(detailsKey, c.Details)
-	slog.WarnContext(c, fmt.Sprintf(format, args...))
+	c.logf(slog.LevelWarn, format, args...)
 }
 
 // Error logs an error message using `slog` with the current context.
@@ -357,17 +309,10 @@ func (c *Context) Warnf(format string, args ...any) {
 // This function logs err.Error() and does not modify the execution flow;
 // error handling remains the callerâ€™s responsibility.
 func (c *Context) Error(err error) {
-	if viperdata.GetViperData(string(viperdata.LoggerModeTestAtribute)).(bool) {
-		return
-	}
-	v, ok := c.Get(detailsKey)
-	if ok {
-		Details := v.(formatter.Details)
-		c.Details.System = Details.System
-		c.Details.Client = Details.Client
-		c.Details.Method = Details.Method
-		c.Details.Protocol = Details.Protocol
-	}
-	c.Set(detailsKey, c.Details)
-	slog.ErrorContext(c, err.Error())
+	c.log(slog.LevelError, err.Error())
+}
+
+// Errorf logs a formatted error message using the current context.
+func (c *Context) Errorf(format string, args ...any) {
+	c.logf(slog.LevelError, format, args...)
 }

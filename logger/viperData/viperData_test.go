@@ -17,7 +17,7 @@ func TestGetViperData(t *testing.T) {
 
 	viper.Set(string(AppAtribute), "test-app")
 	viper.Set(string(LoggerModeTestAtribute), true)
-	viper.Set(string(LoggerSensibleKeysAtribute), map[string]any{"password": true, "token": false})
+	viper.Set(string(LoggerSensibleKeysAtribute), []string{"password"})
 	viper.Set(string(GRPCLoggerWithConfigSkipFunctionAtribute), []string{"SayHello"})
 
 	got := GetViperData(string(AppAtribute))
@@ -36,43 +36,9 @@ func TestGetViperData(t *testing.T) {
 	}
 
 	got = GetViperData(string(LoggerSensibleKeysAtribute))
-	gotMap, ok := got.(map[string]bool)
-	if !ok || !gotMap["password"] || gotMap["token"] {
-		t.Errorf("logger.sensibleKeys = %v, want password=true token=false", got)
+	gotSlice, ok := got.([]string)
+	if !ok || len(gotSlice) != 1 || gotSlice[0] != "password" {
+		t.Errorf("logger.sensibleKeys = %v, want [password]", got)
 	}
 }
 
-func TestGetStringMapBool(t *testing.T) {
-	viper.Reset()
-	t.Cleanup(viper.Reset)
-
-	if got := getStringMapBool("missing"); len(got) != 0 {
-		t.Fatalf("getStringMapBool(missing) = %#v, want empty map", got)
-	}
-
-	viper.Set("sensible", map[string]any{
-		" password ": true,
-		"token":      "false",
-		"email":      "true",
-		"phone":      "not-bool",
-		"":           true,
-		"count":      1,
-	})
-
-	got := getStringMapBool("sensible")
-	if !got["password"] {
-		t.Fatalf("password = false, want true in %#v", got)
-	}
-	if got["token"] {
-		t.Fatalf("token = true, want false in %#v", got)
-	}
-	if !got["email"] {
-		t.Fatalf("email = false, want true in %#v", got)
-	}
-	if got["phone"] || got["count"] {
-		t.Fatalf("invalid values should be false in %#v", got)
-	}
-	if _, ok := got[""]; ok {
-		t.Fatalf("blank key was not ignored in %#v", got)
-	}
-}

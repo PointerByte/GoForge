@@ -84,10 +84,10 @@ logger:
     maxAge: 30
     compress: true
   sensibleKeys:
-    password: true
-    pwd: true
-    email: true
-    phone: true
+    - password
+    - pwd
+    - email
+    - phone
 ```
 
 Main keys:

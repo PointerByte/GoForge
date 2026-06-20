@@ -249,11 +249,7 @@ func TestJSONHandler_Handle_SanitizesConfiguredKeysBeforeFormatting(t *testing.T
 
 			viper.Set(string(viperdata.LoggerFormatDateAtribute), "2006-01-02T15:04:05.000")
 			viper.Set(string(viperdata.LoggerFormatterAtribute), tt.formatter)
-			viper.Set(string(viperdata.LoggerSensibleKeysAtribute), map[string]any{
-				"password": true,
-				"email":    true,
-				"token":    false,
-			})
+			viper.Set(string(viperdata.LoggerSensibleKeysAtribute), []string{"password", "email"})
 			viper.Set(string(viperdata.AppAtribute), "test-app")
 
 			buf := &bytes.Buffer{}

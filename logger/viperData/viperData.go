@@ -4,8 +4,6 @@
 package viperdata
 
 import (
-	"strconv"
-	"strings"
 	"sync"
 
 	"github.com/spf13/viper"
@@ -44,7 +42,7 @@ func GetViperData(key string) any {
 			string(LoggerIgnoredHeadersAtribute):               viper.GetStringSlice(string(LoggerIgnoredHeadersAtribute)),
 			string(LoggerFormatterAtribute):                    viper.GetString(string(LoggerFormatterAtribute)),
 			string(LoggerFormatDateAtribute):                   viper.GetString(string(LoggerFormatDateAtribute)),
-			string(LoggerSensibleKeysAtribute):                 getStringMapBool(string(LoggerSensibleKeysAtribute)),
+			string(LoggerSensibleKeysAtribute):                 viper.GetStringSlice(string(LoggerSensibleKeysAtribute)),
 			string(LoggerRotateEnableAtribute):                 viper.GetBool(string(LoggerRotateEnableAtribute)),
 			string(LoggerRotateMaxSizeAtribute):                viper.GetInt(string(LoggerRotateMaxSizeAtribute)),
 			string(LoggerRotateMaxBackupsAtribute):             viper.GetInt(string(LoggerRotateMaxBackupsAtribute)),
@@ -60,31 +58,3 @@ func GetViperData(key string) any {
 	return viperData[key]
 }
 
-func getStringMapBool(key string) map[string]bool {
-	raw := viper.GetStringMap(key)
-	if len(raw) == 0 {
-		return map[string]bool{}
-	}
-
-	values := make(map[string]bool, len(raw))
-	for key, value := range raw {
-		key = strings.TrimSpace(key)
-		if key == "" {
-			continue
-		}
-		values[key] = boolValue(value)
-	}
-	return values
-}
-
-func boolValue(value any) bool {
-	switch cast := value.(type) {
-	case bool:
-		return cast
-	case string:
-		parsed, err := strconv.ParseBool(strings.TrimSpace(cast))
-		return err == nil && parsed
-	default:
-		return false
-	}
-}

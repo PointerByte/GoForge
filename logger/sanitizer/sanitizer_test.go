@@ -29,12 +29,7 @@ func (unsupportedLoginRequest) String() string {
 }
 
 func TestLogFormatRedactsSensitiveKeys(t *testing.T) {
-	s := New(map[string]bool{
-		"password": true,
-		"email":    true,
-		"phone":    true,
-		"token":    false,
-	})
+	s := New([]string{"password", "email", "phone"})
 
 	log := formatter.LogFormat{
 		Message: "login failed password=message-secret token=public",
@@ -84,7 +79,7 @@ func TestLogFormatRedactsSensitiveKeys(t *testing.T) {
 }
 
 func TestValueSanitizesRawStrings(t *testing.T) {
-	s := New(map[string]bool{"password": true, "email": true})
+	s := New([]string{"password", "email"})
 
 	tests := []struct {
 		name      string
@@ -129,10 +124,7 @@ func TestFromViper(t *testing.T) {
 		viperdata.ResetViperDataSingleton()
 	})
 
-	viper.Set(string(viperdata.LoggerSensibleKeysAtribute), map[string]any{
-		"password": true,
-		"token":    false,
-	})
+	viper.Set(string(viperdata.LoggerSensibleKeysAtribute), []string{"password"})
 
 	s := FromViper()
 	got := s.Value(map[string]any{
@@ -159,7 +151,7 @@ func TestDisabledSanitizerReturnsOriginalValue(t *testing.T) {
 }
 
 func TestSanitizerCoversCompositeValues(t *testing.T) {
-	s := New(map[string]bool{"password": true, "email": true, "phone": true})
+	s := New([]string{"password", "email", "phone"})
 
 	stringMap := s.Value(map[string]string{
 		"password": "secret",
@@ -197,7 +189,7 @@ func TestSanitizerCoversCompositeValues(t *testing.T) {
 }
 
 func TestSanitizerCoversReflectionValues(t *testing.T) {
-	s := New(map[string]bool{"password": true, "email": true})
+	s := New([]string{"password", "email"})
 
 	var nilRequest *loginRequest
 	if got := s.Value(nilRequest); got != nil {
@@ -244,7 +236,7 @@ func TestSanitizerCoversGuardBranches(t *testing.T) {
 		t.Fatalf("disabled Headers changed value: %#v", got)
 	}
 
-	s := New(map[string]bool{"password": true})
+	s := New([]string{"password"})
 	if got := s.Headers(nil); got != nil {
 		t.Fatalf("Headers(nil) = %#v, want nil", got)
 	}
@@ -257,7 +249,7 @@ func TestSanitizerCoversGuardBranches(t *testing.T) {
 }
 
 func TestSanitizeJSONStringRejectsPartialJSON(t *testing.T) {
-	s := New(map[string]bool{"password": true})
+	s := New([]string{"password"})
 
 	got := s.Value(`{"password":"secret"} trailing`).(string)
 	if strings.Contains(got, "secret") || !strings.Contains(got, "trailing") {

@@ -32,11 +32,6 @@
             "maxAge": 30,
             "compress": true
         },
-        "sensibleKeys": {
-            "password": true,
-            "pwd": true,
-            "email": true,
-            "phone": true
-        }
+        "sensibleKeys": ["password", "pwd", "email", "phone"]
     }
 }

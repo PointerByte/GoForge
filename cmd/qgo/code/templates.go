@@ -141,6 +141,11 @@ logger:
     maxBackups: 5
     maxAge: 30
     compress: true
+  sensibleKeys:
+    - password
+    - pwd
+    - email
+    - phone
 
 traces:
   SkipPaths:
@@ -233,6 +238,11 @@ logger:
     maxBackups: 5
     maxAge: 30
     compress: true
+  sensibleKeys:
+    - password
+    - pwd
+    - email
+    - phone
 
 traces:
   SkipPaths:
@@ -276,6 +286,12 @@ func buildApplicationJSON(serviceType string, appName string) (string, error) {
 				"maxBackups": 5,
 				"maxAge":     30,
 				"compress":   true,
+			},
+			"sensibleKeys": []string{
+				"password",
+				"pwd",
+				"email",
+				"phone",
 			},
 		},
 	}

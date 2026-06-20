@@ -33,12 +33,12 @@ type Sanitizer struct {
 	patterns []redactPattern
 }
 
-// New creates a Sanitizer from a map of configured keys. Only true values are enabled.
-func New(keys map[string]bool) Sanitizer {
+// New creates a Sanitizer from a slice of sensitive key names.
+func New(keys []string) Sanitizer {
 	s := Sanitizer{keys: map[string]struct{}{}}
-	for key, enabled := range keys {
+	for _, key := range keys {
 		key = normalizeKey(key)
-		if key == "" || !enabled {
+		if key == "" {
 			continue
 		}
 		s.keys[key] = struct{}{}
@@ -49,7 +49,7 @@ func New(keys map[string]bool) Sanitizer {
 
 // FromViper builds a Sanitizer from the cached logger.sensibleKeys configuration.
 func FromViper() Sanitizer {
-	keys, _ := viperdata.GetViperData(string(viperdata.LoggerSensibleKeysAtribute)).(map[string]bool)
+	keys, _ := viperdata.GetViperData(string(viperdata.LoggerSensibleKeysAtribute)).([]string)
 	return New(keys)
 }
 

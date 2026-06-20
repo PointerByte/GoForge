@@ -8,8 +8,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -40,6 +42,25 @@ func (w *failOnNthWrite) Write(p []byte) (int, error) {
 		return 0, w.err
 	}
 	return w.buf.Write(p)
+}
+
+type yieldingBuffer struct {
+	mux sync.Mutex
+	buf bytes.Buffer
+}
+
+func (w *yieldingBuffer) Write(p []byte) (int, error) {
+	w.mux.Lock()
+	n, err := w.buf.Write(p)
+	w.mux.Unlock()
+	time.Sleep(time.Microsecond)
+	return n, err
+}
+
+func (w *yieldingBuffer) String() string {
+	w.mux.Lock()
+	defer w.mux.Unlock()
+	return w.buf.String()
 }
 
 func resetBuilderViper() {
@@ -74,6 +95,9 @@ func TestNewHandler(t *testing.T) {
 	}
 	if h1.w == nil {
 		t.Fatal("writer is nil")
+	}
+	if h1.mux == nil {
+		t.Fatal("mutex is nil")
 	}
 	if len(h1.handlers) != 0 {
 		t.Fatalf("handlers len = %d, want 0", len(h1.handlers))
@@ -346,17 +370,52 @@ func TestJSONHandler_writeData(t *testing.T) {
 		}
 	})
 
-	t.Run("second write error", func(t *testing.T) {
+	t.Run("single write includes newline", func(t *testing.T) {
 		w := &failOnNthWrite{n: 2, err: errors.New("newline write")}
 		h := &jsonHandler{w: w}
 
-		if err := h.writeData([]byte(`{"ok":true}`)); err == nil {
-			t.Fatal("expected error, got nil")
+		if err := h.writeData([]byte(`{"ok":true}`)); err != nil {
+			t.Fatalf("writeData() error = %v", err)
 		}
-		if got := w.buf.String(); got != "{\"ok\":true}" {
-			t.Fatalf("buffer before newline error = %q", got)
+		if got := w.buf.String(); got != "{\"ok\":true}\n" {
+			t.Fatalf("writeData() = %q, want %q", got, "{\"ok\":true}\n")
 		}
 	})
+}
+
+func TestJSONHandler_writeDataConcurrentWritesCompleteLines(t *testing.T) {
+	w := &yieldingBuffer{}
+	h := newHandler(slog.LevelDebug, w)
+
+	const writes = 200
+	var wg sync.WaitGroup
+	wg.Add(writes)
+	for i := 0; i < writes; i++ {
+		i := i
+		go func() {
+			defer wg.Done()
+			if err := h.writeData([]byte(fmt.Sprintf(`{"n":%d}`, i))); err != nil {
+				t.Errorf("writeData() error = %v", err)
+			}
+		}()
+	}
+	wg.Wait()
+
+	lines := strings.Split(strings.TrimSuffix(w.String(), "\n"), "\n")
+	if len(lines) != writes {
+		t.Fatalf("line count = %d, want %d", len(lines), writes)
+	}
+	for _, line := range lines {
+		if line == "" {
+			t.Fatal("output contains a blank line")
+		}
+		if strings.Contains(line, "}{") {
+			t.Fatalf("output contains joined log entries: %q", line)
+		}
+		if !json.Valid([]byte(line)) {
+			t.Fatalf("output contains invalid json line: %q", line)
+		}
+	}
 }
 
 func TestJSONHandler_WithAttrs(t *testing.T) {

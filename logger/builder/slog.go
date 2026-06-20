@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"io"
 	"maps"
+	"sync"
 	"time"
 
 	"log/slog"
@@ -20,13 +21,14 @@ import (
 type jsonHandler struct {
 	level    slog.Level
 	w        io.Writer
+	mux      *sync.Mutex
 	attrs    []slog.Attr
 	groups   []string
 	handlers []slog.Handler
 }
 
 func newHandler(level slog.Level, w io.Writer, handlers ...slog.Handler) *jsonHandler {
-	return &jsonHandler{level: level, w: w, handlers: handlers}
+	return &jsonHandler{level: level, w: w, mux: &sync.Mutex{}, handlers: handlers}
 }
 
 func (h *jsonHandler) Enabled(_ context.Context, level slog.Level) bool {
@@ -74,16 +76,20 @@ func (h *jsonHandler) Handle(ctx context.Context, r slog.Record) error {
 }
 
 func (h *jsonHandler) writeData(jsonBytes []byte) error {
-	_, err := h.w.Write(jsonBytes)
-	if err != nil {
-		return err
+	line := make([]byte, 0, len(jsonBytes)+1)
+	line = append(line, jsonBytes...)
+	line = append(line, '\n')
+
+	if h.mux != nil {
+		h.mux.Lock()
+		defer h.mux.Unlock()
 	}
-	_, err = h.w.Write([]byte("\n"))
+
+	_, err := h.w.Write(line)
 	if err != nil {
 		return err
 	}
 	return nil
-
 }
 
 func (h *jsonHandler) WithAttrs(attrs []slog.Attr) slog.Handler {

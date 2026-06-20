@@ -26,40 +26,6 @@ func resetViperForTest() {
 	DisableModeTest()
 }
 
-func TestConvertStr(t *testing.T) {
-	t.Run("string input", func(t *testing.T) {
-		got := convertStr("plain-text")
-		if got != "plain-text" {
-			t.Fatalf("expected plain-text, got %q", got)
-		}
-	})
-
-	t.Run("map input marshals to json", func(t *testing.T) {
-		got := convertStr(map[string]any{
-			"foo": "bar",
-			"num": 123,
-		})
-
-		if !strings.Contains(got, `"foo":"bar"`) {
-			t.Fatalf("expected marshaled json to contain foo, got %q", got)
-		}
-		if !strings.Contains(got, `"num":123`) {
-			t.Fatalf("expected marshaled json to contain num, got %q", got)
-		}
-	})
-
-	t.Run("struct input marshals to json", func(t *testing.T) {
-		type payload struct {
-			Name string `json:"name"`
-		}
-
-		got := convertStr(payload{Name: "sam"})
-		if !strings.Contains(got, `"name":"sam"`) {
-			t.Fatalf("expected marshaled json, got %q", got)
-		}
-	})
-}
-
 func helperTraceCaller() (string, int) {
 	return utilities.TraceCaller(1)
 }

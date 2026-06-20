@@ -28,7 +28,7 @@ func (c *Context) getMethodLine(skip int) (funcName string, line int) {
 func (c *Context) customLogFormat() map[string]any {
 	// ---------- Get Line ----------
 	if c.tracerCallerSkip == 0 {
-		c.SetTraceCallerSkip(6)
+		c.SetTraceCallerSkip(8)
 	}
 	funcName, line := c.getMethodLine(c.GetTraceCallerSkip())
 
@@ -67,17 +67,6 @@ func (c *Context) customLogFormat() map[string]any {
 	var m map[string]any
 	_ = json.Unmarshal(jsonBytes, &m)
 	return m
-}
-
-func convertStr(input any) string {
-	valueStr, ok := input.(string)
-	if !ok {
-		marshal, err := json.Marshal(input)
-		if err == nil {
-			return string(marshal)
-		}
-	}
-	return valueStr
 }
 
 // TraceInit marks the start of tracing for a process or subprocess.

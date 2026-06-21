@@ -147,7 +147,7 @@ func (c *Context) TraceID() string {
 }
 
 // Get retrieves a value from the context.
-func (c *Context) Get(key any) (any, bool) {
+func (c *Context) Get(key any) (value any, ok bool) {
 	return c.fields.Load(key)
 }
 

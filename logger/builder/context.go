@@ -23,7 +23,7 @@ type Context struct {
 	context.Context  // hereda Cancel, Deadline, Done, Value
 	mux              sync.Mutex
 	startTime        time.Time
-	fields           map[any]any
+	fields           sync.Map
 	disableTrace     bool
 	tracer           trace.Tracer // Trace from telemetry
 	Method           string
@@ -80,7 +80,7 @@ func New(parent context.Context) *Context {
 	newContext := &Context{
 		Context:   parent,
 		startTime: time.Now(),
-		fields:    make(map[any]any),
+		fields:    sync.Map{},
 		tracer:    otel.Tracer(appName),
 	}
 
@@ -118,7 +118,7 @@ func (c *Context) GetTraceCallerSkip() int {
 
 // Set adds a key-value pair to the context.
 func (c *Context) Set(key any, value any) {
-	c.fields[key] = value
+	c.fields.Store(key, value)
 }
 
 // SetTraceID stores the correlation trace id used by structured logs and
@@ -148,8 +148,7 @@ func (c *Context) TraceID() string {
 
 // Get retrieves a value from the context.
 func (c *Context) Get(key any) (any, bool) {
-	v, ok := c.fields[key]
-	return v, ok
+	return c.fields.Load(key)
 }
 
 // MustGet returns a value or throws an exception if one does not exist.

@@ -517,8 +517,15 @@ func TestProcess_SetError(t *testing.T) {
 	err := fmt.Errorf("boom")
 	s.SetError(err)
 
-	if s.Err != err {
-		t.Fatalf("Err = %v, want %v", s.Err, err)
+	if s.Err != err.Error() {
+		t.Fatalf("Err = %s, want %s", s.Err, err.Error())
+	}
+	payload, marshalErr := json.Marshal(s)
+	if marshalErr != nil {
+		t.Fatalf("Marshal() error = %v", marshalErr)
+	}
+	if bytes.Contains(payload, []byte(`"error"`)) {
+		t.Fatalf("Marshal() = %s, must not include error field", payload)
 	}
 }
 

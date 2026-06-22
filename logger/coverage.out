@@ -144,9 +144,11 @@ github.com/PointerByte/GoForge/logger/formatter/models.go:64.43,66.2 1 1
 github.com/PointerByte/GoForge/logger/formatter/models.go:68.45,70.2 1 1
 github.com/PointerByte/GoForge/logger/formatter/models.go:97.44,99.2 1 1
 github.com/PointerByte/GoForge/logger/formatter/models.go:101.39,103.2 1 1
-github.com/PointerByte/GoForge/logger/formatter/models.go:105.39,107.2 1 1
-github.com/PointerByte/GoForge/logger/formatter/models.go:109.43,111.2 1 1
-github.com/PointerByte/GoForge/logger/formatter/models.go:113.45,115.2 1 1
+github.com/PointerByte/GoForge/logger/formatter/models.go:105.39,106.16 1 1
+github.com/PointerByte/GoForge/logger/formatter/models.go:106.16,108.3 1 0
+github.com/PointerByte/GoForge/logger/formatter/models.go:109.2,110.25 2 1
+github.com/PointerByte/GoForge/logger/formatter/models.go:113.43,115.2 1 1
+github.com/PointerByte/GoForge/logger/formatter/models.go:117.45,119.2 1 1
 github.com/PointerByte/GoForge/logger/middlewares/grpc/grpc.go:29.53,31.22 2 2
 github.com/PointerByte/GoForge/logger/middlewares/grpc/grpc.go:31.22,33.3 1 1
 github.com/PointerByte/GoForge/logger/middlewares/grpc/grpc.go:34.2,34.18 1 1

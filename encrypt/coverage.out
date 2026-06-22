@@ -1,10 +1,21 @@
 mode: atomic
 github.com/PointerByte/GoForge/encrypt/repository.go:16.51,24.2 1 1
+<<<<<<< HEAD
+=======
+github.com/PointerByte/GoForge/encrypt/internal/trace/trace.go:42.61,44.9 2 0
+github.com/PointerByte/GoForge/encrypt/internal/trace/trace.go:44.9,45.22 1 0
+github.com/PointerByte/GoForge/encrypt/internal/trace/trace.go:45.23,45.24 0 0
+github.com/PointerByte/GoForge/encrypt/internal/trace/trace.go:48.2,55.25 3 0
+github.com/PointerByte/GoForge/encrypt/internal/trace/trace.go:55.25,56.17 1 0
+github.com/PointerByte/GoForge/encrypt/internal/trace/trace.go:56.17,58.4 1 0
+github.com/PointerByte/GoForge/encrypt/internal/trace/trace.go:59.3,59.20 1 0
+>>>>>>> preview
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:53.119,55.3 1 0
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:56.103,58.3 1 0
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:59.95,61.17 2 0
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:61.17,63.4 1 0
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:64.3,67.9 1 0
+<<<<<<< HEAD
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:134.51,136.2 1 7
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:138.41,140.2 1 4
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:142.39,144.2 1 7
@@ -17,11 +28,26 @@ github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:167.2,167.3
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:167.37,169.3 1 1
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:171.2,172.16 2 4
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:172.16,174.3 1 1
+=======
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:134.51,136.2 1 5
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:138.41,140.2 1 2
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:142.39,144.2 1 3
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:146.53,148.2 1 4
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:150.51,152.2 1 3
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:154.34,162.2 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:164.158,166.15 2 4
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:166.15,166.27 1 4
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:167.2,167.37 1 4
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:167.37,169.3 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:171.2,172.16 2 3
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:172.16,174.3 1 0
+>>>>>>> preview
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:176.2,185.16 3 3
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:185.16,187.3 1 1
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:189.2,190.16 2 2
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:190.16,192.3 1 0
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:193.2,193.88 1 2
+<<<<<<< HEAD
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:196.130,198.15 2 4
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:198.15,198.27 1 4
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:199.2,200.16 2 4
@@ -114,6 +140,100 @@ github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:414.2,415.1
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:415.16,417.3 1 1
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:419.2,420.16 2 3
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:420.16,422.3 1 1
+=======
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:196.130,198.15 2 2
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:198.15,198.27 1 2
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:199.2,200.16 2 2
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:200.16,202.3 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:204.2,205.16 2 2
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:205.16,207.3 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:209.2,210.16 2 2
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:210.16,212.3 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:214.2,215.16 2 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:215.16,217.3 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:218.2,219.16 2 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:219.16,221.3 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:222.2,223.16 2 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:223.16,225.3 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:226.2,226.104 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:229.124,231.15 2 2
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:231.15,231.27 1 2
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:232.2,233.16 2 2
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:233.16,235.3 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:237.2,238.16 2 2
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:238.16,240.3 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:242.2,243.16 2 2
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:243.16,245.3 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:246.2,246.87 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:249.116,251.15 2 2
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:251.15,251.27 1 2
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:252.2,253.16 2 2
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:253.16,255.3 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:257.2,258.16 2 2
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:258.16,260.3 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:262.2,262.29 1 2
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:262.29,264.17 2 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:264.17,266.4 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:267.3,268.17 2 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:268.17,270.4 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:271.3,272.17 2 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:272.17,274.4 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:275.3,275.30 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:278.2,283.22 2 2
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:283.22,285.3 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:286.2,286.12 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:289.128,291.15 2 4
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:291.15,291.27 1 4
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:292.2,292.46 1 4
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:292.46,294.3 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:296.2,297.16 2 3
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:297.16,299.3 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:300.2,301.16 2 3
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:301.16,303.3 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:305.2,310.16 2 3
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:310.16,312.3 1 2
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:314.2,319.16 2 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:319.16,321.3 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:322.2,322.61 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:325.128,327.15 2 8
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:327.15,327.27 1 8
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:328.2,328.46 1 8
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:328.46,330.3 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:332.2,333.16 2 7
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:333.16,335.3 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:336.2,337.16 2 7
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:337.16,339.3 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:341.2,342.16 2 7
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:342.16,344.3 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:345.2,346.63 2 6
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:346.63,348.3 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:350.2,351.16 2 5
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:351.16,353.3 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:354.2,355.16 2 4
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:355.16,357.3 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:358.2,359.16 2 3
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:359.16,361.3 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:363.2,370.16 2 2
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:370.16,372.3 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:373.2,373.37 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:376.95,378.44 2 3
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:378.44,380.3 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:382.2,383.16 2 2
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:383.16,385.3 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:386.2,387.16 2 2
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:387.16,389.3 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:391.2,395.16 2 2
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:395.16,397.3 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:398.2,398.59 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:401.89,404.2 2 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:406.86,409.2 2 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:411.160,413.15 2 3
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:413.15,413.27 1 3
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:414.2,415.16 2 3
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:415.16,417.3 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:419.2,420.16 2 2
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:420.16,422.3 1 0
+>>>>>>> preview
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:424.2,433.16 3 2
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:433.16,435.3 1 1
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:437.2,438.16 2 1
@@ -123,6 +243,7 @@ github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:442.16,444.
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:446.2,447.16 2 1
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:447.16,449.3 1 0
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:450.2,455.8 1 1
+<<<<<<< HEAD
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:458.130,460.15 2 4
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:460.15,460.27 1 4
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:461.2,461.83 1 4
@@ -131,6 +252,16 @@ github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:465.2,466.1
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:466.16,468.3 1 0
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:469.2,470.16 2 3
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:470.16,472.3 1 1
+=======
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:458.130,460.15 2 3
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:460.15,460.27 1 3
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:461.2,461.83 1 3
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:461.83,463.3 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:465.2,466.16 2 2
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:466.16,468.3 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:469.2,470.16 2 2
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:470.16,472.3 1 0
+>>>>>>> preview
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:474.2,475.16 2 2
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:475.16,477.3 1 1
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:478.2,479.16 2 1
@@ -155,6 +286,7 @@ github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:518.16,520.
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:521.2,522.16 2 1
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:522.16,524.3 1 0
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:525.2,530.4 1 1
+<<<<<<< HEAD
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:533.148,535.15 2 5
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:535.15,535.27 1 5
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:536.2,537.16 2 5
@@ -200,6 +332,53 @@ github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:642.2,642.1
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:642.16,644.3 1 1
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:645.2,645.34 1 2
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:645.34,647.3 1 1
+=======
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:533.148,535.15 2 3
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:535.15,535.27 1 3
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:536.2,537.16 2 3
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:537.16,539.3 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:541.2,542.16 2 2
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:542.16,544.3 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:546.2,558.16 3 2
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:558.16,560.3 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:562.2,563.16 2 2
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:563.16,565.3 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:566.2,567.16 2 2
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:567.16,569.3 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:571.2,572.16 2 2
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:572.16,574.3 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:575.2,580.8 1 2
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:583.137,585.15 2 4
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:585.15,585.27 1 4
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:586.2,586.82 1 4
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:586.82,588.3 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:590.2,591.16 2 3
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:591.16,593.3 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:594.2,595.16 2 3
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:595.16,597.3 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:599.2,603.16 2 3
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:603.16,605.3 1 2
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:606.2,606.64 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:609.137,611.15 2 4
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:611.15,611.27 1 4
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:612.2,612.84 1 4
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:612.84,614.3 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:616.2,617.16 2 3
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:617.16,619.3 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:620.2,621.16 2 3
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:621.16,623.3 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:625.2,626.16 2 3
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:626.16,628.3 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:629.2,633.16 2 2
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:633.16,635.3 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:636.2,636.37 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:639.113,641.15 2 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:641.15,641.27 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:642.2,642.16 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:642.16,644.3 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:645.2,645.34 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:645.34,647.3 1 0
+>>>>>>> preview
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:648.2,648.40 1 1
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:651.122,653.15 2 2
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:653.15,653.27 1 2
@@ -211,6 +390,7 @@ github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:662.15,662.
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:663.2,663.80 1 2
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:663.80,665.3 1 1
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:666.2,666.35 1 1
+<<<<<<< HEAD
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:669.121,671.15 2 5
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:671.15,671.27 1 5
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:672.2,672.78 1 5
@@ -230,6 +410,27 @@ github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:703.2,704.1
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:704.16,706.3 1 0
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:707.2,708.16 2 5
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:708.16,710.3 1 1
+=======
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:669.121,671.15 2 4
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:671.15,671.27 1 4
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:672.2,672.78 1 4
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:672.78,674.3 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:676.2,677.16 2 3
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:677.16,679.3 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:680.2,681.16 2 3
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:681.16,683.3 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:685.2,690.16 3 3
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:690.16,692.3 1 2
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:693.2,693.64 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:696.121,698.15 2 5
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:698.15,698.27 1 5
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:699.2,699.76 1 5
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:699.76,701.3 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:703.2,704.16 2 4
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:704.16,706.3 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:707.2,708.16 2 4
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:708.16,710.3 1 0
+>>>>>>> preview
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:712.2,713.16 2 4
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:713.16,715.3 1 1
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:716.2,722.16 3 3
@@ -263,6 +464,7 @@ github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:784.16,786.
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:787.2,787.32 1 2
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:787.32,789.3 1 1
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:790.2,790.12 1 1
+<<<<<<< HEAD
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:793.94,795.28 2 67
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:795.28,798.17 3 11
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:798.17,800.4 1 0
@@ -291,6 +493,36 @@ github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:854.16,856.
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:857.2,862.8 2 3
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:865.45,866.97 1 17
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:866.97,868.3 1 15
+=======
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:793.94,795.28 2 47
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:795.28,798.17 3 7
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:798.17,800.4 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:803.2,804.16 2 47
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:804.16,806.3 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:807.2,808.16 2 46
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:808.16,810.3 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:811.2,811.38 1 45
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:814.71,816.18 2 43
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:816.18,818.3 1 9
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:819.2,819.18 1 43
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:819.18,821.3 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:823.2,824.16 2 42
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:824.16,826.3 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:827.2,827.46 1 42
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:827.46,829.3 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:831.2,832.48 2 41
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:832.48,834.3 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:836.2,841.23 2 41
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:841.23,843.3 1 41
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:844.2,844.23 1 41
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:847.77,849.59 2 6
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:849.59,851.3 1 3
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:853.2,854.16 2 3
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:854.16,856.3 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:857.2,862.8 2 3
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:865.45,866.97 1 13
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:866.97,868.3 1 11
+>>>>>>> preview
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:869.2,869.96 1 2
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:869.96,871.3 1 1
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:873.2,874.21 2 1
@@ -301,6 +533,7 @@ github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:881.2,881.2
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:884.36,885.94 1 13
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:885.94,887.3 1 10
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:888.2,888.64 1 3
+<<<<<<< HEAD
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:891.65,892.14 1 7
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:893.66,894.24 1 6
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:895.10,896.78 1 1
@@ -354,11 +587,67 @@ github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1013.2,1013
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1016.81,1018.16 2 13
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1018.16,1020.3 1 1
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1022.2,1022.42 1 12
+=======
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:891.65,892.14 1 5
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:893.66,894.24 1 4
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:895.10,896.78 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:900.84,901.15 1 6
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:902.24,903.35 1 2
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:904.24,905.35 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:906.24,907.35 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:908.10,909.78 1 2
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:913.105,914.48 1 13
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:914.48,917.3 2 8
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:918.2,918.39 1 5
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:918.39,920.3 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:921.2,922.29 2 4
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:925.105,927.16 2 5
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:927.16,929.3 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:931.2,936.23 2 5
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:936.23,938.3 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:940.2,940.9 1 5
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:941.36,943.17 2 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:943.17,945.4 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:946.3,947.17 2 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:947.17,949.4 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:950.3,950.67 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:951.35,953.17 2 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:953.17,955.4 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:956.3,957.17 2 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:957.17,959.4 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:960.3,960.67 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:962.2,962.21 1 5
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:965.57,966.23 1 7
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:966.23,968.3 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:969.2,969.112 1 6
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:969.112,971.3 1 2
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:972.2,972.55 1 4
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:975.56,976.23 1 6
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:976.23,978.3 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:979.2,979.110 1 5
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:979.110,981.3 1 2
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:982.2,982.80 1 3
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:985.85,986.100 1 4
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:986.100,988.3 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:990.2,991.16 2 3
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:991.16,993.3 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:995.2,996.16 2 3
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:996.16,998.3 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:999.2,1000.16 2 3
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1000.16,1002.3 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1004.2,1010.16 6 3
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1010.16,1012.3 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1013.2,1013.23 1 3
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1016.81,1018.16 2 9
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1018.16,1020.3 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1022.2,1022.42 1 8
+>>>>>>> preview
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1023.23,1025.17 2 0
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1025.17,1027.4 1 0
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1028.3,1029.77 2 0
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1029.77,1031.4 1 0
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1033.3,1038.9 1 0
+<<<<<<< HEAD
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1039.24,1041.17 2 11
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1041.17,1043.4 1 1
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1044.3,1045.17 2 10
@@ -372,11 +661,27 @@ github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1065.28,106
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1067.28,1068.30 1 1
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1069.28,1070.30 1 1
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1071.10,1072.82 1 2
+=======
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1039.24,1041.17 2 7
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1041.17,1043.4 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1044.3,1045.17 2 7
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1045.17,1047.4 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1048.3,1049.17 2 7
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1049.17,1051.4 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1052.3,1057.9 1 7
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1058.10,1059.58 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1063.78,1064.15 1 6
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1065.28,1066.30 1 3
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1067.28,1068.30 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1069.28,1070.30 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1071.10,1072.82 1 1
+>>>>>>> preview
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1076.78,1077.15 1 4
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1078.19,1079.39 1 1
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1080.19,1081.39 1 1
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1082.19,1083.39 1 1
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1084.10,1085.53 1 1
+<<<<<<< HEAD
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1089.83,1090.15 1 12
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1091.23,1092.39 1 8
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1093.23,1094.39 1 1
@@ -385,6 +690,16 @@ github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1097.10,109
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1102.69,1103.28 1 33
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1103.28,1105.3 1 1
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1106.2,1108.20 3 32
+=======
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1089.83,1090.15 1 7
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1091.23,1092.39 1 7
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1093.23,1094.39 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1095.23,1096.39 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1097.10,1098.53 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1102.69,1103.28 1 20
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1103.28,1105.3 1 0
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1106.2,1108.20 3 20
+>>>>>>> preview
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1111.144,1113.16 2 6
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1113.16,1115.3 1 0
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1116.2,1120.16 2 6
@@ -409,6 +724,7 @@ github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1165.2,1165
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1168.57,1169.75 1 5
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1169.75,1171.3 1 3
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1172.2,1172.47 1 2
+<<<<<<< HEAD
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1175.83,1176.75 1 6
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1176.75,1178.3 1 1
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1179.2,1182.8 1 5
@@ -420,11 +736,28 @@ github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1194.34,119
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1197.2,1197.44 1 1
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1200.68,1201.34 1 9
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1201.34,1203.3 1 8
+=======
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1175.83,1176.75 1 4
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1176.75,1178.3 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1179.2,1182.8 1 3
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1185.50,1187.19 2 8
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1187.19,1189.3 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1190.2,1190.86 1 7
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1193.50,1194.34 1 9
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1194.34,1196.3 1 8
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1197.2,1197.44 1 1
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1200.68,1201.34 1 7
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1201.34,1203.3 1 6
+>>>>>>> preview
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1204.2,1204.23 1 1
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1204.23,1206.3 1 0
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1207.2,1207.43 1 1
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1210.34,1212.2 1 6
+<<<<<<< HEAD
 github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1214.29,1216.2 1 82
+=======
+github.com/PointerByte/GoForge/encrypt/azure-key-vault/repository.go:1214.29,1216.2 1 62
+>>>>>>> preview
 github.com/PointerByte/GoForge/encrypt/aws-kms/repository.go:36.62,38.3 1 0
 github.com/PointerByte/GoForge/encrypt/aws-kms/repository.go:76.51,78.2 1 5
 github.com/PointerByte/GoForge/encrypt/aws-kms/repository.go:80.41,82.2 1 4
@@ -683,9 +1016,15 @@ github.com/PointerByte/GoForge/encrypt/aws-kms/repository.go:776.2,776.12 1 1
 github.com/PointerByte/GoForge/encrypt/aws-kms/repository.go:779.62,781.16 2 69
 github.com/PointerByte/GoForge/encrypt/aws-kms/repository.go:781.16,783.3 1 17
 github.com/PointerByte/GoForge/encrypt/aws-kms/repository.go:784.2,784.33 1 52
+<<<<<<< HEAD
 github.com/PointerByte/GoForge/encrypt/aws-kms/repository.go:787.64,789.16 2 2
 github.com/PointerByte/GoForge/encrypt/aws-kms/repository.go:789.16,791.3 1 1
 github.com/PointerByte/GoForge/encrypt/aws-kms/repository.go:792.2,793.17 2 1
+=======
+github.com/PointerByte/GoForge/encrypt/aws-kms/repository.go:787.64,789.16 2 0
+github.com/PointerByte/GoForge/encrypt/aws-kms/repository.go:789.16,791.3 1 0
+github.com/PointerByte/GoForge/encrypt/aws-kms/repository.go:792.2,793.17 2 0
+>>>>>>> preview
 github.com/PointerByte/GoForge/encrypt/aws-kms/repository.go:796.53,797.54 1 42
 github.com/PointerByte/GoForge/encrypt/aws-kms/repository.go:797.54,799.3 1 20
 github.com/PointerByte/GoForge/encrypt/aws-kms/repository.go:800.2,800.90 1 22
@@ -721,6 +1060,7 @@ github.com/PointerByte/GoForge/encrypt/aws-kms/repository.go:883.26,884.35 1 4
 github.com/PointerByte/GoForge/encrypt/aws-kms/repository.go:885.26,886.35 1 1
 github.com/PointerByte/GoForge/encrypt/aws-kms/repository.go:887.26,888.35 1 1
 github.com/PointerByte/GoForge/encrypt/aws-kms/repository.go:889.10,890.71 1 2
+<<<<<<< HEAD
 github.com/PointerByte/GoForge/encrypt/aws-kms/repository.go:894.78,895.15 1 6
 github.com/PointerByte/GoForge/encrypt/aws-kms/repository.go:896.24,897.39 1 2
 github.com/PointerByte/GoForge/encrypt/aws-kms/repository.go:898.24,899.39 1 1
@@ -732,6 +1072,19 @@ github.com/PointerByte/GoForge/encrypt/aws-kms/repository.go:911.10,912.77 1 2
 github.com/PointerByte/GoForge/encrypt/aws-kms/repository.go:916.51,918.19 2 11
 github.com/PointerByte/GoForge/encrypt/aws-kms/repository.go:918.19,920.3 1 2
 github.com/PointerByte/GoForge/encrypt/aws-kms/repository.go:921.2,924.35 1 9
+=======
+github.com/PointerByte/GoForge/encrypt/aws-kms/repository.go:894.78,895.15 1 2
+github.com/PointerByte/GoForge/encrypt/aws-kms/repository.go:896.24,897.39 1 1
+github.com/PointerByte/GoForge/encrypt/aws-kms/repository.go:898.24,899.39 1 0
+github.com/PointerByte/GoForge/encrypt/aws-kms/repository.go:900.24,901.39 1 0
+github.com/PointerByte/GoForge/encrypt/aws-kms/repository.go:902.10,903.69 1 1
+github.com/PointerByte/GoForge/encrypt/aws-kms/repository.go:907.80,908.14 1 8
+github.com/PointerByte/GoForge/encrypt/aws-kms/repository.go:909.25,910.44 1 6
+github.com/PointerByte/GoForge/encrypt/aws-kms/repository.go:911.10,912.77 1 2
+github.com/PointerByte/GoForge/encrypt/aws-kms/repository.go:916.51,918.19 2 4
+github.com/PointerByte/GoForge/encrypt/aws-kms/repository.go:918.19,920.3 1 0
+github.com/PointerByte/GoForge/encrypt/aws-kms/repository.go:921.2,924.35 1 4
+>>>>>>> preview
 github.com/PointerByte/GoForge/encrypt/local/pkcs7.go:9.47,10.20 1 2
 github.com/PointerByte/GoForge/encrypt/local/pkcs7.go:10.20,11.33 1 1
 github.com/PointerByte/GoForge/encrypt/local/pkcs7.go:13.2,14.17 2 1
@@ -748,11 +1101,19 @@ github.com/PointerByte/GoForge/encrypt/local/pkcs7.go:37.2,37.31 1 1
 github.com/PointerByte/GoForge/encrypt/local/pkcs7.go:41.44,43.21 2 2
 github.com/PointerByte/GoForge/encrypt/local/pkcs7.go:43.21,45.3 1 4
 github.com/PointerByte/GoForge/encrypt/local/pkcs7.go:46.2,46.12 1 2
+<<<<<<< HEAD
 github.com/PointerByte/GoForge/encrypt/local/repository.go:35.44,36.16 1 75
 github.com/PointerByte/GoForge/encrypt/local/repository.go:36.16,38.3 1 1
 github.com/PointerByte/GoForge/encrypt/local/repository.go:39.2,39.18 1 74
 github.com/PointerByte/GoForge/encrypt/local/repository.go:42.82,44.40 2 71
 github.com/PointerByte/GoForge/encrypt/local/repository.go:44.40,46.3 1 21
+=======
+github.com/PointerByte/GoForge/encrypt/local/repository.go:35.44,36.16 1 60
+github.com/PointerByte/GoForge/encrypt/local/repository.go:36.16,38.3 1 0
+github.com/PointerByte/GoForge/encrypt/local/repository.go:39.2,39.18 1 60
+github.com/PointerByte/GoForge/encrypt/local/repository.go:42.82,44.40 2 58
+github.com/PointerByte/GoForge/encrypt/local/repository.go:44.40,46.3 1 8
+>>>>>>> preview
 github.com/PointerByte/GoForge/encrypt/local/repository.go:48.2,49.12 2 50
 github.com/PointerByte/GoForge/encrypt/local/repository.go:49.12,52.3 2 50
 github.com/PointerByte/GoForge/encrypt/local/repository.go:54.2,54.9 1 50
@@ -811,12 +1172,17 @@ github.com/PointerByte/GoForge/encrypt/local/repository.go:188.37,190.3 1 1
 github.com/PointerByte/GoForge/encrypt/local/repository.go:192.2,195.16 4 3
 github.com/PointerByte/GoForge/encrypt/local/repository.go:195.16,197.3 1 1
 github.com/PointerByte/GoForge/encrypt/local/repository.go:198.2,198.31 1 2
+<<<<<<< HEAD
 github.com/PointerByte/GoForge/encrypt/local/repository.go:204.41,206.2 1 4
+=======
+github.com/PointerByte/GoForge/encrypt/local/repository.go:204.41,206.2 1 3
+>>>>>>> preview
 github.com/PointerByte/GoForge/encrypt/local/repository.go:209.83,211.59 2 2
 github.com/PointerByte/GoForge/encrypt/local/repository.go:211.59,215.3 3 1
 github.com/PointerByte/GoForge/encrypt/local/repository.go:216.2,216.16 1 2
 github.com/PointerByte/GoForge/encrypt/local/repository.go:216.16,218.3 1 1
 github.com/PointerByte/GoForge/encrypt/local/repository.go:219.2,219.14 1 1
+<<<<<<< HEAD
 github.com/PointerByte/GoForge/encrypt/local/repository.go:223.77,225.59 2 2
 github.com/PointerByte/GoForge/encrypt/local/repository.go:225.59,228.3 2 1
 github.com/PointerByte/GoForge/encrypt/local/repository.go:229.2,229.16 1 2
@@ -828,6 +1194,19 @@ github.com/PointerByte/GoForge/encrypt/local/repository.go:242.2,242.16 1 2
 github.com/PointerByte/GoForge/encrypt/local/repository.go:242.16,244.3 1 1
 github.com/PointerByte/GoForge/encrypt/local/repository.go:245.2,245.14 1 1
 github.com/PointerByte/GoForge/encrypt/local/repository.go:251.53,253.2 1 5
+=======
+github.com/PointerByte/GoForge/encrypt/local/repository.go:223.77,225.59 2 1
+github.com/PointerByte/GoForge/encrypt/local/repository.go:225.59,228.3 2 1
+github.com/PointerByte/GoForge/encrypt/local/repository.go:229.2,229.16 1 1
+github.com/PointerByte/GoForge/encrypt/local/repository.go:229.16,231.3 1 0
+github.com/PointerByte/GoForge/encrypt/local/repository.go:232.2,232.14 1 1
+github.com/PointerByte/GoForge/encrypt/local/repository.go:236.74,238.59 2 1
+github.com/PointerByte/GoForge/encrypt/local/repository.go:238.59,241.3 2 1
+github.com/PointerByte/GoForge/encrypt/local/repository.go:242.2,242.16 1 1
+github.com/PointerByte/GoForge/encrypt/local/repository.go:242.16,244.3 1 0
+github.com/PointerByte/GoForge/encrypt/local/repository.go:245.2,245.14 1 1
+github.com/PointerByte/GoForge/encrypt/local/repository.go:251.53,253.2 1 4
+>>>>>>> preview
 github.com/PointerByte/GoForge/encrypt/local/repository.go:256.136,258.15 2 3
 github.com/PointerByte/GoForge/encrypt/local/repository.go:258.15,258.27 1 3
 github.com/PointerByte/GoForge/encrypt/local/repository.go:259.2,259.61 1 3
@@ -836,9 +1215,15 @@ github.com/PointerByte/GoForge/encrypt/local/repository.go:260.63,262.4 1 1
 github.com/PointerByte/GoForge/encrypt/local/repository.go:264.3,265.17 2 1
 github.com/PointerByte/GoForge/encrypt/local/repository.go:265.17,267.4 1 0
 github.com/PointerByte/GoForge/encrypt/local/repository.go:268.3,277.9 6 1
+<<<<<<< HEAD
 github.com/PointerByte/GoForge/encrypt/local/repository.go:283.148,285.15 2 3
 github.com/PointerByte/GoForge/encrypt/local/repository.go:285.15,285.27 1 3
 github.com/PointerByte/GoForge/encrypt/local/repository.go:286.2,286.61 1 3
+=======
+github.com/PointerByte/GoForge/encrypt/local/repository.go:283.148,285.15 2 2
+github.com/PointerByte/GoForge/encrypt/local/repository.go:285.15,285.27 1 2
+github.com/PointerByte/GoForge/encrypt/local/repository.go:286.2,286.61 1 2
+>>>>>>> preview
 github.com/PointerByte/GoForge/encrypt/local/repository.go:286.61,288.17 2 2
 github.com/PointerByte/GoForge/encrypt/local/repository.go:288.17,290.4 1 1
 github.com/PointerByte/GoForge/encrypt/local/repository.go:292.3,293.17 2 1
@@ -848,17 +1233,29 @@ github.com/PointerByte/GoForge/encrypt/local/repository.go:298.17,300.4 1 0
 github.com/PointerByte/GoForge/encrypt/local/repository.go:302.3,303.17 2 1
 github.com/PointerByte/GoForge/encrypt/local/repository.go:303.17,305.4 1 0
 github.com/PointerByte/GoForge/encrypt/local/repository.go:307.3,311.9 1 1
+<<<<<<< HEAD
 github.com/PointerByte/GoForge/encrypt/local/repository.go:317.125,319.15 2 3
 github.com/PointerByte/GoForge/encrypt/local/repository.go:319.15,319.27 1 3
 github.com/PointerByte/GoForge/encrypt/local/repository.go:320.2,320.52 1 3
+=======
+github.com/PointerByte/GoForge/encrypt/local/repository.go:317.125,319.15 2 2
+github.com/PointerByte/GoForge/encrypt/local/repository.go:319.15,319.27 1 2
+github.com/PointerByte/GoForge/encrypt/local/repository.go:320.2,320.52 1 2
+>>>>>>> preview
 github.com/PointerByte/GoForge/encrypt/local/repository.go:320.52,322.17 2 2
 github.com/PointerByte/GoForge/encrypt/local/repository.go:322.17,324.4 1 1
 github.com/PointerByte/GoForge/encrypt/local/repository.go:326.3,328.17 3 1
 github.com/PointerByte/GoForge/encrypt/local/repository.go:328.17,330.4 1 0
 github.com/PointerByte/GoForge/encrypt/local/repository.go:331.3,331.61 1 1
+<<<<<<< HEAD
 github.com/PointerByte/GoForge/encrypt/local/repository.go:337.125,339.15 2 4
 github.com/PointerByte/GoForge/encrypt/local/repository.go:339.15,339.27 1 4
 github.com/PointerByte/GoForge/encrypt/local/repository.go:340.2,340.52 1 4
+=======
+github.com/PointerByte/GoForge/encrypt/local/repository.go:337.125,339.15 2 3
+github.com/PointerByte/GoForge/encrypt/local/repository.go:339.15,339.27 1 3
+github.com/PointerByte/GoForge/encrypt/local/repository.go:340.2,340.52 1 3
+>>>>>>> preview
 github.com/PointerByte/GoForge/encrypt/local/repository.go:340.52,342.17 2 3
 github.com/PointerByte/GoForge/encrypt/local/repository.go:342.17,344.4 1 1
 github.com/PointerByte/GoForge/encrypt/local/repository.go:346.3,347.17 2 2
@@ -866,9 +1263,15 @@ github.com/PointerByte/GoForge/encrypt/local/repository.go:347.17,349.4 1 1
 github.com/PointerByte/GoForge/encrypt/local/repository.go:351.3,353.17 3 1
 github.com/PointerByte/GoForge/encrypt/local/repository.go:353.17,355.4 1 0
 github.com/PointerByte/GoForge/encrypt/local/repository.go:356.3,356.33 1 1
+<<<<<<< HEAD
 github.com/PointerByte/GoForge/encrypt/local/repository.go:362.129,364.15 2 4
 github.com/PointerByte/GoForge/encrypt/local/repository.go:364.15,364.27 1 4
 github.com/PointerByte/GoForge/encrypt/local/repository.go:365.2,365.52 1 4
+=======
+github.com/PointerByte/GoForge/encrypt/local/repository.go:362.129,364.15 2 3
+github.com/PointerByte/GoForge/encrypt/local/repository.go:364.15,364.27 1 3
+github.com/PointerByte/GoForge/encrypt/local/repository.go:365.2,365.52 1 3
+>>>>>>> preview
 github.com/PointerByte/GoForge/encrypt/local/repository.go:365.52,367.17 2 3
 github.com/PointerByte/GoForge/encrypt/local/repository.go:367.17,369.4 1 1
 github.com/PointerByte/GoForge/encrypt/local/repository.go:371.3,372.17 2 2
@@ -886,9 +1289,15 @@ github.com/PointerByte/GoForge/encrypt/local/repository.go:398.17,400.4 1 0
 github.com/PointerByte/GoForge/encrypt/local/repository.go:402.3,407.17 2 2
 github.com/PointerByte/GoForge/encrypt/local/repository.go:407.17,409.4 1 0
 github.com/PointerByte/GoForge/encrypt/local/repository.go:410.3,410.22 1 2
+<<<<<<< HEAD
 github.com/PointerByte/GoForge/encrypt/local/repository.go:416.129,418.15 2 5
 github.com/PointerByte/GoForge/encrypt/local/repository.go:418.15,418.27 1 5
 github.com/PointerByte/GoForge/encrypt/local/repository.go:419.2,419.52 1 5
+=======
+github.com/PointerByte/GoForge/encrypt/local/repository.go:416.129,418.15 2 4
+github.com/PointerByte/GoForge/encrypt/local/repository.go:418.15,418.27 1 4
+github.com/PointerByte/GoForge/encrypt/local/repository.go:419.2,419.52 1 4
+>>>>>>> preview
 github.com/PointerByte/GoForge/encrypt/local/repository.go:419.52,421.17 2 4
 github.com/PointerByte/GoForge/encrypt/local/repository.go:421.17,423.4 1 1
 github.com/PointerByte/GoForge/encrypt/local/repository.go:425.3,426.17 2 3
@@ -904,7 +1313,11 @@ github.com/PointerByte/GoForge/encrypt/local/repository.go:444.17,446.4 1 0
 github.com/PointerByte/GoForge/encrypt/local/repository.go:448.3,449.17 2 1
 github.com/PointerByte/GoForge/encrypt/local/repository.go:449.17,451.4 1 0
 github.com/PointerByte/GoForge/encrypt/local/repository.go:453.3,453.103 1 1
+<<<<<<< HEAD
 github.com/PointerByte/GoForge/encrypt/local/repository.go:460.51,462.2 1 5
+=======
+github.com/PointerByte/GoForge/encrypt/local/repository.go:460.51,462.2 1 4
+>>>>>>> preview
 github.com/PointerByte/GoForge/encrypt/local/repository.go:465.101,467.15 2 2
 github.com/PointerByte/GoForge/encrypt/local/repository.go:467.15,467.27 1 2
 github.com/PointerByte/GoForge/encrypt/local/repository.go:468.2,468.61 1 2
@@ -915,6 +1328,7 @@ github.com/PointerByte/GoForge/encrypt/local/repository.go:475.17,477.4 1 0
 github.com/PointerByte/GoForge/encrypt/local/repository.go:478.3,481.17 3 1
 github.com/PointerByte/GoForge/encrypt/local/repository.go:481.17,483.4 1 0
 github.com/PointerByte/GoForge/encrypt/local/repository.go:484.3,489.9 2 1
+<<<<<<< HEAD
 github.com/PointerByte/GoForge/encrypt/local/repository.go:493.66,494.14 1 4
 github.com/PointerByte/GoForge/encrypt/local/repository.go:495.44,496.13 1 3
 github.com/PointerByte/GoForge/encrypt/local/repository.go:497.10,498.64 1 1
@@ -930,6 +1344,23 @@ github.com/PointerByte/GoForge/encrypt/local/repository.go:521.3,522.59 2 1
 github.com/PointerByte/GoForge/encrypt/local/repository.go:527.113,529.15 2 5
 github.com/PointerByte/GoForge/encrypt/local/repository.go:529.15,529.27 1 5
 github.com/PointerByte/GoForge/encrypt/local/repository.go:530.2,530.56 1 5
+=======
+github.com/PointerByte/GoForge/encrypt/local/repository.go:493.66,494.14 1 1
+github.com/PointerByte/GoForge/encrypt/local/repository.go:495.44,496.13 1 1
+github.com/PointerByte/GoForge/encrypt/local/repository.go:497.10,498.64 1 0
+github.com/PointerByte/GoForge/encrypt/local/repository.go:502.68,503.14 1 2
+github.com/PointerByte/GoForge/encrypt/local/repository.go:504.66,505.13 1 1
+github.com/PointerByte/GoForge/encrypt/local/repository.go:506.10,507.65 1 1
+github.com/PointerByte/GoForge/encrypt/local/repository.go:512.113,514.15 2 2
+github.com/PointerByte/GoForge/encrypt/local/repository.go:514.15,514.27 1 2
+github.com/PointerByte/GoForge/encrypt/local/repository.go:515.2,515.52 1 2
+github.com/PointerByte/GoForge/encrypt/local/repository.go:515.52,517.17 2 2
+github.com/PointerByte/GoForge/encrypt/local/repository.go:517.17,519.4 1 1
+github.com/PointerByte/GoForge/encrypt/local/repository.go:521.3,522.59 2 1
+github.com/PointerByte/GoForge/encrypt/local/repository.go:527.113,529.15 2 4
+github.com/PointerByte/GoForge/encrypt/local/repository.go:529.15,529.27 1 4
+github.com/PointerByte/GoForge/encrypt/local/repository.go:530.2,530.56 1 4
+>>>>>>> preview
 github.com/PointerByte/GoForge/encrypt/local/repository.go:530.56,532.17 2 4
 github.com/PointerByte/GoForge/encrypt/local/repository.go:532.17,534.4 1 1
 github.com/PointerByte/GoForge/encrypt/local/repository.go:536.3,537.17 2 3
@@ -937,18 +1368,31 @@ github.com/PointerByte/GoForge/encrypt/local/repository.go:537.17,539.4 1 1
 github.com/PointerByte/GoForge/encrypt/local/repository.go:541.3,541.70 1 2
 github.com/PointerByte/GoForge/encrypt/local/repository.go:541.70,543.4 1 1
 github.com/PointerByte/GoForge/encrypt/local/repository.go:544.3,544.25 1 1
+<<<<<<< HEAD
 github.com/PointerByte/GoForge/encrypt/local/repository.go:546.2,546.12 1 5
 github.com/PointerByte/GoForge/encrypt/local/repository.go:550.109,552.15 2 3
 github.com/PointerByte/GoForge/encrypt/local/repository.go:552.15,552.27 1 3
 github.com/PointerByte/GoForge/encrypt/local/repository.go:553.2,553.52 1 3
+=======
+github.com/PointerByte/GoForge/encrypt/local/repository.go:546.2,546.12 1 4
+github.com/PointerByte/GoForge/encrypt/local/repository.go:550.109,552.15 2 2
+github.com/PointerByte/GoForge/encrypt/local/repository.go:552.15,552.27 1 2
+github.com/PointerByte/GoForge/encrypt/local/repository.go:553.2,553.52 1 2
+>>>>>>> preview
 github.com/PointerByte/GoForge/encrypt/local/repository.go:553.52,555.17 2 2
 github.com/PointerByte/GoForge/encrypt/local/repository.go:555.17,557.4 1 1
 github.com/PointerByte/GoForge/encrypt/local/repository.go:559.3,561.17 3 1
 github.com/PointerByte/GoForge/encrypt/local/repository.go:561.17,563.4 1 0
 github.com/PointerByte/GoForge/encrypt/local/repository.go:564.3,564.59 1 1
+<<<<<<< HEAD
 github.com/PointerByte/GoForge/encrypt/local/repository.go:569.109,571.15 2 5
 github.com/PointerByte/GoForge/encrypt/local/repository.go:571.15,571.27 1 5
 github.com/PointerByte/GoForge/encrypt/local/repository.go:572.2,572.56 1 5
+=======
+github.com/PointerByte/GoForge/encrypt/local/repository.go:569.109,571.15 2 4
+github.com/PointerByte/GoForge/encrypt/local/repository.go:571.15,571.27 1 4
+github.com/PointerByte/GoForge/encrypt/local/repository.go:572.2,572.56 1 4
+>>>>>>> preview
 github.com/PointerByte/GoForge/encrypt/local/repository.go:572.56,574.17 2 4
 github.com/PointerByte/GoForge/encrypt/local/repository.go:574.17,576.4 1 1
 github.com/PointerByte/GoForge/encrypt/local/repository.go:578.3,579.17 2 3
@@ -956,18 +1400,31 @@ github.com/PointerByte/GoForge/encrypt/local/repository.go:579.17,581.4 1 1
 github.com/PointerByte/GoForge/encrypt/local/repository.go:583.3,584.91 2 2
 github.com/PointerByte/GoForge/encrypt/local/repository.go:584.91,586.4 1 1
 github.com/PointerByte/GoForge/encrypt/local/repository.go:587.3,587.25 1 1
+<<<<<<< HEAD
 github.com/PointerByte/GoForge/encrypt/local/repository.go:589.2,589.12 1 5
 github.com/PointerByte/GoForge/encrypt/local/repository.go:594.123,596.15 2 3
 github.com/PointerByte/GoForge/encrypt/local/repository.go:596.15,596.27 1 3
 github.com/PointerByte/GoForge/encrypt/local/repository.go:597.2,597.52 1 3
+=======
+github.com/PointerByte/GoForge/encrypt/local/repository.go:589.2,589.12 1 4
+github.com/PointerByte/GoForge/encrypt/local/repository.go:594.123,596.15 2 2
+github.com/PointerByte/GoForge/encrypt/local/repository.go:596.15,596.27 1 2
+github.com/PointerByte/GoForge/encrypt/local/repository.go:597.2,597.52 1 2
+>>>>>>> preview
 github.com/PointerByte/GoForge/encrypt/local/repository.go:597.52,599.17 2 2
 github.com/PointerByte/GoForge/encrypt/local/repository.go:599.17,601.4 1 1
 github.com/PointerByte/GoForge/encrypt/local/repository.go:603.3,605.17 3 1
 github.com/PointerByte/GoForge/encrypt/local/repository.go:605.17,607.4 1 0
 github.com/PointerByte/GoForge/encrypt/local/repository.go:608.3,608.59 1 1
+<<<<<<< HEAD
 github.com/PointerByte/GoForge/encrypt/local/repository.go:613.130,615.15 2 5
 github.com/PointerByte/GoForge/encrypt/local/repository.go:615.15,615.27 1 5
 github.com/PointerByte/GoForge/encrypt/local/repository.go:616.2,616.56 1 5
+=======
+github.com/PointerByte/GoForge/encrypt/local/repository.go:613.130,615.15 2 4
+github.com/PointerByte/GoForge/encrypt/local/repository.go:615.15,615.27 1 4
+github.com/PointerByte/GoForge/encrypt/local/repository.go:616.2,616.56 1 4
+>>>>>>> preview
 github.com/PointerByte/GoForge/encrypt/local/repository.go:616.56,618.17 2 4
 github.com/PointerByte/GoForge/encrypt/local/repository.go:618.17,620.4 1 1
 github.com/PointerByte/GoForge/encrypt/local/repository.go:622.3,624.17 3 3
@@ -975,6 +1432,7 @@ github.com/PointerByte/GoForge/encrypt/local/repository.go:624.17,626.4 1 1
 github.com/PointerByte/GoForge/encrypt/local/repository.go:627.3,627.95 1 2
 github.com/PointerByte/GoForge/encrypt/local/repository.go:627.95,629.4 1 1
 github.com/PointerByte/GoForge/encrypt/local/repository.go:630.3,630.25 1 1
+<<<<<<< HEAD
 github.com/PointerByte/GoForge/encrypt/local/repository.go:632.2,632.12 1 5
 github.com/PointerByte/GoForge/encrypt/local/repository.go:645.34,653.2 1 1
 github.com/PointerByte/GoForge/encrypt/internal/trace/trace.go:42.61,44.9 2 4
@@ -984,6 +1442,10 @@ github.com/PointerByte/GoForge/encrypt/internal/trace/trace.go:48.2,55.25 3 2
 github.com/PointerByte/GoForge/encrypt/internal/trace/trace.go:55.25,56.17 1 2
 github.com/PointerByte/GoForge/encrypt/internal/trace/trace.go:56.17,59.4 2 1
 github.com/PointerByte/GoForge/encrypt/internal/trace/trace.go:60.3,60.20 1 2
+=======
+github.com/PointerByte/GoForge/encrypt/local/repository.go:632.2,632.12 1 4
+github.com/PointerByte/GoForge/encrypt/local/repository.go:645.34,653.2 1 1
+>>>>>>> preview
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:48.77,50.17 2 0
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:50.17,52.4 1 0
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:53.3,53.61 1 0
@@ -1000,6 +1462,7 @@ github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:103.152,105.2 1 1
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:106.134,108.2 1 1
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:109.122,111.2 1 1
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:112.128,114.2 1 1
+<<<<<<< HEAD
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:130.51,132.2 1 7
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:134.41,136.2 1 6
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:138.39,140.2 1 7
@@ -1012,11 +1475,26 @@ github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:163.2,163.37 1 4
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:163.37,165.3 1 1
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:167.2,168.16 2 3
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:168.16,170.3 1 1
+=======
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:130.51,132.2 1 3
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:134.41,136.2 1 2
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:138.39,140.2 1 3
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:142.53,144.2 1 3
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:146.51,148.2 1 2
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:150.34,158.2 1 1
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:160.158,162.15 2 3
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:162.15,162.27 1 3
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:163.2,163.37 1 3
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:163.37,165.3 1 1
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:167.2,168.16 2 2
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:168.16,170.3 1 0
+>>>>>>> preview
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:171.2,174.16 3 2
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:174.16,176.3 1 0
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:178.2,190.16 3 2
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:190.16,192.3 1 1
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:193.2,193.99 1 1
+<<<<<<< HEAD
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:196.130,198.15 2 4
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:198.15,198.27 1 4
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:199.2,200.16 2 4
@@ -1025,6 +1503,16 @@ github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:203.2,206.16 3 3
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:206.16,208.3 1 0
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:209.2,210.16 2 3
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:210.16,212.3 1 2
+=======
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:196.130,198.15 2 2
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:198.15,198.27 1 2
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:199.2,200.16 2 2
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:200.16,202.3 1 0
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:203.2,206.16 3 2
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:206.16,208.3 1 0
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:209.2,210.16 2 2
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:210.16,212.3 1 1
+>>>>>>> preview
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:214.2,215.16 2 1
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:215.16,217.3 1 0
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:218.2,224.16 2 1
@@ -1037,6 +1525,7 @@ github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:234.17,236.4 1 0
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:237.3,241.17 2 1
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:241.17,243.4 1 0
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:246.2,246.78 1 1
+<<<<<<< HEAD
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:249.124,251.15 2 4
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:251.15,251.27 1 4
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:252.2,253.16 2 4
@@ -1067,6 +1556,38 @@ github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:311.2,314.16 3 4
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:314.16,316.3 1 0
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:317.2,322.16 2 4
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:322.16,324.3 1 3
+=======
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:249.124,251.15 2 2
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:251.15,251.27 1 2
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:252.2,253.16 2 2
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:253.16,255.3 1 0
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:256.2,259.16 3 2
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:259.16,261.3 1 0
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:262.2,263.16 2 2
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:263.16,265.3 1 1
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:266.2,266.78 1 1
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:269.116,271.15 2 2
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:271.15,271.27 1 2
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:272.2,273.16 2 2
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:273.16,275.3 1 0
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:276.2,279.16 3 2
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:279.16,281.3 1 0
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:282.2,283.16 2 2
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:283.16,285.3 1 1
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:287.2,294.17 2 1
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:294.17,296.3 1 0
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:297.2,297.12 1 1
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:300.128,302.15 2 3
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:302.15,302.27 1 3
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:303.2,303.46 1 3
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:303.46,305.3 1 0
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:307.2,308.16 2 3
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:308.16,310.3 1 0
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:311.2,314.16 3 3
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:314.16,316.3 1 0
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:317.2,322.16 2 3
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:322.16,324.3 1 2
+>>>>>>> preview
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:325.2,325.68 1 1
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:328.128,330.15 2 4
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:330.15,330.27 1 4
@@ -1081,6 +1602,7 @@ github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:346.16,348.3 1 1
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:349.2,354.16 2 2
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:354.16,356.3 1 1
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:357.2,357.40 1 1
+<<<<<<< HEAD
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:360.95,362.45 2 5
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:362.45,364.3 1 0
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:366.2,367.16 2 5
@@ -1102,11 +1624,35 @@ github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:405.2,408.16 3 3
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:408.16,410.3 1 0
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:411.2,423.16 3 3
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:423.16,425.3 1 2
+=======
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:360.95,362.45 2 2
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:362.45,364.3 1 0
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:366.2,367.16 2 2
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:367.16,369.3 1 0
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:370.2,373.16 3 2
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:373.16,375.3 1 0
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:376.2,377.16 2 2
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:377.16,379.3 1 1
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:380.2,380.56 1 1
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:383.89,386.2 2 1
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:388.86,391.2 2 1
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:393.160,395.15 2 2
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:395.15,395.27 1 2
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:396.2,397.16 2 2
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:397.16,399.3 1 0
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:401.2,402.16 2 2
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:402.16,404.3 1 0
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:405.2,408.16 3 2
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:408.16,410.3 1 0
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:411.2,423.16 3 2
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:423.16,425.3 1 1
+>>>>>>> preview
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:427.2,428.16 2 1
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:428.16,430.3 1 0
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:431.2,432.16 2 1
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:432.16,434.3 1 0
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:435.2,440.8 1 1
+<<<<<<< HEAD
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:443.130,445.15 2 4
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:445.15,445.27 1 4
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:446.2,446.83 1 4
@@ -1115,6 +1661,16 @@ github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:449.2,449.98 1 3
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:449.98,451.3 1 0
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:453.2,454.16 2 3
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:454.16,456.3 1 1
+=======
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:443.130,445.15 2 3
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:445.15,445.27 1 3
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:446.2,446.83 1 3
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:446.83,448.3 1 1
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:449.2,449.98 1 2
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:449.98,451.3 1 0
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:453.2,454.16 2 2
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:454.16,456.3 1 0
+>>>>>>> preview
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:457.2,460.16 3 2
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:460.16,462.3 1 0
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:463.2,464.16 2 2
@@ -1137,6 +1693,7 @@ github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:499.16,501.3 1 0
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:502.2,503.16 2 1
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:503.16,505.3 1 0
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:506.2,511.4 1 1
+<<<<<<< HEAD
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:514.148,516.15 2 5
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:516.15,516.27 1 5
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:517.2,518.16 2 5
@@ -1147,17 +1704,38 @@ github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:526.2,529.16 3 3
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:529.16,531.3 1 0
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:532.2,544.16 3 3
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:544.16,546.3 1 2
+=======
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:514.148,516.15 2 3
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:516.15,516.27 1 3
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:517.2,518.16 2 3
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:518.16,520.3 1 1
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:522.2,523.16 2 2
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:523.16,525.3 1 0
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:526.2,529.16 3 2
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:529.16,531.3 1 0
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:532.2,544.16 3 2
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:544.16,546.3 1 1
+>>>>>>> preview
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:548.2,549.16 2 1
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:549.16,551.3 1 0
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:552.2,553.16 2 1
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:553.16,555.3 1 0
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:557.2,562.8 1 1
+<<<<<<< HEAD
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:565.137,567.15 2 5
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:567.15,567.27 1 5
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:568.2,568.82 1 5
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:568.82,570.3 1 1
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:572.2,573.16 2 4
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:573.16,575.3 1 1
+=======
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:565.137,567.15 2 4
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:567.15,567.27 1 4
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:568.2,568.82 1 4
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:568.82,570.3 1 1
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:572.2,573.16 2 3
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:573.16,575.3 1 0
+>>>>>>> preview
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:576.2,579.16 3 3
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:579.16,581.3 1 0
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:582.2,583.16 2 3
@@ -1176,6 +1754,7 @@ github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:611.16,613.3 1 1
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:614.2,615.16 2 2
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:615.16,617.3 1 1
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:618.2,618.40 1 1
+<<<<<<< HEAD
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:621.113,623.15 2 4
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:623.15,623.27 1 4
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:625.2,626.16 2 4
@@ -1184,22 +1763,42 @@ github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:629.2,632.16 3 3
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:632.16,634.3 1 0
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:635.2,646.16 3 3
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:646.16,648.3 1 2
+=======
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:621.113,623.15 2 2
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:623.15,623.27 1 2
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:625.2,626.16 2 2
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:626.16,628.3 1 0
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:629.2,632.16 3 2
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:632.16,634.3 1 0
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:635.2,646.16 3 2
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:646.16,648.3 1 1
+>>>>>>> preview
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:650.2,651.16 2 1
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:651.16,653.3 1 0
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:654.2,655.16 2 1
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:655.16,657.3 1 0
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:659.2,664.8 1 1
+<<<<<<< HEAD
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:667.122,669.15 2 5
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:669.15,669.27 1 5
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:670.2,670.82 1 5
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:670.82,672.3 1 1
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:674.2,675.16 2 4
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:675.16,677.3 1 1
+=======
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:667.122,669.15 2 4
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:669.15,669.27 1 4
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:670.2,670.82 1 4
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:670.82,672.3 1 1
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:674.2,675.16 2 3
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:675.16,677.3 1 0
+>>>>>>> preview
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:678.2,681.16 3 3
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:681.16,683.3 1 0
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:684.2,685.16 2 3
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:685.16,687.3 1 2
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:688.2,688.67 1 1
+<<<<<<< HEAD
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:691.122,693.15 2 9
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:693.15,693.27 1 9
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:694.2,694.80 1 9
@@ -1225,11 +1824,39 @@ github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:733.2,733.78 1 5
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:733.78,735.3 1 1
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:737.2,738.16 2 4
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:738.16,740.3 1 1
+=======
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:691.122,693.15 2 4
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:693.15,693.27 1 4
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:694.2,694.80 1 4
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:694.80,696.3 1 1
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:698.2,699.16 2 3
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:699.16,701.3 1 0
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:702.2,705.16 3 3
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:705.16,707.3 1 0
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:708.2,709.16 2 3
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:709.16,711.3 1 2
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:712.2,713.16 2 1
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:713.16,715.3 1 0
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:716.2,717.9 2 1
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:717.9,719.3 1 0
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:720.2,721.16 2 1
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:721.16,723.3 1 0
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:724.2,724.64 1 1
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:724.64,726.3 1 0
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:727.2,727.12 1 1
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:730.121,732.15 2 4
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:732.15,732.27 1 4
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:733.2,733.78 1 4
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:733.78,735.3 1 1
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:737.2,738.16 2 3
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:738.16,740.3 1 0
+>>>>>>> preview
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:741.2,744.16 3 3
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:744.16,746.3 1 0
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:747.2,752.16 3 3
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:752.16,754.3 1 2
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:755.2,755.67 1 1
+<<<<<<< HEAD
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:758.121,760.15 2 9
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:760.15,760.27 1 9
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:761.2,761.76 1 9
@@ -1248,6 +1875,26 @@ github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:787.2,788.16 2 3
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:788.16,790.3 1 1
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:791.2,792.99 2 2
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:792.99,794.3 1 1
+=======
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:758.121,760.15 2 4
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:760.15,760.27 1 4
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:761.2,761.76 1 4
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:761.76,763.3 1 1
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:765.2,766.16 2 3
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:766.16,768.3 1 0
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:769.2,772.16 3 3
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:772.16,774.3 1 0
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:775.2,776.16 2 3
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:776.16,778.3 1 2
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:779.2,780.16 2 1
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:780.16,782.3 1 0
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:783.2,784.9 2 1
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:784.9,786.3 1 0
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:787.2,788.16 2 1
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:788.16,790.3 1 0
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:791.2,792.99 2 1
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:792.99,794.3 1 0
+>>>>>>> preview
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:795.2,795.12 1 1
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:798.135,800.15 2 3
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:800.15,800.27 1 3
@@ -1260,6 +1907,7 @@ github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:812.16,814.3 1 0
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:815.2,820.16 3 2
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:820.16,822.3 1 1
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:823.2,823.67 1 1
+<<<<<<< HEAD
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:826.142,828.15 2 8
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:828.15,828.27 1 8
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:829.2,829.64 1 8
@@ -1315,6 +1963,63 @@ github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:934.2,934.53 1 12
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:934.53,936.17 2 4
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:936.17,938.4 1 0
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:939.3,939.30 1 4
+=======
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:826.142,828.15 2 4
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:828.15,828.27 1 4
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:829.2,829.64 1 4
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:829.64,831.3 1 1
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:833.2,834.16 2 3
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:834.16,836.3 1 0
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:837.2,840.16 3 3
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:840.16,842.3 1 0
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:843.2,844.16 2 3
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:844.16,846.3 1 2
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:847.2,848.16 2 1
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:848.16,850.3 1 0
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:851.2,852.9 2 1
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:852.9,854.3 1 0
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:855.2,856.16 2 1
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:856.16,858.3 1 0
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:859.2,860.99 2 1
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:860.99,862.3 1 0
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:863.2,863.12 1 1
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:866.62,868.2 1 49
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:870.34,871.92 1 30
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:871.92,873.3 1 27
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:874.2,874.62 1 3
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:877.56,879.18 2 14
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:879.18,881.3 1 13
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:882.2,882.18 1 14
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:882.18,884.3 1 1
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:886.2,887.26 2 13
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:887.26,888.44 1 91
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:888.44,890.4 1 13
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:892.2,892.37 1 0
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:895.58,897.18 2 9
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:897.18,899.3 1 2
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:900.2,900.18 1 9
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:900.18,902.3 1 1
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:903.2,903.71 1 8
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:903.71,905.3 1 3
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:906.2,906.46 1 5
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:906.46,908.3 1 5
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:909.2,909.35 1 0
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:912.65,914.18 2 29
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:914.18,916.3 1 11
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:917.2,917.18 1 29
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:917.18,919.3 1 0
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:920.2,920.53 1 29
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:920.53,922.3 1 28
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:923.2,923.37 1 1
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:926.67,928.18 2 10
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:928.18,930.3 1 2
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:931.2,931.18 1 10
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:931.18,933.3 1 1
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:934.2,934.53 1 9
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:934.53,936.17 2 1
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:936.17,938.4 1 0
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:939.3,939.30 1 1
+>>>>>>> preview
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:941.2,941.46 1 8
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:941.46,943.3 1 4
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:945.2,946.16 2 4
@@ -1358,11 +2063,19 @@ github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1039.64,1041.26 2 1
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1041.26,1042.64 1 9
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1042.64,1044.4 1 1
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1046.2,1046.37 1 0
+<<<<<<< HEAD
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1049.102,1051.16 2 29
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1051.16,1053.3 1 0
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1054.2,1055.18 2 29
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1055.18,1057.3 1 9
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1058.2,1058.25 1 20
+=======
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1049.102,1051.16 2 17
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1051.16,1053.3 1 0
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1054.2,1055.18 2 17
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1055.18,1057.3 1 9
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1058.2,1058.25 1 8
+>>>>>>> preview
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1061.155,1066.16 2 6
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1066.16,1068.3 1 0
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1069.2,1070.58 2 6
@@ -1370,15 +2083,23 @@ github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1070.58,1072.3 1 2
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1073.2,1074.25 2 4
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1074.25,1076.3 1 1
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1077.2,1077.34 1 3
+<<<<<<< HEAD
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1080.49,1082.17 2 10
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1082.17,1084.3 1 9
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1085.2,1085.40 1 1
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1088.41,1091.28 3 12
+=======
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1080.49,1082.17 2 8
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1082.17,1084.3 1 7
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1085.2,1085.40 1 1
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1088.41,1091.28 3 10
+>>>>>>> preview
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1091.28,1092.10 1 85
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1093.29,1094.24 1 77
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1095.29,1096.24 1 3
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1097.29,1098.24 1 3
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1099.11,1100.26 1 2
+<<<<<<< HEAD
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1103.2,1104.21 2 12
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1104.21,1106.3 1 1
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1107.2,1107.14 1 12
@@ -1394,6 +2115,23 @@ github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1126.26,1127.66 1 1
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1128.10,1129.70 1 2
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1133.113,1134.15 1 7
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1135.24,1136.48 1 4
+=======
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1103.2,1104.21 2 10
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1104.21,1106.3 1 1
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1107.2,1107.14 1 10
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1110.66,1111.34 1 7
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1111.34,1113.3 1 6
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1114.2,1114.23 1 1
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1114.23,1116.3 1 0
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1117.2,1117.43 1 1
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1120.117,1121.14 1 6
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1122.26,1123.66 1 2
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1124.26,1125.66 1 1
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1126.26,1127.66 1 1
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1128.10,1129.70 1 2
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1133.113,1134.15 1 5
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1135.24,1136.48 1 2
+>>>>>>> preview
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1137.42,1138.49 1 2
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1139.10,1140.76 1 1
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1144.102,1145.19 1 9
@@ -1404,8 +2142,13 @@ github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1155.111,1156.24 1 
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1157.37,1158.48 1 2
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1159.38,1160.49 1 1
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1161.10,1162.87 1 1
+<<<<<<< HEAD
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1166.92,1168.16 2 4
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1168.16,1170.3 1 3
+=======
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1166.92,1168.16 2 3
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1168.16,1170.3 1 2
+>>>>>>> preview
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1171.2,1172.16 2 1
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1172.16,1174.3 1 0
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1175.2,1176.16 2 1
@@ -1425,6 +2168,7 @@ github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1212.42,1214.17 2 1
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1214.17,1216.4 1 0
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1217.3,1218.39 2 1
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1219.10,1220.104 1 1
+<<<<<<< HEAD
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1224.51,1226.19 2 14
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1226.19,1228.3 1 1
 github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1229.2,1229.48 1 13
@@ -1558,3 +2302,8 @@ github.com/PointerByte/GoForge/encrypt/utilities/utilities.go:375.16,377.3 1 7
 github.com/PointerByte/GoForge/encrypt/utilities/utilities.go:379.2,380.18 2 23
 github.com/PointerByte/GoForge/encrypt/utilities/utilities.go:380.18,382.3 1 1
 github.com/PointerByte/GoForge/encrypt/utilities/utilities.go:383.2,383.25 1 22
+=======
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1224.51,1226.19 2 7
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1226.19,1228.3 1 1
+github.com/PointerByte/GoForge/encrypt/gcp-kms/repository.go:1229.2,1229.48 1 6
+>>>>>>> preview

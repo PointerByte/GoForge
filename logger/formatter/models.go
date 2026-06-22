@@ -86,8 +86,6 @@ type Process struct {
 	Request  any    `json:"request,omitempty"`
 	Response any    `json:"response,omitempty"`
 	Status   Status `json:"status"`
-	Message  any    `json:"message,omitempty"`
-	Err      string `json:"-"`
 	Latency  int64  `json:"latency"`
 
 	TimeInit time.Time  `json:"-"`
@@ -96,18 +94,6 @@ type Process struct {
 
 func (s *Process) SetStatus(status Status) {
 	s.Status = status
-}
-
-func (s *Process) SetMessage(msg any) {
-	s.Message = msg
-}
-
-func (s *Process) SetError(err error) {
-	if err == nil {
-		return
-	}
-	s.Err = err.Error()
-	s.Message = err.Error()
 }
 
 func (s *Process) SetRequest(request any) {

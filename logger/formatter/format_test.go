@@ -500,35 +500,6 @@ func TestProcess_SetStatus(t *testing.T) {
 	}
 }
 
-func TestProcess_SetMessage(t *testing.T) {
-	s := &Process{}
-
-	msg := map[string]any{"info": "processed"}
-	s.SetMessage(msg)
-
-	if !reflect.DeepEqual(s.Message, msg) {
-		t.Fatalf("Message = %#v, want %#v", s.Message, msg)
-	}
-}
-
-func TestProcess_SetError(t *testing.T) {
-	s := &Process{}
-
-	err := fmt.Errorf("boom")
-	s.SetError(err)
-
-	if s.Err != err.Error() {
-		t.Fatalf("Err = %s, want %s", s.Err, err.Error())
-	}
-	payload, marshalErr := json.Marshal(s)
-	if marshalErr != nil {
-		t.Fatalf("Marshal() error = %v", marshalErr)
-	}
-	if bytes.Contains(payload, []byte(`"error"`)) {
-		t.Fatalf("Marshal() = %s, must not include error field", payload)
-	}
-}
-
 func TestProcess_SetRequest(t *testing.T) {
 	s := &Process{}
 

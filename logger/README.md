@@ -272,14 +272,102 @@ use `loggrpc.EnableTraceBody(ctxLogger, true, true)`.
 
 ## Formatters
 
-`logger.formatter` supports:
+The output format is selected with the `logger.formatter` config key (see the
+configuration block above). It accepts three kinds of value:
 
 - `json`: structured JSON output
 - `text` or `txt`: human-readable text output
 - any custom Go template accepted by `formatter.CustomFormatter`
 
-Custom templates can use helper functions such as `json`, `buildDetails`, and
-`buildServices`.
+### Selecting the format via configuration
+
+```yaml
+logger:
+  formatter: json   # "json", "text" (alias "txt"), or a Go template string
+```
+
+The empty string and `text`/`txt` produce the text layout; `json` produces the
+JSON layout; anything else is treated as a Go `text/template` and rendered per
+log entry.
+
+### JSON output
+
+```json
+{
+  "timestamp": "2026-06-22T10:30:00.000",
+  "traceID": "a1b2c3d4...",
+  "level": "info",
+  "message": "request completed",
+  "details": { "system": "orders-api", "method": "GET", "path": "/api/v1/orders" },
+  "proccess": [
+    { "system": "orders-api", "process": "GetOrders", "status": "OK", "latency": 12 }
+  ],
+  "method": "handler.go",
+  "line": 42,
+  "latency": 12
+}
+```
+
+### Text output
+
+```text
+[2026-06-22T10:30:00.000] [info] [a1b2c3d4...] handler.go:42 - request completed latency=12ms | details={system=orders-api, method=GET, path=/api/v1/orders} | services=[{system=orders-api, process=GetOrders, status=OK, latency=12ms}]
+```
+
+### Custom templates
+
+A custom format is any string that is not `json`, `text`, `txt`, or empty. It is
+parsed as a Go `text/template` and executed against the `formatter.LogFormat`
+value of each entry, so you can reference its exported fields directly:
+
+| Field        | Type        | Description                                  |
+| ------------ | ----------- | -------------------------------------------- |
+| `.Timestamp` | `string`    | Formatted timestamp (`logger.formatDate`)    |
+| `.TraceID`   | `string`    | Trace id for the entry                       |
+| `.Level`     | `Level`     | `debug` / `info` / `warn` / `error`          |
+| `.Message`   | `string`    | Log message                                  |
+| `.Details`   | `Details`   | Request details (system, method, path, etc.) |
+| `.Process`   | `[]Process` | Recorded spans/processes                     |
+| `.Method`    | `string`    | Source file of the call site                 |
+| `.Line`      | `int`       | Source line of the call site                 |
+| `.Latency`   | `int64`     | Latency in milliseconds                      |
+
+Templates can also use these registered helper functions:
+
+- `json v` — marshals any value to JSON
+- `buildDetails .Details` — normalizes `Details` into a map, dropping empty fields
+- `buildServices .Process` — normalizes `[]Process` into a slice of maps
+
+Set the template as the value of `logger.formatter` in `application.yaml`. It is
+a single-line string (the template source), so use quotes and keep it on one
+line:
+
+```yaml
+logger:
+  formatter: '{{.Level}} | {{.Message}} | {{json (buildServices .Process)}}'
+```
+
+With the entry from the examples above, that produces:
+
+```text
+info | request completed | [{"latency":12,"process":"GetOrders","status":"OK","system":"orders-api"}]
+```
+
+**Important — custom templates cannot rename JSON keys.** After rendering,
+`Format` checks whether the output is valid JSON: if it is, the bytes are
+unmarshaled back into `LogFormat` and re-marshaled, so any key that does not
+match a struct tag is dropped and the standard keys are emitted with their
+struct-tag names. This `application.yaml/json` value:
+
+```yaml
+logger:
+  formatter: '{"ts":{{json .Timestamp}},"lvl":{{json .Level}}}'
+```
+
+does **not** yield `{"ts":...,"lvl":...}`; it loses `ts`/`lvl` and falls back to
+the default JSON keys with empty values. Custom templates only keep their own
+labels when the rendered output is **not** valid JSON (like the `level | message
+| …` form above) — full control over labels, at the cost of structured JSON.
 
 ## Testing
 

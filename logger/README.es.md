@@ -271,14 +271,105 @@ en handlers gRPC usa `loggrpc.EnableTraceBody(ctxLogger, true, true)`.
 
 ## Formatters
 
-`logger.formatter` soporta:
+El formato de salida se selecciona con la key de configuracion
+`logger.formatter` (ver el bloque de configuracion mas arriba). Acepta tres
+tipos de valor:
 
 - `json`: salida JSON estructurada
 - `text` o `txt`: salida de texto legible
 - cualquier template Go custom aceptado por `formatter.CustomFormatter`
 
-Los templates custom pueden usar helpers como `json`, `buildDetails` y
-`buildServices`.
+### Seleccionar el formato via configuracion
+
+```yaml
+logger:
+  formatter: json   # "json", "text" (alias "txt"), o un string de template Go
+```
+
+El string vacio y `text`/`txt` producen el layout de texto; `json` produce el
+layout JSON; cualquier otra cosa se trata como un `text/template` de Go y se
+renderiza por cada entrada de log.
+
+### Salida JSON
+
+```json
+{
+  "timestamp": "2026-06-22T10:30:00.000",
+  "traceID": "a1b2c3d4...",
+  "level": "info",
+  "message": "request completed",
+  "details": { "system": "orders-api", "method": "GET", "path": "/api/v1/orders" },
+  "proccess": [
+    { "system": "orders-api", "process": "GetOrders", "status": "OK", "latency": 12 }
+  ],
+  "method": "handler.go",
+  "line": 42,
+  "latency": 12
+}
+```
+
+### Salida de texto
+
+```text
+[2026-06-22T10:30:00.000] [info] [a1b2c3d4...] handler.go:42 - request completed latency=12ms | details={system=orders-api, method=GET, path=/api/v1/orders} | services=[{system=orders-api, process=GetOrders, status=OK, latency=12ms}]
+```
+
+### Templates custom
+
+Un formato custom es cualquier string que no sea `json`, `text`, `txt` o vacio.
+Se parsea como un `text/template` de Go y se ejecuta contra el valor
+`formatter.LogFormat` de cada entrada, asi que puedes referenciar sus campos
+exportados directamente:
+
+| Campo        | Tipo        | Descripcion                                   |
+| ------------ | ----------- | --------------------------------------------- |
+| `.Timestamp` | `string`    | Timestamp formateado (`logger.formatDate`)    |
+| `.TraceID`   | `string`    | Trace id de la entrada                        |
+| `.Level`     | `Level`     | `debug` / `info` / `warn` / `error`           |
+| `.Message`   | `string`    | Mensaje del log                               |
+| `.Details`   | `Details`   | Detalles de la request (system, method, path) |
+| `.Process`   | `[]Process` | Spans/procesos registrados                    |
+| `.Method`    | `string`    | Archivo fuente del call site                  |
+| `.Line`      | `int`       | Linea fuente del call site                    |
+| `.Latency`   | `int64`     | Latencia en milisegundos                      |
+
+Los templates tambien pueden usar estas funciones helper registradas:
+
+- `json v` — serializa cualquier valor a JSON
+- `buildDetails .Details` — normaliza `Details` en un map, descartando campos vacios
+- `buildServices .Process` — normaliza `[]Process` en un slice de maps
+
+Define el template como valor de `logger.formatter` en `application.yaml`. Es un
+string de una sola linea (el codigo fuente del template), asi que usa comillas y
+mantenlo en una linea:
+
+```yaml
+logger:
+  formatter: '{{.Level}} | {{.Message}} | {{json (buildServices .Process)}}'
+```
+
+Con la entrada de los ejemplos de arriba, eso produce:
+
+```text
+info | request completed | [{"latency":12,"process":"GetOrders","status":"OK","system":"orders-api"}]
+```
+
+**Importante — los templates custom no pueden renombrar las keys JSON.** Tras
+renderizar, `Format` comprueba si la salida es JSON valido: si lo es, los bytes
+se deserializan de vuelta a `LogFormat` y se re-serializan, asi que cualquier
+key que no coincida con un struct tag se descarta y se emiten las keys estandar
+con sus nombres de struct tag. Este valor en `application.yaml/json`:
+
+```yaml
+logger:
+  formatter: '{"ts":{{json .Timestamp}},"lvl":{{json .Level}}}'
+```
+
+**no** produce `{"ts":...,"lvl":...}`; pierde `ts`/`lvl` y recae en las keys JSON
+por defecto con valores vacios. Los templates custom solo conservan sus propias
+etiquetas cuando la salida renderizada **no** es JSON valido (como la forma
+`level | message | …` de arriba) — control total sobre las etiquetas, a costa de
+perder el JSON estructurado.
 
 ## Pruebas
 

@@ -278,9 +278,9 @@ github.com/PointerByte/GoForge/cmd/go-openssl/code/generator.go:792.2,792.87 1 1
 github.com/PointerByte/GoForge/cmd/go-openssl/code/generator.go:795.56,797.16 2 12
 github.com/PointerByte/GoForge/cmd/go-openssl/code/generator.go:797.16,799.3 1 0
 github.com/PointerByte/GoForge/cmd/go-openssl/code/generator.go:800.2,800.85 1 12
-github.com/PointerByte/GoForge/cmd/go-openssl/code/generator.go:810.57,812.21 2 5
-github.com/PointerByte/GoForge/cmd/go-openssl/code/generator.go:812.21,813.30 1 5
-github.com/PointerByte/GoForge/cmd/go-openssl/code/generator.go:813.30,815.4 1 5
-github.com/PointerByte/GoForge/cmd/go-openssl/code/generator.go:817.3,819.41 3 5
-github.com/PointerByte/GoForge/cmd/go-openssl/code/generator.go:821.2,821.19 1 5
-github.com/PointerByte/GoForge/cmd/go-openssl/code/generator.go:824.48,840.2 6 5
+github.com/PointerByte/GoForge/cmd/go-openssl/code/generator.go:810.57,812.21 2 396
+github.com/PointerByte/GoForge/cmd/go-openssl/code/generator.go:812.21,813.30 1 1547
+github.com/PointerByte/GoForge/cmd/go-openssl/code/generator.go:813.30,815.4 1 1538
+github.com/PointerByte/GoForge/cmd/go-openssl/code/generator.go:817.3,819.41 3 1547
+github.com/PointerByte/GoForge/cmd/go-openssl/code/generator.go:821.2,821.19 1 396
+github.com/PointerByte/GoForge/cmd/go-openssl/code/generator.go:824.48,840.2 6 1538

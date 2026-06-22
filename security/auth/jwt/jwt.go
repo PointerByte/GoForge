@@ -45,7 +45,7 @@ var (
 
 const (
 	DefaultAlgorithmKey       = "jwt.algorithm"
-	DefaultHMACSecretKey      = "jwt.hmac.secret"
+	DefaultHMACSecretKey      = "jwt.hmac.secret" // #nosec G101 -- viper config key path, not a credential value
 	DefaultJWTPrivateKeyKey   = "jwt.keys.private_key"
 	DefaultJWTPublicKeyKey    = "jwt.keys.public_key"
 	DefaultRSAPrivateKeyKey   = "jwt.rsa.private_key"

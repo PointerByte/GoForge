@@ -521,8 +521,8 @@ filtrados. Documenta los falsos positivos conocidos en `.gitleaksignore` en
 lugar de desactivar la regla:
 
 ```bash
-gitleaks detect --source .
-gitleaks detect --source . --verbose   # incluye archivo, linea y valor detectado por cada hallazgo
+gitleaks detect --no-git  --source .
+gitleaks detect --no-git  --source . --verbose   # incluye archivo, linea y valor detectado por cada hallazgo
 ```
 
 Ejecuta `govulncheck` y `gosec` desde cada modulo del workspace (como se

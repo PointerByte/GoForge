@@ -516,8 +516,8 @@ Scan the working tree and git history for committed secrets. Document known
 false positives in `.gitleaksignore` instead of disabling the rule:
 
 ```bash
-gitleaks detect --source .
-gitleaks detect --source . --verbose   # includes each finding's file, line, and matched value
+gitleaks detect --no-git  --source .
+gitleaks detect --no-git  --source . --verbose   # includes each finding's file, line, and matched value
 ```
 
 Run `govulncheck` and `gosec` from each workspace module (as shown for

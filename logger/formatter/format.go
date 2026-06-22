@@ -23,7 +23,7 @@ type CustomFormatter struct {
 	Template string
 }
 
-const defaultJSONTemplate = `{"timestamp":{{json .Timestamp}},"traceID":{{json .TraceID}},"level":{{json .Level}},"message":{{json .Message}},"details":{{json (buildDetails .Details)}},"services":{{json (buildServices .Services)}},"method":{{json .Method}},"line":{{json .Line}},"latency":{{json .Latency}}}`
+const defaultJSONTemplate = `{"timestamp":{{json .Timestamp}},"traceID":{{json .TraceID}},"level":{{json .Level}},"message":{{json .Message}},"details":{{json (buildDetails .Details)}},"proccess":{{json (buildServices .Process)}},"method":{{json .Method}},"line":{{json .Line}},"latency":{{json .Latency}}}`
 
 func (f *CustomFormatter) Format(log LogFormat) ([]byte, error) {
 	switch strings.ToLower(strings.TrimSpace(f.Template)) {

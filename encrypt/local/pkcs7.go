@@ -5,16 +5,18 @@ package local
 
 import "errors"
 
-// pkcs7Pad applies PKCS#7 padding to b for the given block size.
+// pkcs7Pad applies PKCS#7 padding to b for the given block size. PKCS#7 encodes
+// the pad length in a single byte, so blockSize must be in the range 1..255.
 func pkcs7Pad(b []byte, blockSize int) []byte {
-	if blockSize <= 0 {
-		panic("blockSize must be > 0")
+	if blockSize <= 0 || blockSize > 255 {
+		panic("blockSize must be in the range 1..255")
 	}
 	padLen := blockSize - (len(b) % blockSize)
 	if padLen == 0 {
 		padLen = blockSize
 	}
-	pad := bytesRepeat(byte(padLen), padLen)
+	// padLen is bounded by blockSize (<=255), so it always fits in a byte.
+	pad := bytesRepeat(byte(padLen), padLen) // #nosec G115 -- padLen <= blockSize <= 255
 	return append(b, pad...)
 }
 
@@ -24,13 +26,14 @@ func pkcs7Unpad(b []byte, blockSize int) ([]byte, error) {
 	if len(b) == 0 || len(b)%blockSize != 0 {
 		return nil, errors.New("invalid padding: size")
 	}
-	padLen := int(b[len(b)-1])
+	padByte := b[len(b)-1]
+	padLen := int(padByte)
 	if padLen == 0 || padLen > blockSize || padLen > len(b) {
 		return nil, errors.New("invalid padding: length")
 	}
 
 	for i := range padLen {
-		if b[len(b)-1-i] != byte(padLen) {
+		if b[len(b)-1-i] != padByte {
 			return nil, errors.New("invalid padding: content")
 		}
 	}

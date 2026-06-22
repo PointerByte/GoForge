@@ -546,7 +546,8 @@ func (repository *asymmetricRepository) GenerateRSAKeys(ctx context.Context, inp
 	keyName := fmt.Sprintf("%s-%d", azureAsymmetricKeyPrefix, time.Now().UnixNano())
 	response, err := client.CreateKey(ctx, keyName, azkeys.CreateKeyParameters{
 		Kty:     ptr(azkeys.KeyTypeRSA),
-		KeySize: ptr(int32(keySize)),
+		KeySize: ptr(int32(keySize)), // #nosec G115 -- azureRSAKeySize only returns 2048/3072/4096, well within int32
+
 		KeyOps: []*azkeys.KeyOperation{
 			ptr(azkeys.KeyOperationEncrypt),
 			ptr(azkeys.KeyOperationDecrypt),

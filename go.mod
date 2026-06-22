@@ -9,8 +9,8 @@ replace (
 )
 
 require (
-	github.com/PointerByte/GoForge/logger v0.0.46
-	github.com/PointerByte/GoForge/security v0.0.52
+	github.com/PointerByte/GoForge/logger v0.0.47
+	github.com/PointerByte/GoForge/security v0.0.53
 	github.com/gin-contrib/cors v1.7.7
 	github.com/gin-gonic/gin v1.12.0
 	github.com/golang/mock v1.6.0

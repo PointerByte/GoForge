@@ -41,7 +41,9 @@ func NewApp() *App {
 			Err: os.Stderr,
 		},
 		runner: func(dir string, args ...string) error {
-			command := exec.Command("go", args...)
+			// The executable is the fixed "go" toolchain and exec.Command does
+			// not use a shell; only scaffolder-controlled subcommands are passed.
+			command := exec.Command("go", args...) // #nosec G204 -- fixed "go" binary, scaffolder-controlled args, no shell
 			command.Dir = dir
 			command.Stdout = os.Stdout
 			command.Stderr = os.Stderr

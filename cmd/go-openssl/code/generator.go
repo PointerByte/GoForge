@@ -15,6 +15,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
@@ -283,7 +284,7 @@ func (generator *Generator) UpdateEncryptionSecret(options UpdateEncryptionSecre
 }
 
 func (generator *Generator) prepareReencryptedPEMFile(path string, kind string, oldSecret string, newSecret string, randomSource io.Reader, mode os.FileMode) (pemFileUpdate, error) {
-	content, err := os.ReadFile(path)
+	content, err := os.ReadFile(path) // #nosec G304 -- user-provided PEM/key/cert path is the intended CLI input
 	if err != nil {
 		return pemFileUpdate{}, err
 	}
@@ -563,7 +564,7 @@ func loadSigningCA(certPath string, keyPath string, certSecret string, keySecret
 }
 
 func readCertificatePEMFile(path string, secret string) (*x509.Certificate, error) {
-	content, err := os.ReadFile(path)
+	content, err := os.ReadFile(path) // #nosec G304 -- user-provided PEM/key/cert path is the intended CLI input
 	if err != nil {
 		return nil, err
 	}
@@ -585,7 +586,7 @@ func readCertificatePEMFile(path string, secret string) (*x509.Certificate, erro
 }
 
 func readPrivateKeyPEMFile(path string, secret string) (any, error) {
-	content, err := os.ReadFile(path)
+	content, err := os.ReadFile(path) // #nosec G304 -- user-provided PEM/key/cert path is the intended CLI input
 	if err != nil {
 		return nil, err
 	}
@@ -615,7 +616,7 @@ func readPrivateKeyPEMFile(path string, secret string) (any, error) {
 // ReadPEMFile reads a PEM file and decrypts it when it contains a GoForge
 // encrypted PEM envelope.
 func ReadPEMFile(path string, secret string) ([]byte, error) {
-	content, err := os.ReadFile(path)
+	content, err := os.ReadFile(path) // #nosec G304 -- user-provided PEM/key/cert path is the intended CLI input
 	if err != nil {
 		return nil, err
 	}
@@ -825,16 +826,9 @@ func (reader *saltedReader) nextBlock() []byte {
 	hash := sha256.New()
 	hash.Write(reader.seed)
 	hash.Write(reader.salt)
-	hash.Write([]byte{
-		byte(reader.counter >> 56),
-		byte(reader.counter >> 48),
-		byte(reader.counter >> 40),
-		byte(reader.counter >> 32),
-		byte(reader.counter >> 24),
-		byte(reader.counter >> 16),
-		byte(reader.counter >> 8),
-		byte(reader.counter),
-	})
+	var counterBytes [8]byte
+	binary.BigEndian.PutUint64(counterBytes[:], reader.counter)
+	hash.Write(counterBytes[:])
 	reader.counter++
 	return hash.Sum(nil)
 }

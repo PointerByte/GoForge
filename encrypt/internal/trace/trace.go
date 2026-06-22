@@ -54,8 +54,8 @@ func Start(ctx context.Context, process string) func(error) {
 
 	return func(err error) {
 		if err != nil {
-			svc.Status = formatter.ERROR
-			svc.Err = err
+			svc.SetStatus(formatter.ERROR)
+			svc.SetError(err)
 		}
 		log.TraceEnd(svc)
 	}

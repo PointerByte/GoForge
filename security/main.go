@@ -26,8 +26,8 @@ import (
 )
 
 // No use in production!
-const demoJWTSecret = "oXPZp-Y9yu2zmfECMU*_"
-const demoCustomJWTSecret = "custom-demo-secret"
+const demoJWTSecret = "oXPZp-Y9yu2zmfECMU*_"     // #nosec G101 -- example-only secret for the demo server, not used in production
+const demoCustomJWTSecret = "custom-demo-secret" // #nosec G101 -- example-only secret for the demo server, not used in production
 
 const (
 	hmacAlgorithmKey = "jwt.hmac.algorithm"

@@ -36,7 +36,7 @@ func TestCustomFormatter_Format(t *testing.T) {
 		Latency:   155,
 	}
 
-	jsonExpected := []byte(`{"timestamp":"2026-03-13T01:10:23.123","traceID":"8f3a5d9c-9f2a-4e1d-b3a7-7f23d9a1e4aa","level":"","message":"Request processed successfully","details":{"system":""},"services":[],"method":"ProcessPayment","line":142,"latency":155}`)
+	jsonExpected := []byte(`{"timestamp":"2026-03-13T01:10:23.123","traceID":"8f3a5d9c-9f2a-4e1d-b3a7-7f23d9a1e4aa","level":"","message":"Request processed successfully","details":{"system":""},"proccess":[],"method":"ProcessPayment","line":142,"latency":155}`)
 
 	textExpectedWithTime := []byte(fmt.Sprintf(
 		"[%s] [%v] [%s] %s:%d - %s latency=%dms",
@@ -487,6 +487,69 @@ func TestDetails_SetResponse(t *testing.T) {
 
 	if !reflect.DeepEqual(k.Response, resp) {
 		t.Fatalf("Response = %#v, want %#v", k.Response, resp)
+	}
+}
+
+func TestProcess_SetStatus(t *testing.T) {
+	s := &Process{}
+
+	s.SetStatus(ERROR)
+
+	if s.Status != ERROR {
+		t.Fatalf("Status = %v, want %v", s.Status, ERROR)
+	}
+}
+
+func TestProcess_SetMessage(t *testing.T) {
+	s := &Process{}
+
+	msg := map[string]any{"info": "processed"}
+	s.SetMessage(msg)
+
+	if !reflect.DeepEqual(s.Message, msg) {
+		t.Fatalf("Message = %#v, want %#v", s.Message, msg)
+	}
+}
+
+func TestProcess_SetError(t *testing.T) {
+	s := &Process{}
+
+	err := fmt.Errorf("boom")
+	s.SetError(err)
+
+	if s.Err != err {
+		t.Fatalf("Err = %v, want %v", s.Err, err)
+	}
+}
+
+func TestProcess_SetRequest(t *testing.T) {
+	s := &Process{}
+
+	req := map[string]any{
+		"id":      123,
+		"message": "hello",
+	}
+	s.SetRequest(req)
+
+	if !reflect.DeepEqual(s.Request, req) {
+		t.Fatalf("Request = %#v, want %#v", s.Request, req)
+	}
+}
+
+func TestProcess_SetResponse(t *testing.T) {
+	s := &Process{}
+
+	resp := struct {
+		Code int
+		OK   bool
+	}{
+		Code: 200,
+		OK:   true,
+	}
+	s.SetResponse(resp)
+
+	if !reflect.DeepEqual(s.Response, resp) {
+		t.Fatalf("Response = %#v, want %#v", s.Response, resp)
 	}
 }
 

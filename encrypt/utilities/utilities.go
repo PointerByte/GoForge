@@ -371,7 +371,10 @@ func DecodeECCCipherPayload(cipherText string) (*ECCCipherPayload, error) {
 }
 
 func readPEMFile(path string) ([]byte, error) {
-	content, err := os.ReadFile(path)
+	// The PEM file path is supplied by the caller (an operator-configured key
+	// location), so reading it by variable path is the intended behavior.
+	content, err := os.ReadFile(path) // #nosec G304 -- caller-provided key file path
+
 	if err != nil {
 		return nil, fmt.Errorf("read PEM file: %w", err)
 	}

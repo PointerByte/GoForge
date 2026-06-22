@@ -190,20 +190,20 @@ func classifyStatus(process *formatter.Process) {
 		if process.Status != "" {
 			return
 		}
-		process.Status = formatter.SUCCESS
+		process.SetStatus(formatter.SUCCESS)
 	case process.Code >= 200 && process.Code < 300:
-		process.Status = formatter.SUCCESS
+		process.SetStatus(formatter.SUCCESS)
 	case process.Code >= 300 && process.Code < 400:
-		process.Status = formatter.OTHER
+		process.SetStatus(formatter.OTHER)
 	case process.Code >= 400 && process.Code < 500:
-		process.Status = formatter.CLIENT_ERROR
+		process.SetStatus(formatter.CLIENT_ERROR)
 	case process.Code >= 500 && process.Code < 600:
-		process.Status = formatter.ERROR
+		process.SetStatus(formatter.ERROR)
 	default:
 		if process.Status != "" {
 			return
 		}
-		process.Status = formatter.UNKNOWN
+		process.SetStatus(formatter.UNKNOWN)
 	}
 }
 

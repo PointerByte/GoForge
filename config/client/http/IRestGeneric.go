@@ -211,8 +211,8 @@ func (gr *RestGeneric) PostGeneric(ctx context.Context, input RequestGeneric) er
 
 	req, err := json.Marshal(input.Request)
 	if err != nil {
-		if gr.disableTrace {
-			process.Status = formatter.ERROR
+		if !gr.disableTrace {
+			process.SetStatus(formatter.ERROR)
 		}
 		return err
 	}
@@ -308,6 +308,9 @@ func (gr *RestGeneric) PutGeneric(ctx context.Context, input RequestGeneric) err
 
 	req, err := json.Marshal(input.Request)
 	if err != nil {
+		if !gr.disableTrace {
+			process.SetStatus(formatter.ERROR)
+		}
 		return err
 	}
 	gr.newIRest.SetRequest(input.HttpRequest)
@@ -342,6 +345,9 @@ func (gr *RestGeneric) PatchGeneric(ctx context.Context, input RequestGeneric) e
 
 	req, err := json.Marshal(input.Request)
 	if err != nil {
+		if !gr.disableTrace {
+			process.SetStatus(formatter.ERROR)
+		}
 		return err
 	}
 	gr.newIRest.SetRequest(input.HttpRequest)
@@ -377,6 +383,9 @@ func (gr *RestGeneric) OptionGeneric(ctx context.Context, input RequestGeneric) 
 
 	req, err := json.Marshal(input.Request)
 	if err != nil {
+		if !gr.disableTrace {
+			process.SetStatus(formatter.ERROR)
+		}
 		return err
 	}
 	gr.newIRest.SetRequest(input.HttpRequest)

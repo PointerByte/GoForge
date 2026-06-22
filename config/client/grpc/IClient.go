@@ -273,7 +273,7 @@ func buildService(service *formatter.Process, reqBody, object any, method, targe
 	}
 
 	if hasError(err) {
-		service.Status = formatter.ERROR
+		service.SetStatus(formatter.ERROR)
 		service.Code = int64(status.Code(err))
 		if !service.DisableBody {
 			service.SetRequest(reqBody)
@@ -282,7 +282,7 @@ func buildService(service *formatter.Process, reqBody, object any, method, targe
 		return nil
 	}
 
-	service.Status = formatter.SUCCESS
+	service.SetStatus(formatter.SUCCESS)
 	service.Code = int64(codes.OK)
 	if !service.DisableBody {
 		service.SetRequest(reqBody)

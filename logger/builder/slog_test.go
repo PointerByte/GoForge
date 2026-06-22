@@ -187,9 +187,9 @@ func TestJSONHandler_Handle_JSON(t *testing.T) {
 		t.Fatalf("details.path = %#v, want %#v", details["path"], "/loan/simulate")
 	}
 
-	servicesAny, ok := decoded["services"]
+	servicesAny, ok := decoded["proccess"]
 	if !ok {
-		t.Fatal("services field not found")
+		t.Fatal("proccess field not found")
 	}
 	services, ok := servicesAny.([]any)
 	if !ok {

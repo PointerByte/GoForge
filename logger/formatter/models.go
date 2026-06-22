@@ -82,14 +82,13 @@ type Process struct {
 	Path     string       `json:"path,omitempty"`
 
 	DisableBody bool `json:"-"`
-	Request     any  `json:"request,omitempty"`
-	Response    any  `json:"response,omitempty"`
 
-	Status  Status `json:"status"`
-	Message any    `json:"message,omitempty"`
-	Err     error  `json:"error,omitempty"`
-
-	Latency int64 `json:"latency"`
+	Request  any    `json:"request,omitempty"`
+	Response any    `json:"response,omitempty"`
+	Status   Status `json:"status"`
+	Message  any    `json:"message,omitempty"`
+	Err      error  `json:"error,omitempty"`
+	Latency  int64  `json:"latency"`
 
 	TimeInit time.Time  `json:"-"`
 	Span     trace.Span `json:"-"`

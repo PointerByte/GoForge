@@ -40,7 +40,7 @@ require (
 )
 
 require (
-	github.com/PointerByte/GoForge/encrypt v0.0.27 // indirect
+	github.com/PointerByte/GoForge/encrypt v0.0.28 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bytedance/gopkg v0.1.4 // indirect
 	github.com/bytedance/sonic v1.15.2 // indirect

@@ -253,7 +253,7 @@ func TestFormatText_WithDetailsAndServices(t *testing.T) {
 			Request:  map[string]any{"amount": 100},
 			Response: map[string]any{"ok": true},
 		},
-		Services: []Service{
+		Process: []Process{
 			{
 				TraceID:  "sat-001",
 				System:   "auth-service",
@@ -560,7 +560,7 @@ func TestBuildServices(t *testing.T) {
 		req := map[string]any{"token": "abc"}
 		resp := map[string]any{"valid": true}
 
-		got := buildServices([]Service{
+		got := buildServices([]Process{
 			{
 				TraceID:  "sat-001",
 				System:   "auth-service",
@@ -600,7 +600,7 @@ func TestBuildServices(t *testing.T) {
 	})
 
 	t.Run("empty service produces empty map", func(t *testing.T) {
-		got := buildServices([]Service{{}})
+		got := buildServices([]Process{{}})
 
 		want := []map[string]any{{}}
 
@@ -610,7 +610,7 @@ func TestBuildServices(t *testing.T) {
 	})
 
 	t.Run("zero values are omitted", func(t *testing.T) {
-		got := buildServices([]Service{
+		got := buildServices([]Process{
 			{
 				System: "score-engine",
 			},
@@ -628,7 +628,7 @@ func TestBuildServices(t *testing.T) {
 	})
 
 	t.Run("multiple services", func(t *testing.T) {
-		got := buildServices([]Service{
+		got := buildServices([]Process{
 			{
 				TraceID: "sat-001",
 				System:  "auth-service",

@@ -45,7 +45,7 @@ func Start(ctx context.Context, process string) func(error) {
 		return func(error) {}
 	}
 
-	svc := &formatter.Service{
+	svc := &formatter.Process{
 		System:  system,
 		Process: process,
 		Status:  formatter.SUCCESS,
@@ -55,6 +55,7 @@ func Start(ctx context.Context, process string) func(error) {
 	return func(err error) {
 		if err != nil {
 			svc.Status = formatter.ERROR
+			svc.Err = err
 		}
 		log.TraceEnd(svc)
 	}

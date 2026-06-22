@@ -18,7 +18,7 @@ type LogFormat struct {
 	TraceID   string    `json:"traceID"`
 	Message   string    `json:"message"`
 	Details   Details   `json:"details"`
-	Services  []Service `json:"services"`
+	Process   []Process `json:"proccess"`
 	Timestamp string    `json:"timestamp"`
 	Method    string    `json:"method"`
 	Line      int       `json:"line"`
@@ -69,7 +69,7 @@ func (k *Details) SetResponse(response any) {
 	k.Response = response
 }
 
-type Service struct {
+type Process struct {
 	TraceID string `json:"traceID,omitempty"`
 	System  string `json:"system"`
 	Process string `json:"process"`
@@ -86,8 +86,31 @@ type Service struct {
 	Response    any  `json:"response,omitempty"`
 
 	Status  Status `json:"status"`
-	Latency int64  `json:"latency"`
+	Message any    `json:"message,omitempty"`
+	Err     error  `json:"error,omitempty"`
+
+	Latency int64 `json:"latency"`
 
 	TimeInit time.Time  `json:"-"`
 	Span     trace.Span `json:"-"`
+}
+
+func (s *Process) SetStatus(status Status) {
+	s.Status = status
+}
+
+func (s *Process) SetMessage(msg any) {
+	s.Message = msg
+}
+
+func (s *Process) SetError(err error) {
+	s.Err = err
+}
+
+func (s *Process) SetRequest(request any) {
+	s.Request = request
+}
+
+func (s *Process) SetResponse(response any) {
+	s.Response = response
 }

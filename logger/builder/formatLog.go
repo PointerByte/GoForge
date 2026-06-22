@@ -45,23 +45,23 @@ func (c *Context) customLogFormat() map[string]any {
 	}
 
 	// ---------- Services ----------
-	var services *[]formatter.Service
+	var services *[]formatter.Process
 	if v, ok := c.Get(servicesKey); ok {
-		services = v.(*[]formatter.Service)
+		services = v.(*[]formatter.Process)
 	}
 	defer func() {
 		c.mux.Lock()
-		*services = make([]formatter.Service, 0)
+		*services = make([]formatter.Process, 0)
 		c.mux.Unlock()
 	}()
 
 	// ---------- Format Logger ----------
 	entry := formatter.LogFormat{
-		TraceID:  traceID,
-		Details:  details,
-		Services: *services,
-		Method:   funcName,
-		Line:     line,
+		TraceID: traceID,
+		Details: details,
+		Process: *services,
+		Method:  funcName,
+		Line:    line,
 	}
 	jsonBytes, _ := json.Marshal(entry)
 	var m map[string]any
@@ -84,7 +84,7 @@ func (c *Context) customLogFormat() map[string]any {
 //	}
 //	ctx.TraceInit(process)
 //	defer ctx.TraceEnd(process)
-func (c *Context) TraceInit(process *formatter.Service) {
+func (c *Context) TraceInit(process *formatter.Process) {
 	if viperdata.GetViperData(string(viperdata.LoggerModeTestAtribute)).(bool) {
 		return
 	}
@@ -94,7 +94,7 @@ func (c *Context) TraceInit(process *formatter.Service) {
 	process.TimeInit = time.Now()
 }
 
-func (c *Context) startSpan(process *formatter.Service) {
+func (c *Context) startSpan(process *formatter.Process) {
 	if c.disableTrace {
 		return
 	}
@@ -115,7 +115,7 @@ func (c *Context) startSpan(process *formatter.Service) {
 // If the logger is in test mode, it performs no action.
 //
 // It should normally be used with defer immediately after TraceInit.
-func (c *Context) TraceEnd(process *formatter.Service) {
+func (c *Context) TraceEnd(process *formatter.Process) {
 	if viperdata.GetViperData(string(viperdata.LoggerModeTestAtribute)).(bool) {
 		return
 	}
@@ -138,14 +138,14 @@ func (c *Context) TraceEnd(process *formatter.Service) {
 	ignoreHeaders(process)
 
 	services, _ := c.Get(servicesKey)
-	vl := services.(*[]formatter.Service)
+	vl := services.(*[]formatter.Process)
 	process.Latency = time.Since(process.TimeInit).Milliseconds()
 	*vl = append(*vl, *process)
 
 	c.setSpanAttributes(process)
 }
 
-func ignoreHeaders(process *formatter.Service) {
+func ignoreHeaders(process *formatter.Process) {
 	if process.Headers == nil || *process.Headers == nil {
 		return
 	}
@@ -166,7 +166,7 @@ func ignoreHeaders(process *formatter.Service) {
 	process.Headers = &cloned
 }
 
-func (c *Context) setSpanAttributes(process *formatter.Service) {
+func (c *Context) setSpanAttributes(process *formatter.Process) {
 	if c.disableTrace {
 		return
 	}
@@ -174,7 +174,7 @@ func (c *Context) setSpanAttributes(process *formatter.Service) {
 	process.Span.SetAttributes(attribute.String(string(statusAtribute), string(process.Status)))
 }
 
-func (c *Context) setTraceID(process *formatter.Service) {
+func (c *Context) setTraceID(process *formatter.Process) {
 	if c.disableTrace {
 		return
 	}
@@ -184,7 +184,7 @@ func (c *Context) setTraceID(process *formatter.Service) {
 	}
 }
 
-func classifyStatus(process *formatter.Service) {
+func classifyStatus(process *formatter.Process) {
 	switch {
 	case process.Code == 0:
 		if process.Status != "" {

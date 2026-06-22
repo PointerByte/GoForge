@@ -66,8 +66,8 @@ func (s Sanitizer) LogFormat(log formatter.LogFormat) formatter.LogFormat {
 
 	log.Message = s.sanitizeString(log.Message)
 	log.Details = s.Details(log.Details)
-	for index := range log.Services {
-		log.Services[index] = s.Service(log.Services[index])
+	for index := range log.Process {
+		log.Process[index] = s.Service(log.Process[index])
 	}
 	return log
 }
@@ -89,7 +89,7 @@ func (s Sanitizer) Details(details formatter.Details) formatter.Details {
 }
 
 // Service redacts sensitive values in a traced downstream service entry.
-func (s Sanitizer) Service(service formatter.Service) formatter.Service {
+func (s Sanitizer) Service(service formatter.Process) formatter.Process {
 	if !s.Enabled() {
 		return service
 	}

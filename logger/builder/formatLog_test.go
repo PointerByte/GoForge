@@ -152,7 +152,7 @@ func TestClassifyStatus(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			process := &formatter.Service{
+			process := &formatter.Process{
 				Code:   tt.code,
 				Status: tt.initial,
 			}
@@ -171,7 +171,7 @@ func TestCustomLogFormat(t *testing.T) {
 
 	ctx := New(context.Background())
 
-	services := []formatter.Service{
+	services := []formatter.Process{
 		{
 			System:   "unit-test-system",
 			Process:  "custom-log-format",
@@ -214,10 +214,10 @@ func TestTraceInitAndTraceEnd_SuccessFlow(t *testing.T) {
 	resetViperForTest()
 
 	ctx := New(context.Background())
-	services := make([]formatter.Service, 0)
+	services := make([]formatter.Process, 0)
 	ctx.Set(servicesKey, &services)
 
-	process := &formatter.Service{
+	process := &formatter.Process{
 		System:   "unit-test-system",
 		Process:  "trace-success-flow",
 		Protocol: "HTTP/1.1",
@@ -255,10 +255,10 @@ func TestTraceEnd_StatusClassificationFlow(t *testing.T) {
 
 	t.Run("client error 4xx", func(t *testing.T) {
 		ctx := New(context.Background())
-		services := make([]formatter.Service, 0)
+		services := make([]formatter.Process, 0)
 		ctx.Set(servicesKey, &services)
 
-		process := &formatter.Service{
+		process := &formatter.Process{
 			System:  "unit-test-system",
 			Process: "trace-error-flow",
 			Code:    404,
@@ -278,10 +278,10 @@ func TestTraceEnd_StatusClassificationFlow(t *testing.T) {
 
 	t.Run("other 3xx", func(t *testing.T) {
 		ctx := New(context.Background())
-		services := make([]formatter.Service, 0)
+		services := make([]formatter.Process, 0)
 		ctx.Set(servicesKey, &services)
 
-		process := &formatter.Service{
+		process := &formatter.Process{
 			System:  "unit-test-system",
 			Process: "trace-other-flow",
 			Code:    302,
@@ -301,10 +301,10 @@ func TestTraceEnd_StatusClassificationFlow(t *testing.T) {
 
 	t.Run("error 5xx", func(t *testing.T) {
 		ctx := New(context.Background())
-		services := make([]formatter.Service, 0)
+		services := make([]formatter.Process, 0)
 		ctx.Set(servicesKey, &services)
 
-		process := &formatter.Service{
+		process := &formatter.Process{
 			System:  "unit-test-system",
 			Process: "trace-error-flow",
 			Code:    500,
@@ -324,10 +324,10 @@ func TestTraceEnd_StatusClassificationFlow(t *testing.T) {
 
 	t.Run("zero code success", func(t *testing.T) {
 		ctx := New(context.Background())
-		services := make([]formatter.Service, 0)
+		services := make([]formatter.Process, 0)
 		ctx.Set(servicesKey, &services)
 
-		process := &formatter.Service{
+		process := &formatter.Process{
 			System:  "unit-test-system",
 			Process: "trace-unknown-flow",
 			Code:    0,
@@ -352,10 +352,10 @@ func TestTraceInitAndTraceEnd_DisableTrace(t *testing.T) {
 	ctx := New(context.Background())
 	ctx.disableTrace = true
 
-	services := make([]formatter.Service, 0)
+	services := make([]formatter.Process, 0)
 	ctx.Set(servicesKey, &services)
 
-	process := &formatter.Service{
+	process := &formatter.Process{
 		System:  "unit-test-system",
 		Process: "trace-disabled",
 		Code:    200,
@@ -383,7 +383,7 @@ func TestSetTraceID_DisableTrace(t *testing.T) {
 	ctx := New(context.Background())
 	ctx.disableTrace = true
 
-	process := &formatter.Service{
+	process := &formatter.Process{
 		System:  "unit-test-system",
 		Process: "set-trace-id-disabled",
 		TraceID: "",
@@ -410,7 +410,7 @@ func TestTraceEnd_IgnoreHeaders(t *testing.T) {
 	})
 
 	ctx := New(context.Background())
-	services := make([]formatter.Service, 0)
+	services := make([]formatter.Process, 0)
 	ctx.Set(servicesKey, &services)
 
 	headers := http.Header{
@@ -420,7 +420,7 @@ func TestTraceEnd_IgnoreHeaders(t *testing.T) {
 		"Cookie":        {"session=123"},
 	}
 
-	process := &formatter.Service{
+	process := &formatter.Process{
 		System:  "unit-test-system",
 		Process: "trace-ignore-headers",
 		Code:    200,
@@ -551,14 +551,14 @@ func TestInfoDebugWarnAndError(t *testing.T) {
 				Protocol: "protocol-from-context",
 			})
 
-			process := &formatter.Service{
+			process := &formatter.Process{
 				System:  "unit-test",
 				Process: "test-trace",
 				Status:  formatter.SUCCESS,
 				Code:    200,
 			}
 
-			services := make([]formatter.Service, 0)
+			services := make([]formatter.Process, 0)
 			ctx.Set(servicesKey, &services)
 
 			ctx.TraceInit(process)

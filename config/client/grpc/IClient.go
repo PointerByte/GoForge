@@ -66,11 +66,11 @@ type Client struct {
 	mux         sync.RWMutex
 }
 
-type handlerTrace func(process *formatter.Service)
+type handlerTrace func(process *formatter.Process)
 
 type tracedClientStream struct {
 	grpc.ClientStream
-	service   *formatter.Service
+	service   *formatter.Process
 	traceEnd  handlerTrace
 	desc      *grpc.StreamDesc
 	target    string
@@ -232,9 +232,9 @@ func (s *tracedClientStream) finish(err error) {
 	})
 }
 
-func traceClient(ctx context.Context, system, process string, disableTraceBody bool) (*formatter.Service, handlerTrace) {
+func traceClient(ctx context.Context, system, process string, disableTraceBody bool) (*formatter.Process, handlerTrace) {
 	ctxLogger := builder.New(ctx)
-	service := &formatter.Service{
+	service := &formatter.Process{
 		System:      system,
 		Process:     process,
 		Status:      formatter.SUCCESS,
@@ -257,7 +257,7 @@ func contextWithTraceIDMetadata(ctx context.Context) context.Context {
 	return metadata.AppendToOutgoingContext(ctx, key, traceID)
 }
 
-func buildService(service *formatter.Service, reqBody, object any, method, target string, ctx context.Context, err error) error {
+func buildService(service *formatter.Process, reqBody, object any, method, target string, ctx context.Context, err error) error {
 	if service == nil {
 		return nil
 	}
@@ -276,8 +276,8 @@ func buildService(service *formatter.Service, reqBody, object any, method, targe
 		service.Status = formatter.ERROR
 		service.Code = int64(status.Code(err))
 		if !service.DisableBody {
-			service.Request = reqBody
-			service.Response = err.Error()
+			service.SetRequest(reqBody)
+			service.SetResponse(err.Error())
 		}
 		return nil
 	}
@@ -285,8 +285,8 @@ func buildService(service *formatter.Service, reqBody, object any, method, targe
 	service.Status = formatter.SUCCESS
 	service.Code = int64(codes.OK)
 	if !service.DisableBody {
-		service.Request = reqBody
-		service.Response = object
+		service.SetRequest(reqBody)
+		service.SetResponse(object)
 	}
 	return nil
 }

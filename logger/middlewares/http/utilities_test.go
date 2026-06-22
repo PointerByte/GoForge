@@ -134,7 +134,7 @@ func TestEnableTraceBody(t *testing.T) {
 				t.Fatalf("%q = %#v, want %#v", common.DisableTraceResponseBodyKey, gotResponseFlag, wantResponseFlag)
 			}
 
-			process := &formatter.Service{
+			process := &formatter.Process{
 				System:   "test-service",
 				Process:  "trace-process",
 				Code:     http.StatusOK,

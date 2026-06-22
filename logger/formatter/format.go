@@ -107,9 +107,9 @@ func (f *CustomFormatter) FormatText(log LogFormat) ([]byte, error) {
 	}
 
 	// Services
-	if len(log.Services) > 0 {
+	if len(log.Process) > 0 {
 		b.WriteString(" | services=[")
-		for i, s := range log.Services {
+		for i, s := range log.Process {
 			if i > 0 {
 				b.WriteString(", ")
 			}
@@ -240,7 +240,7 @@ func buildDetails(d Details) map[string]any {
 	return out
 }
 
-func buildServices(items []Service) []map[string]any {
+func buildServices(items []Process) []map[string]any {
 	out := make([]map[string]any, 0, len(items))
 	for _, s := range items {
 		row := map[string]any{}

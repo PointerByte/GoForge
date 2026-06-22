@@ -79,7 +79,7 @@ func newTestCtx() *Context {
 		Protocol: "HTTP",
 		Path:     "/loan/simulate",
 	})
-	services := make([]formatter.Service, 0)
+	services := make([]formatter.Process, 0)
 	ctx.Set(servicesKey, &services)
 
 	return ctx

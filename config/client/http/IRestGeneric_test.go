@@ -263,7 +263,7 @@ func TestRestGenericBuildService(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "http://api.example.test/v1/items", nil)
 		req.Header.Set("X-Test", "ok")
 		respObj := &response{}
-		service := &formatter.Service{}
+		service := &formatter.Process{}
 		gr := &RestGeneric{}
 
 		err := gr.buildService(service, map[string]any{"name": "Manuel"}, respObj, &http.Response{
@@ -303,7 +303,7 @@ func TestRestGenericBuildService(t *testing.T) {
 	})
 
 	t.Run("keeps response metadata without request or body", func(t *testing.T) {
-		service := &formatter.Service{}
+		service := &formatter.Process{}
 		gr := &RestGeneric{}
 
 		err := gr.buildService(service, nil, nil, &http.Response{
@@ -330,7 +330,7 @@ func TestRestGenericBuildService(t *testing.T) {
 
 	t.Run("ignores nil inputs", func(t *testing.T) {
 		gr := &RestGeneric{}
-		if err := gr.buildService(&formatter.Service{}, nil, nil, nil); err != nil {
+		if err := gr.buildService(&formatter.Process{}, nil, nil, nil); err != nil {
 			t.Fatalf("buildService(nil response) error = %v", err)
 		}
 		if err := gr.buildService(nil, nil, nil, &http.Response{}); err != nil {
@@ -340,7 +340,7 @@ func TestRestGenericBuildService(t *testing.T) {
 
 	t.Run("returns body close error", func(t *testing.T) {
 		wantErr := errors.New("close body")
-		service := &formatter.Service{}
+		service := &formatter.Process{}
 		respObj := &response{}
 		gr := &RestGeneric{}
 

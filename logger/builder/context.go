@@ -89,7 +89,7 @@ func New(parent context.Context) *Context {
 	newContext.SetTraceID(traceID)
 
 	// Initialize service collection
-	services := make([]formatter.Service, 0)
+	services := make([]formatter.Process, 0)
 	newContext.Set(servicesKey, &services)
 
 	// Save the *logger.Context* within the context for future retrieval

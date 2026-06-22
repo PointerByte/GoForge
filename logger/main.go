@@ -55,7 +55,7 @@ func init() {
 
 func subprocces(wg *sync.WaitGroup, ctxLogger *builder.Context) {
 	defer wg.Done()
-	process := formatter.Service{
+	process := formatter.Process{
 		System:  "subprocess",
 		Process: "execute subprocess",
 	}

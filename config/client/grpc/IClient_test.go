@@ -889,7 +889,7 @@ func TestHelpers(t *testing.T) {
 func TestBuildService(t *testing.T) {
 	resetClientGRPCTestState(t)
 
-	service := &formatter.Service{}
+	service := &formatter.Process{}
 	ctx := metadata.AppendToOutgoingContext(context.Background(), "x-request-id", "abc")
 	resp := &pb.HelloReply{Message: "ok"}
 
@@ -906,7 +906,7 @@ func TestBuildService(t *testing.T) {
 		t.Fatalf("service.Response = %#v, want %#v", service.Response, resp)
 	}
 
-	service = &formatter.Service{DisableBody: true}
+	service = &formatter.Process{DisableBody: true}
 	if err := buildService(service, "req", "resp", "/pkg.Service/Call", "localhost:50051", context.Background(), errors.New("boom")); err != nil {
 		t.Fatalf("buildService() error = %v", err)
 	}

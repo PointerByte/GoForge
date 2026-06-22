@@ -45,7 +45,7 @@ func TestLogFormatRedactsSensitiveKeys(t *testing.T) {
 			},
 			Response: `{"ok":false,"phone":"555-0100"}`,
 		},
-		Services: []formatter.Service{
+		Process: []formatter.Process{
 			{
 				System:  "auth",
 				Request: loginRequest{Email: "service@example.com", Password: "service-secret", Public: "ok"},
@@ -229,7 +229,7 @@ func TestSanitizerCoversGuardBranches(t *testing.T) {
 	if got := disabled.Details(details); got.Client != details.Client {
 		t.Fatalf("disabled Details changed value: %#v", got)
 	}
-	if got := disabled.Service(formatter.Service{Server: "email=person@example.com"}); got.Server != "email=person@example.com" {
+	if got := disabled.Service(formatter.Process{Server: "email=person@example.com"}); got.Server != "email=person@example.com" {
 		t.Fatalf("disabled Service changed value: %#v", got)
 	}
 	if got := disabled.Headers(http.Header{"Email": {"person@example.com"}}); got.Get("Email") != "person@example.com" {

@@ -100,11 +100,11 @@ func NewGenericRestFromConfig() (IRestGeneric, error) {
 	return NewConfiguredGenericRest(clientHTTPTimeout(), nil)
 }
 
-type handlerTrace func(process *formatter.Service)
+type handlerTrace func(process *formatter.Process)
 
-func traceClient(ctx context.Context, system, process string, disableTraceBody bool) (*formatter.Service, handlerTrace) {
+func traceClient(ctx context.Context, system, process string, disableTraceBody bool) (*formatter.Process, handlerTrace) {
 	ctxLogger := builder.New(ctx)
-	service := &formatter.Service{
+	service := &formatter.Process{
 		System:      system,
 		Process:     process,
 		Status:      formatter.SUCCESS,
@@ -139,7 +139,7 @@ func headersWithTraceID(ctx context.Context, header http.Header) http.Header {
 // The response body is always drained and closed before the function returns.
 // If JSON decoding fails, the function tries to read the remaining body and
 // stores its raw string representation instead.
-func (gr *RestGeneric) buildService(service *formatter.Service, reqBody, object any, resp *http.Response) (err error) {
+func (gr *RestGeneric) buildService(service *formatter.Process, reqBody, object any, resp *http.Response) (err error) {
 	if gr.disableTrace || service == nil || resp == nil {
 		return nil
 	}
@@ -155,7 +155,7 @@ func (gr *RestGeneric) buildService(service *formatter.Service, reqBody, object 
 		}
 		service.Headers = &req.Header
 		service.Method = req.Method
-		service.Request = reqBody
+		service.SetRequest(reqBody)
 	}
 
 	if resp.Body == nil {
@@ -175,10 +175,10 @@ func (gr *RestGeneric) buildService(service *formatter.Service, reqBody, object 
 		if err != nil {
 			return fmt.Errorf("problem decoding the response: %w", err)
 		}
-		service.Response = string(_respBody)
+		service.SetResponse(string(_respBody))
 		return nil
 	}
-	service.Response = object
+	service.SetResponse(object)
 	return nil
 }
 
@@ -195,7 +195,7 @@ func (gr *RestGeneric) DisableTrace() {
 // The input.Request is serialized into JSON and the response is
 // deserialized into input.Response.
 func (gr *RestGeneric) PostGeneric(ctx context.Context, input RequestGeneric) error {
-	var process *formatter.Service
+	var process *formatter.Process
 	var traceEnd handlerTrace
 	if !gr.disableTrace {
 		process, traceEnd = traceClient(ctx, input.System, input.Process, input.DisableTraceBody)
@@ -265,7 +265,7 @@ func buildURL(input RequestGeneric) (string, error) {
 // and appended to the final URL. The response is deserialized into
 // input.Response.
 func (gr *RestGeneric) GetGeneric(ctx context.Context, input RequestGeneric) error {
-	var process *formatter.Service
+	var process *formatter.Process
 	var traceEnd handlerTrace
 	if !gr.disableTrace {
 		process, traceEnd = traceClient(ctx, input.System, input.Process, input.DisableTraceBody)
@@ -292,7 +292,7 @@ func (gr *RestGeneric) GetGeneric(ctx context.Context, input RequestGeneric) err
 // The input.Request is serialized into JSON and the response is
 // deserialized into input.Response.
 func (gr *RestGeneric) PutGeneric(ctx context.Context, input RequestGeneric) error {
-	var process *formatter.Service
+	var process *formatter.Process
 	var traceEnd handlerTrace
 	if !gr.disableTrace {
 		process, traceEnd = traceClient(ctx, input.System, input.Process, input.DisableTraceBody)
@@ -326,7 +326,7 @@ func (gr *RestGeneric) PutGeneric(ctx context.Context, input RequestGeneric) err
 // The input.Request is serialized into JSON and the response is
 // deserialized into input.Response.
 func (gr *RestGeneric) PatchGeneric(ctx context.Context, input RequestGeneric) error {
-	var process *formatter.Service
+	var process *formatter.Process
 	var traceEnd handlerTrace
 	if !gr.disableTrace {
 		process, traceEnd = traceClient(ctx, input.System, input.Process, input.DisableTraceBody)
@@ -361,7 +361,7 @@ func (gr *RestGeneric) PatchGeneric(ctx context.Context, input RequestGeneric) e
 // a remote resource. If the response contains a body, it will be
 // deserialized into input.Response.
 func (gr *RestGeneric) OptionGeneric(ctx context.Context, input RequestGeneric) error {
-	var process *formatter.Service
+	var process *formatter.Process
 	var traceEnd handlerTrace
 	if !gr.disableTrace {
 		process, traceEnd = traceClient(ctx, input.System, input.Process, input.DisableTraceBody)

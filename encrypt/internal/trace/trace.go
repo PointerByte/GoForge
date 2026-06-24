@@ -34,7 +34,7 @@ const system = "encrypt"
 // Usage for methods that return an error (named result required):
 //
 //	end := trace.Start(ctx, "aws-kms/EncryptAES")
-//	defer func() { end(err) }()
+//	defer end(err)
 //
 // Usage for methods without an error result:
 //

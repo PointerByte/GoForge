@@ -71,6 +71,7 @@ func (k *Details) SetResponse(response any) {
 
 type Process struct {
 	TraceID string `json:"traceID,omitempty"`
+	SpanID  string `json:"spanID,omitempty"`
 	System  string `json:"system"`
 	Process string `json:"process"`
 

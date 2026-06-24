@@ -128,6 +128,9 @@ func (f *CustomFormatter) FormatText(log LogFormat) ([]byte, error) {
 			if s.TraceID != "" {
 				writeServiceField("traceID", s.TraceID)
 			}
+			if s.SpanID != "" {
+				writeServiceField("spanID", s.SpanID)
+			}
 			if s.System != "" {
 				writeServiceField("system", s.System)
 			}
@@ -246,6 +249,9 @@ func buildServices(items []Process) []map[string]any {
 		row := map[string]any{}
 		if s.TraceID != "" {
 			row["traceID"] = s.TraceID
+		}
+		if s.SpanID != "" {
+			row["spanID"] = s.SpanID
 		}
 		if s.System != "" {
 			row["system"] = s.System

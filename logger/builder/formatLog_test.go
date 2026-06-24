@@ -387,12 +387,16 @@ func TestSetTraceID_DisableTrace(t *testing.T) {
 		System:  "unit-test-system",
 		Process: "set-trace-id-disabled",
 		TraceID: "",
+		SpanID:  "",
 	}
 
 	ctx.setTraceID(process)
 
 	if process.TraceID != "" {
 		t.Fatalf("expected empty IdTrace when trace is disabled, got %q", process.TraceID)
+	}
+	if process.SpanID != "" {
+		t.Fatalf("expected empty SpanID when trace is disabled, got %q", process.SpanID)
 	}
 }
 

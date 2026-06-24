@@ -256,6 +256,7 @@ func TestFormatText_WithDetailsAndServices(t *testing.T) {
 		Process: []Process{
 			{
 				TraceID:  "sat-001",
+				SpanID:   "span-001",
 				System:   "auth-service",
 				Process:  "validate-token",
 				Server:   "auth.internal",
@@ -296,6 +297,7 @@ func TestFormatText_WithDetailsAndServices(t *testing.T) {
 		`response={"ok":true}`,
 		"services=[",
 		"traceID=sat-001",
+		"spanID=span-001",
 		"system=auth-service",
 		"process=validate-token",
 		"server=auth.internal",
@@ -604,6 +606,7 @@ func TestBuildServices(t *testing.T) {
 		got := buildServices([]Process{
 			{
 				TraceID:  "sat-001",
+				SpanID:   "span-001",
 				System:   "auth-service",
 				Process:  "validate-token",
 				Server:   "auth.internal",
@@ -621,6 +624,7 @@ func TestBuildServices(t *testing.T) {
 		want := []map[string]any{
 			{
 				"traceID":  "sat-001",
+				"spanID":   "span-001",
 				"system":   "auth-service",
 				"process":  "validate-token",
 				"server":   "auth.internal",
@@ -672,10 +676,12 @@ func TestBuildServices(t *testing.T) {
 		got := buildServices([]Process{
 			{
 				TraceID: "sat-001",
+				SpanID:  "span-001",
 				System:  "auth-service",
 			},
 			{
 				TraceID: "sat-002",
+				SpanID:  "span-002",
 				System:  "score-engine",
 			},
 		})
@@ -683,10 +689,12 @@ func TestBuildServices(t *testing.T) {
 		want := []map[string]any{
 			{
 				"traceID": "sat-001",
+				"spanID":  "span-001",
 				"system":  "auth-service",
 			},
 			{
 				"traceID": "sat-002",
+				"spanID":  "span-002",
 				"system":  "score-engine",
 			},
 		}

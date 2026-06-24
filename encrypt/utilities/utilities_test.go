@@ -414,14 +414,14 @@ func TestSharedHelpers(t *testing.T) {
 	if err != nil || curve != ecdh.P256() {
 		t.Fatalf("ResolveECDHCurve() = %v, %v", curve, err)
 	}
-	if _, err := ResolveECDHCurve("P-111"); err == nil {
+	if _, err := ResolveECDHCurve(common.CurveAsymmetricKey(99)); err == nil {
 		t.Fatal("expected ResolveECDHCurve() error")
 	}
-	if name, err := CurveNameFromECDH(ecdh.P521()); err != nil || name != string(common.CurveP521) {
+	if name, err := CurveNameFromECDH(ecdh.P521()); err != nil || name != common.CurveP521.String() {
 		t.Fatalf("CurveNameFromECDH() = %q, %v", name, err)
 	}
 
-	derivedKey, err := DeriveECCAESKey([]byte("shared-secret"), string(common.CurveP256))
+	derivedKey, err := DeriveECCAESKey([]byte("shared-secret"), common.CurveP256.String())
 	if err != nil {
 		t.Fatalf("DeriveECCAESKey() error = %v", err)
 	}
@@ -430,7 +430,7 @@ func TestSharedHelpers(t *testing.T) {
 	}
 
 	payload := ECCCipherPayload{
-		Curve:              string(common.CurveP256),
+		Curve:              common.CurveP256.String(),
 		EphemeralPublicKey: "ephemeral",
 		Ciphertext:         "ciphertext",
 	}

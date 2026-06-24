@@ -698,7 +698,7 @@ func TestAWSKMSProviderErrorsAndFallbacks(t *testing.T) {
 	if _, err := asymmetricRepository.RSA_OAEP_Encode(testContext, models.RSAOAEPEncodeRequest{PublicKey: "", Text: "payload"}); err == nil {
 		t.Fatal("expected RSA_OAEP_Encode() key id error")
 	}
-	if _, err := asymmetricRepository.GenerateECDHCurveKeys(testContext, models.GenerateECDHCurveKeyRequest{Curve: "P-111"}); err == nil {
+	if _, err := asymmetricRepository.GenerateECDHCurveKeys(testContext, models.GenerateECDHCurveKeyRequest{Curve: common.CurveAsymmetricKey(99)}); err == nil {
 		t.Fatal("expected GenerateECDHCurveKeys() curve error")
 	}
 	viper.Set(defaultKMSARNKey, "arn:aws:kms:test")

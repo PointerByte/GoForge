@@ -48,7 +48,7 @@ func TestToAWSECCKeySpec(t *testing.T) {
 		{name: "P256", curve: common.CurveP256, want: types.KeySpecEccNistP256},
 		{name: "P384", curve: common.CurveP384, want: types.KeySpecEccNistP384},
 		{name: "P521", curve: common.CurveP521, want: types.KeySpecEccNistP521},
-		{name: "unsupported", curve: "P-000", wantErr: true},
+		{name: "unsupported", curve: common.CurveAsymmetricKey(99), wantErr: true},
 	}
 
 	for _, test := range tests {

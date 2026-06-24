@@ -200,7 +200,7 @@ func TestResolveECDHCurveAllCases(t *testing.T) {
 		{name: "P256", in: common.CurveP256, want: ecdh.P256()},
 		{name: "P384", in: common.CurveP384, want: ecdh.P384()},
 		{name: "P521", in: common.CurveP521, want: ecdh.P521()},
-		{name: "unsupported", in: "P-000", wantErr: true},
+		{name: "unsupported", in: common.CurveAsymmetricKey(99), wantErr: true},
 	}
 
 	for _, test := range tests {
@@ -229,9 +229,9 @@ func TestCurveNameFromECDHAllCases(t *testing.T) {
 		in   ecdh.Curve
 		want string
 	}{
-		{name: "P256", in: ecdh.P256(), want: string(common.CurveP256)},
-		{name: "P384", in: ecdh.P384(), want: string(common.CurveP384)},
-		{name: "P521", in: ecdh.P521(), want: string(common.CurveP521)},
+		{name: "P256", in: ecdh.P256(), want: common.CurveP256.String()},
+		{name: "P384", in: ecdh.P384(), want: common.CurveP384.String()},
+		{name: "P521", in: ecdh.P521(), want: common.CurveP521.String()},
 	}
 
 	for _, test := range tests {

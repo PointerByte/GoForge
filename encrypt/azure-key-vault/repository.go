@@ -163,7 +163,7 @@ func NewRepository() *Repository {
 
 func (repository *symmetricRepository) GenerateSymetrycKeys(ctx context.Context, input models.GenerateSymmetricKeyRequest) (data *models.KeyData, err error) {
 	end := trace.Start(ctx, "azure-key-vault/GenerateSymetrycKeys")
-	defer func() { end(err) }()
+	defer end(err)
 	if input.Size != common.Key256Bits {
 		return nil, fmt.Errorf("azure-key-vault: unsupported symmetric key size: %d", input.Size)
 	}
@@ -195,7 +195,7 @@ func (repository *symmetricRepository) GenerateSymetrycKeys(ctx context.Context,
 
 func (repository *keyRepository) RotateKey(ctx context.Context, input models.RotateKeyRequest) (data *models.KeyData, err error) {
 	end := trace.Start(ctx, "azure-key-vault/RotateKey")
-	defer func() { end(err) }()
+	defer end(err)
 	reference, err := resolveAzureKeyLookupReference(input.KeyID)
 	if err != nil {
 		return nil, err
@@ -228,7 +228,7 @@ func (repository *keyRepository) RotateKey(ctx context.Context, input models.Rot
 
 func (repository *keyRepository) GetKey(ctx context.Context, input models.GetKeyRequest) (data *models.KeyData, err error) {
 	end := trace.Start(ctx, "azure-key-vault/GetKey")
-	defer func() { end(err) }()
+	defer end(err)
 	reference, err := resolveAzureKeyLookupReference(input.KeyID)
 	if err != nil {
 		return nil, err
@@ -248,7 +248,7 @@ func (repository *keyRepository) GetKey(ctx context.Context, input models.GetKey
 
 func (repository *keyRepository) DeactivateKey(ctx context.Context, input models.DeactivateKeyRequest) (err error) {
 	end := trace.Start(ctx, "azure-key-vault/DeactivateKey")
-	defer func() { end(err) }()
+	defer end(err)
 	reference, err := resolveAzureKeyLookupReference(input.KeyID)
 	if err != nil {
 		return err
@@ -288,7 +288,7 @@ func (repository *keyRepository) DeactivateKey(ctx context.Context, input models
 
 func (repository *symmetricRepository) EncryptAES(ctx context.Context, input models.EncryptAESRequest) (out string, err error) {
 	end := trace.Start(ctx, "azure-key-vault/EncryptAES")
-	defer func() { end(err) }()
+	defer end(err)
 	if utilities.IsLocalAESKey(input.SecretKey) {
 		return repository.local.EncryptAES(ctx, input)
 	}
@@ -324,7 +324,7 @@ func (repository *symmetricRepository) EncryptAES(ctx context.Context, input mod
 
 func (repository *symmetricRepository) DecryptAES(ctx context.Context, input models.DecryptAESRequest) (out string, err error) {
 	end := trace.Start(ctx, "azure-key-vault/DecryptAES")
-	defer func() { end(err) }()
+	defer end(err)
 	if utilities.IsLocalAESKey(input.SecretKey) {
 		return repository.local.DecryptAES(ctx, input)
 	}
@@ -410,7 +410,7 @@ func (repository *hashRepository) Blake3(ctx context.Context, message string) st
 
 func (repository *asymmetricRepository) GenerateECDHCurveKeys(ctx context.Context, input models.GenerateECDHCurveKeyRequest) (data *models.KeyData, err error) {
 	end := trace.Start(ctx, "azure-key-vault/GenerateECDHCurveKeys")
-	defer func() { end(err) }()
+	defer end(err)
 	azureCurve, err := azureECDHCurveName(input.Curve)
 	if err != nil {
 		return nil, err
@@ -457,7 +457,7 @@ func (repository *asymmetricRepository) GenerateECDHCurveKeys(ctx context.Contex
 
 func (repository *asymmetricRepository) ECDH_Encode(ctx context.Context, input models.ECDHEncodeRequest) (out string, err error) {
 	end := trace.Start(ctx, "azure-key-vault/ECDH_Encode")
-	defer func() { end(err) }()
+	defer end(err)
 	if _, err := utilities.ParseECDHPublicKeyFromBase64(input.PublicKey); err == nil {
 		return repository.local.ECDH_Encode(ctx, input)
 	}
@@ -492,7 +492,7 @@ func (repository *asymmetricRepository) ECDH_Encode(ctx context.Context, input m
 
 func (repository *asymmetricRepository) ECDH_Decode(ctx context.Context, input models.ECDHDecodeRequest) (out string, err error) {
 	end := trace.Start(ctx, "azure-key-vault/ECDH_Decode")
-	defer func() { end(err) }()
+	defer end(err)
 	if _, err := utilities.ParseECDHPrivateKeyFromBase64(input.PrivateKey); err == nil {
 		return repository.local.ECDH_Decode(ctx, input)
 	}
@@ -532,7 +532,7 @@ func (repository *asymmetricRepository) ECDH_Decode(ctx context.Context, input m
 
 func (repository *asymmetricRepository) GenerateRSAKeys(ctx context.Context, input models.GenerateRSAKeyRequest) (data *models.KeyData, err error) {
 	end := trace.Start(ctx, "azure-key-vault/GenerateRSAKeys")
-	defer func() { end(err) }()
+	defer end(err)
 	keySize, err := azureRSAKeySize(input.Size)
 	if err != nil {
 		return nil, err
@@ -583,7 +583,7 @@ func (repository *asymmetricRepository) GenerateRSAKeys(ctx context.Context, inp
 
 func (repository *asymmetricRepository) RSA_OAEP_Encode(ctx context.Context, input models.RSAOAEPEncodeRequest) (out string, err error) {
 	end := trace.Start(ctx, "azure-key-vault/RSA_OAEP_Encode")
-	defer func() { end(err) }()
+	defer end(err)
 	if _, err := utilities.ParseRSAPublicKeyFromBase64(input.PublicKey); err == nil {
 		return repository.local.RSA_OAEP_Encode(ctx, input)
 	}
@@ -609,7 +609,7 @@ func (repository *asymmetricRepository) RSA_OAEP_Encode(ctx context.Context, inp
 
 func (repository *asymmetricRepository) RSA_OAEP_Decode(ctx context.Context, input models.RSAOAEPDecodeRequest) (out string, err error) {
 	end := trace.Start(ctx, "azure-key-vault/RSA_OAEP_Decode")
-	defer func() { end(err) }()
+	defer end(err)
 	if _, err := utilities.ParseRSAPrivateKeyFromBase64(input.PrivateKey); err == nil {
 		return repository.local.RSA_OAEP_Decode(ctx, input)
 	}
@@ -639,7 +639,7 @@ func (repository *asymmetricRepository) RSA_OAEP_Decode(ctx context.Context, inp
 
 func (repository *signatureRepository) GenerateEd255Keys(ctx context.Context) (data *models.KeyData, err error) {
 	end := trace.Start(ctx, "azure-key-vault/GenerateEd255Keys")
-	defer func() { end(err) }()
+	defer end(err)
 	if ctx == nil {
 		return nil, errors.New("context is nil")
 	}
@@ -651,7 +651,7 @@ func (repository *signatureRepository) GenerateEd255Keys(ctx context.Context) (d
 
 func (repository *signatureRepository) SignEd25519(ctx context.Context, privateKey, text string) (out string, err error) {
 	end := trace.Start(ctx, "azure-key-vault/SignEd25519")
-	defer func() { end(err) }()
+	defer end(err)
 	if _, err := utilities.ParseEd25519PrivateKeyFromBase64(privateKey); err == nil {
 		return repository.local.SignEd25519(ctx, privateKey, text)
 	}
@@ -660,7 +660,7 @@ func (repository *signatureRepository) SignEd25519(ctx context.Context, privateK
 
 func (repository *signatureRepository) VerifyEd25519(ctx context.Context, publicKey, text, signature string) (err error) {
 	end := trace.Start(ctx, "azure-key-vault/VerifyEd25519")
-	defer func() { end(err) }()
+	defer end(err)
 	if _, err := utilities.ParseEd25519PublicKeyFromBase64(publicKey); err == nil {
 		return repository.local.VerifyEd25519(ctx, publicKey, text, signature)
 	}
@@ -669,7 +669,7 @@ func (repository *signatureRepository) VerifyEd25519(ctx context.Context, public
 
 func (repository *signatureRepository) SignRSAPSS(ctx context.Context, privateKey, text string) (out string, err error) {
 	end := trace.Start(ctx, "azure-key-vault/SignRSAPSS")
-	defer func() { end(err) }()
+	defer end(err)
 	if _, err := utilities.ParseRSAPrivateKeyFromBase64(privateKey); err == nil {
 		return repository.local.SignRSAPSS(ctx, privateKey, text)
 	}
@@ -696,7 +696,7 @@ func (repository *signatureRepository) SignRSAPSS(ctx context.Context, privateKe
 
 func (repository *signatureRepository) VerifyRSAPSS(ctx context.Context, publicKey, text, signature string) (err error) {
 	end := trace.Start(ctx, "azure-key-vault/VerifyRSAPSS")
-	defer func() { end(err) }()
+	defer end(err)
 	if _, err := utilities.ParseRSAPublicKeyFromBase64(publicKey); err == nil {
 		return repository.local.VerifyRSAPSS(ctx, publicKey, text, signature)
 	}
@@ -731,7 +731,7 @@ func (repository *signatureRepository) VerifyRSAPSS(ctx context.Context, publicK
 
 func (repository *signatureRepository) Sign_RSA_PKCS1v15_SHA256(ctx context.Context, privateKey, data string) (out string, err error) {
 	end := trace.Start(ctx, "azure-key-vault/Sign_RSA_PKCS1v15_SHA256")
-	defer func() { end(err) }()
+	defer end(err)
 	if privateKey != "" && !looksLikeAzureKeyReference(privateKey) {
 		return repository.local.Sign_RSA_PKCS1v15_SHA256(ctx, privateKey, data)
 	}
@@ -758,7 +758,7 @@ func (repository *signatureRepository) Sign_RSA_PKCS1v15_SHA256(ctx context.Cont
 
 func (repository *signatureRepository) Verify_RSA_PKCS1v15_SHA256(ctx context.Context, data, publicKey string, signature string) (err error) {
 	end := trace.Start(ctx, "azure-key-vault/Verify_RSA_PKCS1v15_SHA256")
-	defer func() { end(err) }()
+	defer end(err)
 	if publicKey != "" && !looksLikeAzureKeyReference(publicKey) {
 		return repository.local.Verify_RSA_PKCS1v15_SHA256(ctx, data, publicKey, signature)
 	}

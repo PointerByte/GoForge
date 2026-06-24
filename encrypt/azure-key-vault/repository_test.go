@@ -559,7 +559,7 @@ func TestAzureRepositoryErrorBranches(t *testing.T) {
 	if _, err := asymmetricRepository.RSA_OAEP_Decode(context.Background(), models.RSAOAEPDecodeRequest{PrivateKey: "https://vault.test/keys/default-key/v1", CipherText: base64.StdEncoding.EncodeToString([]byte("cipher"))}); err == nil {
 		t.Fatal("expected RSA_OAEP_Decode() provider error")
 	}
-	if _, err := asymmetricRepository.GenerateECDHCurveKeys(context.Background(), models.GenerateECDHCurveKeyRequest{Curve: "P-111"}); err == nil {
+	if _, err := asymmetricRepository.GenerateECDHCurveKeys(context.Background(), models.GenerateECDHCurveKeyRequest{Curve: common.CurveAsymmetricKey(99)}); err == nil {
 		t.Fatal("expected GenerateECDHCurveKeys() curve error")
 	}
 	if _, err := asymmetricRepository.GenerateECDHCurveKeys(context.Background(), models.GenerateECDHCurveKeyRequest{Curve: common.CurveP256}); err == nil {
@@ -772,7 +772,7 @@ func TestAzureECDHAndBundleHelpers(t *testing.T) {
 	if got, err := azureECDHCurveName(common.CurveP521); err != nil || got != azkeys.CurveNameP521 {
 		t.Fatalf("azureECDHCurveName(P521) = %q, %v", got, err)
 	}
-	if _, err := azureECDHCurveName("P-111"); err == nil {
+	if _, err := azureECDHCurveName(common.CurveAsymmetricKey(99)); err == nil {
 		t.Fatal("expected azureECDHCurveName() unsupported curve error")
 	}
 

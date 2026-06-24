@@ -296,7 +296,7 @@ func TestAsymmetricAndSignatureRepositoryErrors(t *testing.T) {
 	if _, err := asymmetricRepository.GenerateRSAKeys(testContext, models.GenerateRSAKeyRequest{Size: 0}); err == nil {
 		t.Fatal("expected GenerateRSAKeys() error")
 	}
-	if _, err := asymmetricRepository.GenerateECDHCurveKeys(testContext, models.GenerateECDHCurveKeyRequest{Curve: "P-111"}); err == nil {
+	if _, err := asymmetricRepository.GenerateECDHCurveKeys(testContext, models.GenerateECDHCurveKeyRequest{Curve: common.CurveAsymmetricKey(99)}); err == nil {
 		t.Fatal("expected GenerateECDHCurveKeys() error")
 	}
 	if _, err := asymmetricRepository.ECDH_Encode(testContext, models.ECDHEncodeRequest{PublicKey: "%%%", Text: "payload"}); err == nil {

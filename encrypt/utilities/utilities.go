@@ -325,11 +325,11 @@ func ResolveECDHCurve(curve common.CurveAsymmetricKey) (ecdh.Curve, error) {
 func CurveNameFromECDH(curve ecdh.Curve) (string, error) {
 	switch curve {
 	case ecdh.P256():
-		return string(common.CurveP256), nil
+		return common.CurveP256.String(), nil
 	case ecdh.P384():
-		return string(common.CurveP384), nil
+		return common.CurveP384.String(), nil
 	case ecdh.P521():
-		return string(common.CurveP521), nil
+		return common.CurveP521.String(), nil
 	default:
 		return "", errors.New("unsupported ECC curve")
 	}

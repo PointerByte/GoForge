@@ -178,9 +178,12 @@ func (c *Context) setTraceID(process *formatter.Process) {
 	if c.disableTrace {
 		return
 	}
-	traceID := process.Span.SpanContext().TraceID()
-	if traceID.IsValid() {
+	sc := process.Span.SpanContext()
+	if traceID := sc.TraceID(); traceID.IsValid() {
 		process.TraceID = traceID.String()
+	}
+	if spanID := sc.SpanID(); spanID.IsValid() {
+		process.SpanID = spanID.String()
 	}
 }
 

@@ -771,7 +771,7 @@ func TestGCPKeyDataAndKEMHelpers(t *testing.T) {
 	if got, err := gcpKEMAlgorithm(common.CurveP521); err != nil || got != kmspb.CryptoKeyVersion_ML_KEM_1024 {
 		t.Fatalf("gcpKEMAlgorithm(P521) = %s, %v", got, err)
 	}
-	if _, err := gcpKEMAlgorithm("P-111"); err == nil {
+	if _, err := gcpKEMAlgorithm(common.CurveAsymmetricKey(99)); err == nil {
 		t.Fatal("expected gcpKEMAlgorithm() unsupported curve error")
 	}
 	if got, err := gcpKEMAlgorithmName(kmspb.CryptoKeyVersion_ML_KEM_1024); err != nil || got != "ML_KEM_1024" {

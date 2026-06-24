@@ -26,13 +26,27 @@ const (
 )
 
 // CurveAsymmetricKey defines the supported elliptic curves for ECC encryption.
-type CurveAsymmetricKey string
+type CurveAsymmetricKey uint
 
 const (
 	// CurveP256 represents the NIST P-256 curve.
-	CurveP256 CurveAsymmetricKey = "P-256"
+	CurveP256 CurveAsymmetricKey = 256
 	// CurveP384 represents the NIST P-384 curve.
-	CurveP384 CurveAsymmetricKey = "P-384"
+	CurveP384 CurveAsymmetricKey = 384
 	// CurveP521 represents the NIST P-521 curve.
-	CurveP521 CurveAsymmetricKey = "P-521"
+	CurveP521 CurveAsymmetricKey = 521
 )
+
+// String returns the canonical serialized name of the curve.
+func (c CurveAsymmetricKey) String() string {
+	switch c {
+	case CurveP256:
+		return "P-256"
+	case CurveP384:
+		return "P-384"
+	case CurveP521:
+		return "P-521"
+	default:
+		return "unknown"
+	}
+}

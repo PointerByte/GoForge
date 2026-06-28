@@ -23,7 +23,7 @@ type Context struct {
 	context.Context  // hereda Cancel, Deadline, Done, Value
 	mux              sync.Mutex
 	startTime        time.Time
-	fields           sync.Map
+	fields           *sync.Map
 	disableTrace     bool
 	tracer           trace.Tracer // Trace from telemetry
 	Method           string
@@ -80,7 +80,7 @@ func New(parent context.Context) *Context {
 	newContext := &Context{
 		Context:   parent,
 		startTime: time.Now(),
-		fields:    sync.Map{},
+		fields:    &sync.Map{},
 		tracer:    otel.Tracer(appName),
 	}
 

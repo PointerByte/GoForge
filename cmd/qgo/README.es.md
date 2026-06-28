@@ -31,6 +31,8 @@ qgo new grpc
 ```
 
 Ambos comandos soportan prompts interactivos y flags no interactivos.
+Cuando se ejecuta en una terminal interactiva, `qgo new ...` muestra una breve
+animacion de GoForge antes de generar el scaffold.
 
 ## Uso No Interactivo
 
@@ -57,9 +59,11 @@ qgo new grpc \
 | `--module` | `-m` | ruta del modulo Go usada en `go mod init` |
 | `--app-name` | `-a` | valor escrito en `app.name` dentro de la configuracion generada |
 | `--config-format` | `-c` | `yaml` o `json`; en modo interactivo el default es `yaml` |
+| `--go-version` | `-g` | version de Go escrita en `go.mod`; por defecto usa la version de Go instalada |
 | `--dir` | `-d` | directorio de salida; por defecto usa `app.name` |
 
 Si omites un flag requerido, `qgo` lo pregunta de forma interactiva.
+Si omites `--go-version`, presiona Enter para usar la version de Go instalada.
 
 ## Validacion
 
@@ -67,21 +71,23 @@ Si omites un flag requerido, `qgo` lo pregunta de forma interactiva.
 - `app.name` acepta letras, numeros, `_` y `-`
 - los espacios se rechazan en ambos valores
 - el formato de configuracion debe ser `yaml` o `json`
+- la version de Go debe usar `major.minor` o `major.minor.patch`
 - el directorio de salida no debe existir previamente
 
 ## Archivos Generados
 
 Para ambos tipos de servicio, `qgo` crea:
 
-- `main.go`
+- `cmd/main.go`
 - `resources/application.yaml` o `resources/application.json`
-- `go.mod`, creado por `go mod init <modulo>`
+- `go.mod`, creado por `go mod init <modulo>` y actualizado con la version de Go elegida
 - `go.sum`, cuando la resolucion de dependencias lo necesita
 
 Despues de escribir los archivos, ejecuta:
 
 ```bash
 go mod init <modulo>
+go mod edit -go=<version>
 go mod tidy
 ```
 
@@ -90,7 +96,7 @@ generado, asi que puede requerir acceso a red.
 
 ## Scaffold Gin
 
-El scaffold Gin crea un `main.go` que:
+El scaffold Gin crea un `cmd/main.go` que:
 
 - llama `serverGin.CreateApp()`
 - obtiene el grupo `/api/v1` con `serverGin.GetRoute("/api/v1")`
@@ -104,7 +110,7 @@ placeholders TLS/mTLS para certificados del servidor.
 Ejecutar el servicio generado desde su directorio:
 
 ```bash
-go run .
+go run ./cmd
 ```
 
 Puerto HTTP por defecto:
@@ -115,7 +121,7 @@ Puerto HTTP por defecto:
 
 ## Scaffold gRPC
 
-El scaffold gRPC crea un `main.go` minimo que:
+El scaffold gRPC crea un `cmd/main.go` minimo que:
 
 - llama `serverGRPC.NewIConfig(nil, nil)`
 - inicia el servidor con `srv.Serve()`
@@ -127,7 +133,7 @@ TLS/mTLS.
 Ejecutar el servicio generado desde su directorio:
 
 ```bash
-go run .
+go run ./cmd
 ```
 
 Puerto gRPC por defecto:

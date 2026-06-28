@@ -8,12 +8,15 @@ import (
 	"fmt"
 )
 
-const resourcesConfigDir = "resources"
+const (
+	generatedMainPath  = "cmd/main.go"
+	resourcesConfigDir = "resources"
+)
 
 // buildProjectFiles returns the generated file set for the requested service type and config format.
 func buildProjectFiles(serviceType string, options scaffoldOptions) (map[string]string, error) {
 	files := map[string]string{
-		"main.go": buildMainTemplate(serviceType, options.appName),
+		generatedMainPath: buildMainTemplate(serviceType, options.appName),
 		//"go.mod":  buildGoModTemplate(options.modulePath, serviceType),
 	}
 

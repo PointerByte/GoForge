@@ -15,6 +15,8 @@ import (
 	"testing"
 )
 
+const testInstalledGoVersion = "1.26.0"
+
 func TestNewAppAndExecute(t *testing.T) {
 	app := NewApp()
 	if app == nil {
@@ -93,20 +95,25 @@ func TestNewCommandCobra(t *testing.T) {
 	if serviceCmd.Use != serviceTypeGin {
 		t.Fatalf("expected use %s, got %q", serviceTypeGin, serviceCmd.Use)
 	}
-	if serviceCmd.Flag("module") == nil || serviceCmd.Flag("app-name") == nil || serviceCmd.Flag("config-format") == nil || serviceCmd.Flag("dir") == nil {
+	if serviceCmd.Flag("module") == nil || serviceCmd.Flag("app-name") == nil || serviceCmd.Flag("config-format") == nil || serviceCmd.Flag("go-version") == nil || serviceCmd.Flag("dir") == nil {
 		t.Fatal("expected scaffold flags to be registered")
 	}
 }
 
 func TestServiceCommandRunE(t *testing.T) {
 	output := &bytes.Buffer{}
+	runnerCalls := []string{}
 	app := &App{
 		streams: IOStreams{
 			In:  strings.NewReader(""),
 			Out: output,
 			Err: &bytes.Buffer{},
 		},
-		runner: func(string, ...string) error { return nil },
+		runner: func(_ string, args ...string) error {
+			runnerCalls = append(runnerCalls, strings.Join(args, " "))
+			return nil
+		},
+		goVersionResolver: func() (string, error) { return "go" + testInstalledGoVersion, nil },
 	}
 
 	cmd := app.rootCommand()
@@ -127,31 +134,40 @@ func TestServiceCommandRunE(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, "resources", "application.yaml")); err != nil {
 		t.Fatalf("expected resources/application.yaml to be generated: %v", err)
 	}
+	if _, err := os.Stat(filepath.Join(dir, "cmd", "main.go")); err != nil {
+		t.Fatalf("expected cmd/main.go to be generated: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "main.go")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("expected main.go not to be generated at project root, got %v", err)
+	}
+	if !containsString(runnerCalls, "mod edit -go="+testInstalledGoVersion) {
+		t.Fatalf("expected go mod edit call with installed Go version, got %#v", runnerCalls)
+	}
 }
 
 func TestResolveScaffoldOptionsErrors(t *testing.T) {
 	streams := IOStreams{In: strings.NewReader("\n"), Out: &bytes.Buffer{}, Err: &bytes.Buffer{}}
-	if _, err := resolveScaffoldOptions(streams, &scaffoldOptions{}); err == nil {
+	if _, err := resolveScaffoldOptions(streams, &scaffoldOptions{}, testInstalledGoVersion); err == nil {
 		t.Fatal("expected missing module error")
 	}
 
 	streams = IOStreams{In: strings.NewReader("github.com/acme/orders\n\n"), Out: &bytes.Buffer{}, Err: &bytes.Buffer{}}
-	if _, err := resolveScaffoldOptions(streams, &scaffoldOptions{}); err == nil {
+	if _, err := resolveScaffoldOptions(streams, &scaffoldOptions{}, testInstalledGoVersion); err == nil {
 		t.Fatal("expected missing app.name error")
 	}
 
 	streams = IOStreams{In: strings.NewReader("github.com/acme/orders\norders\nxml\n"), Out: &bytes.Buffer{}, Err: &bytes.Buffer{}}
-	if _, err := resolveScaffoldOptions(streams, &scaffoldOptions{}); err == nil {
+	if _, err := resolveScaffoldOptions(streams, &scaffoldOptions{}, testInstalledGoVersion); err == nil {
 		t.Fatal("expected invalid config format error")
 	}
 
 	streams = IOStreams{In: strings.NewReader("github.com/acme/order s\norders\nyaml\n"), Out: &bytes.Buffer{}, Err: &bytes.Buffer{}}
-	if _, err := resolveScaffoldOptions(streams, &scaffoldOptions{}); err == nil || !strings.Contains(err.Error(), "package/module name contains invalid characters") {
+	if _, err := resolveScaffoldOptions(streams, &scaffoldOptions{}, testInstalledGoVersion); err == nil || !strings.Contains(err.Error(), "package/module name contains invalid characters") {
 		t.Fatalf("expected invalid module path error, got %v", err)
 	}
 
 	streams = IOStreams{In: strings.NewReader("github.com/acme/orders\norders api\nyaml\n"), Out: &bytes.Buffer{}, Err: &bytes.Buffer{}}
-	if _, err := resolveScaffoldOptions(streams, &scaffoldOptions{}); err == nil || !strings.Contains(err.Error(), "app.name contains invalid characters") {
+	if _, err := resolveScaffoldOptions(streams, &scaffoldOptions{}, testInstalledGoVersion); err == nil || !strings.Contains(err.Error(), "app.name contains invalid characters") {
 		t.Fatalf("expected invalid app.name error, got %v", err)
 	}
 
@@ -165,7 +181,7 @@ func TestResolveScaffoldOptionsErrors(t *testing.T) {
 		appName:      "orders-api",
 		configFormat: "yaml",
 		outputDir:    filepath.Join("tmp", "orders api"),
-	}); err != nil {
+	}, testInstalledGoVersion); err != nil {
 		t.Fatalf("expected explicit output dir to be accepted, got %v", err)
 	}
 }
@@ -177,13 +193,16 @@ func TestResolveScaffoldOptionsUsesAppNameAsDefaultDir(t *testing.T) {
 		Err: &bytes.Buffer{},
 	}
 
-	options, err := resolveScaffoldOptions(streams, &scaffoldOptions{})
+	options, err := resolveScaffoldOptions(streams, &scaffoldOptions{}, testInstalledGoVersion)
 	if err != nil {
 		t.Fatalf("resolveScaffoldOptions returned error: %v", err)
 	}
 
 	if options.outputDir != "orders-service" {
 		t.Fatalf("expected derived output dir orders-service, got %q", options.outputDir)
+	}
+	if options.goVersion != testInstalledGoVersion {
+		t.Fatalf("expected default Go version %q, got %q", testInstalledGoVersion, options.goVersion)
 	}
 }
 
@@ -240,6 +259,44 @@ func TestPromptConfigFormatBranches(t *testing.T) {
 	}
 
 	if _, err := promptConfigFormat(bufioReader(errorReader{}), &bytes.Buffer{}, ""); err == nil {
+		t.Fatal("expected reader error")
+	}
+}
+
+func TestPromptGoVersionBranches(t *testing.T) {
+	if value, err := promptGoVersion(nil, &bytes.Buffer{}, " go1.25.1 ", testInstalledGoVersion); err != nil || value != "1.25.1" {
+		t.Fatalf("expected normalized fallback Go version, got value=%q err=%v", value, err)
+	}
+
+	if _, err := promptGoVersion(nil, &bytes.Buffer{}, "1.x", testInstalledGoVersion); err == nil {
+		t.Fatal("expected invalid fallback Go version error")
+	}
+
+	if value, err := promptGoVersion(bufioReader(strings.NewReader("\n")), &bytes.Buffer{}, "", "go"+testInstalledGoVersion); err != nil || value != testInstalledGoVersion {
+		t.Fatalf("expected default Go version, got value=%q err=%v", value, err)
+	}
+
+	if value, err := promptGoVersion(bufioReader(strings.NewReader("go1.24\n")), &bytes.Buffer{}, "", testInstalledGoVersion); err != nil || value != "1.24" {
+		t.Fatalf("expected normalized input Go version, got value=%q err=%v", value, err)
+	}
+
+	if _, err := promptGoVersion(bufioReader(strings.NewReader("latest\n")), &bytes.Buffer{}, "", testInstalledGoVersion); err == nil {
+		t.Fatal("expected invalid input Go version error")
+	}
+
+	if _, err := promptGoVersion(bufioReader(strings.NewReader("\n")), &bytes.Buffer{}, "", "latest"); err == nil {
+		t.Fatal("expected invalid default Go version error")
+	}
+
+	if !isValidGoVersion("1.26") || !isValidGoVersion("1.26.0") || isValidGoVersion("go1.26.0") || isValidGoVersion("latest") {
+		t.Fatal("unexpected Go version validation result")
+	}
+
+	if _, err := promptGoVersion(bufioReader(strings.NewReader("1.26\n")), errorWriter{}, "", testInstalledGoVersion); err == nil {
+		t.Fatal("expected writer error")
+	}
+
+	if _, err := promptGoVersion(bufioReader(errorReader{}), &bytes.Buffer{}, "", testInstalledGoVersion); err == nil {
 		t.Fatal("expected reader error")
 	}
 }
@@ -315,6 +372,20 @@ func TestCreateServiceErrorBranches(t *testing.T) {
 		err := sc.createService(serviceTypeGin, scaffoldOptions{outputDir: dir, configFormat: configYAML, appName: "svc", modulePath: "github.com/acme/svc"})
 		if err == nil || !strings.Contains(err.Error(), "initialize go module") {
 			t.Fatalf("expected mod init error, got %v", err)
+		}
+	})
+
+	t.Run("mod edit error", func(t *testing.T) {
+		sc := newScaffolder(streams, func(_ string, args ...string) error {
+			if len(args) >= 3 && args[0] == "mod" && args[1] == "edit" {
+				return errors.New("edit")
+			}
+			return nil
+		})
+		dir := filepath.Join(t.TempDir(), "svc")
+		err := sc.createService(serviceTypeGin, scaffoldOptions{outputDir: dir, configFormat: configYAML, goVersion: testInstalledGoVersion, appName: "svc", modulePath: "github.com/acme/svc"})
+		if err == nil || !strings.Contains(err.Error(), "set Go version") {
+			t.Fatalf("expected mod edit error, got %v", err)
 		}
 	})
 
@@ -428,6 +499,12 @@ func TestTemplateBranches(t *testing.T) {
 	if !strings.Contains(files["resources/application.yaml"], "port: \":50051\"") {
 		t.Fatal("expected grpc application yaml file")
 	}
+	if !strings.Contains(files[generatedMainPath], "serverGRPC.NewIConfig(nil, nil)") {
+		t.Fatal("expected grpc main file under cmd")
+	}
+	if _, ok := files["main.go"]; ok {
+		t.Fatal("expected main.go under cmd directory")
+	}
 	if _, ok := files["application.yaml"]; ok {
 		t.Fatal("expected application yaml under resources")
 	}
@@ -435,6 +512,15 @@ func TestTemplateBranches(t *testing.T) {
 
 func bufioReader(reader io.Reader) *bufio.Reader {
 	return bufio.NewReader(reader)
+}
+
+func containsString(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
 }
 
 type errorWriter struct{}

@@ -23,12 +23,14 @@ const (
 var (
 	modulePathPattern  = regexp.MustCompile(`^[A-Za-z0-9._/-]+$`)
 	serviceNamePattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
+	goVersionPattern   = regexp.MustCompile(`^[0-9]+\.[0-9]+(\.[0-9]+)?$`)
 )
 
 type scaffoldOptions struct {
 	modulePath   string
 	appName      string
 	configFormat string
+	goVersion    string
 	outputDir    string
 }
 
@@ -55,7 +57,7 @@ func newScaffolder(streams IOStreams, runner goRunner) *scaffolder {
 }
 
 // resolveScaffoldOptions merges CLI flags and interactive prompts into a validated configuration.
-func resolveScaffoldOptions(streams IOStreams, options *scaffoldOptions) (scaffoldOptions, error) {
+func resolveScaffoldOptions(streams IOStreams, options *scaffoldOptions, defaultGoVersion string) (scaffoldOptions, error) {
 	reader := bufio.NewReader(streams.In)
 
 	modulePath, err := promptRequired(reader, streams.Out, "Package/module name", options.modulePath)
@@ -79,6 +81,11 @@ func resolveScaffoldOptions(streams IOStreams, options *scaffoldOptions) (scaffo
 		return scaffoldOptions{}, err
 	}
 
+	goVersion, err := promptGoVersion(reader, streams.Out, options.goVersion, defaultGoVersion)
+	if err != nil {
+		return scaffoldOptions{}, err
+	}
+
 	outputDir := strings.TrimSpace(options.outputDir)
 	if outputDir == "" {
 		outputDir = appName
@@ -88,6 +95,7 @@ func resolveScaffoldOptions(streams IOStreams, options *scaffoldOptions) (scaffo
 		modulePath:   modulePath,
 		appName:      appName,
 		configFormat: configFormat,
+		goVersion:    goVersion,
 		outputDir:    outputDir,
 	}, nil
 }
@@ -149,9 +157,53 @@ func promptConfigFormat(reader *bufio.Reader, output io.Writer, fallback string)
 	return value, nil
 }
 
+// promptGoVersion resolves the Go module version, defaulting to the installed toolchain.
+func promptGoVersion(reader *bufio.Reader, output io.Writer, fallback string, defaultVersion string) (string, error) {
+	fallback = normalizeGoVersion(fallback)
+	if fallback != "" {
+		if !isValidGoVersion(fallback) {
+			return "", fmt.Errorf("invalid Go version %q", fallback)
+		}
+		return fallback, nil
+	}
+
+	defaultVersion = normalizeGoVersion(defaultVersion)
+	if !isValidGoVersion(defaultVersion) {
+		return "", fmt.Errorf("invalid default Go version %q", defaultVersion)
+	}
+
+	if _, err := fmt.Fprintf(output, "Go version (default: %s): ", defaultVersion); err != nil {
+		return "", err
+	}
+
+	value, err := reader.ReadString('\n')
+	if err != nil && !errors.Is(err, io.EOF) {
+		return "", err
+	}
+
+	value = normalizeGoVersion(value)
+	if value == "" {
+		return defaultVersion, nil
+	}
+	if !isValidGoVersion(value) {
+		return "", fmt.Errorf("invalid Go version %q", value)
+	}
+	return value, nil
+}
+
 // isValidConfigFormat reports whether the requested config format is supported.
 func isValidConfigFormat(value string) bool {
 	return value == configYAML || value == configJSON
+}
+
+// isValidGoVersion reports whether the value can be used in a go.mod go directive.
+func isValidGoVersion(value string) bool {
+	return goVersionPattern.MatchString(value)
+}
+
+// normalizeGoVersion trims spaces and accepts the go command's "go1.x.y" version shape.
+func normalizeGoVersion(value string) string {
+	return strings.TrimPrefix(strings.TrimSpace(value), "go")
 }
 
 // isValidModulePath validates the module/package path accepted by the scaffold.
@@ -198,6 +250,12 @@ func (scaffolder *scaffolder) createService(serviceType string, options scaffold
 
 	if err := scaffolder.runner(outputDir, "mod", "init", options.modulePath); err != nil {
 		return fmt.Errorf("initialize go module: %w", err)
+	}
+
+	if options.goVersion != "" {
+		if err := scaffolder.runner(outputDir, "mod", "edit", "-go="+options.goVersion); err != nil {
+			return fmt.Errorf("set Go version: %w", err)
+		}
 	}
 
 	if err := scaffolder.runner(outputDir, "get", "github.com/PointerByte/GoForge@"+defaultGoForgeVersion, "github.com/PointerByte/GoForge/logger@"+defaultGoForgeLoggerVersion); err != nil {

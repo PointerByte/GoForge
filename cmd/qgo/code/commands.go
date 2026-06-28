@@ -58,7 +58,16 @@ func (command *newServiceCommand) Cobra() *cobra.Command {
 		Use:   command.serviceType,
 		Short: fmt.Sprintf("Create a new %s service", strings.ToUpper(command.serviceType)),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			resolvedOptions, err := resolveScaffoldOptions(command.app.streams, command.options)
+			defaultGoVersion := strings.TrimSpace(command.options.goVersion)
+			if defaultGoVersion == "" {
+				var err error
+				defaultGoVersion, err = command.app.installedGoVersion()
+				if err != nil {
+					return fmt.Errorf("detect installed Go version: %w", err)
+				}
+			}
+
+			resolvedOptions, err := resolveScaffoldOptions(command.app.streams, command.options, defaultGoVersion)
 			if err != nil {
 				return err
 			}
@@ -71,6 +80,7 @@ func (command *newServiceCommand) Cobra() *cobra.Command {
 	cobraCmd.Flags().StringVarP(&command.options.modulePath, "module", "m", "", "Go module/package name for the new service")
 	cobraCmd.Flags().StringVarP(&command.options.appName, "app-name", "a", "", "Value for app.name in application config")
 	cobraCmd.Flags().StringVarP(&command.options.configFormat, "config-format", "c", "", "Configuration format: yaml or json")
+	cobraCmd.Flags().StringVarP(&command.options.goVersion, "go-version", "g", "", "Go version for the generated module")
 	cobraCmd.Flags().StringVarP(&command.options.outputDir, "dir", "d", "", "Output directory for the generated service")
 	return cobraCmd
 }

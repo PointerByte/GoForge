@@ -31,6 +31,8 @@ qgo new grpc
 ```
 
 Both commands support interactive prompts and non-interactive flags.
+When run in an interactive terminal, `qgo new ...` shows a short GoForge intro
+animation before scaffolding.
 
 ## Non-Interactive Usage
 
@@ -57,9 +59,11 @@ qgo new grpc \
 | `--module` | `-m` | Go module path used in `go mod init` |
 | `--app-name` | `-a` | Value written to `app.name` in the generated config |
 | `--config-format` | `-c` | `yaml` or `json`; interactive mode defaults to `yaml` |
+| `--go-version` | `-g` | Go version written to `go.mod`; defaults to the installed Go version |
 | `--dir` | `-d` | Output directory; defaults to `app.name` |
 
 If a required flag is omitted, `qgo` asks for it interactively.
+If `--go-version` is omitted, press Enter to use the installed Go version.
 
 ## Validation
 
@@ -67,21 +71,23 @@ If a required flag is omitted, `qgo` asks for it interactively.
 - `app.name` accepts letters, numbers, `_`, and `-`
 - spaces are rejected in both values
 - config format must be `yaml` or `json`
+- Go version must use `major.minor` or `major.minor.patch`
 - the output directory must not already exist
 
 ## Generated Files
 
 For both service types, `qgo` creates:
 
-- `main.go`
+- `cmd/main.go`
 - `resources/application.yaml` or `resources/application.json`
-- `go.mod`, created by `go mod init <module>`
+- `go.mod`, created by `go mod init <module>` and updated with the selected Go version
 - `go.sum`, when dependency resolution needs it
 
 After writing the files, it runs:
 
 ```bash
 go mod init <module>
+go mod edit -go=<version>
 go mod tidy
 ```
 
@@ -90,7 +96,7 @@ service, so network access may be needed.
 
 ## Gin Scaffold
 
-The Gin scaffold creates a `main.go` that:
+The Gin scaffold creates a `cmd/main.go` that:
 
 - calls `serverGin.CreateApp()`
 - retrieves the `/api/v1` route group with `serverGin.GetRoute("/api/v1")`
@@ -104,7 +110,7 @@ TLS/mTLS placeholders for server certificates.
 Run the generated service from its output directory:
 
 ```bash
-go run .
+go run ./cmd
 ```
 
 Default HTTP port:
@@ -115,7 +121,7 @@ Default HTTP port:
 
 ## gRPC Scaffold
 
-The gRPC scaffold creates a minimal `main.go` that:
+The gRPC scaffold creates a minimal `cmd/main.go` that:
 
 - calls `serverGRPC.NewIConfig(nil, nil)`
 - starts the server with `srv.Serve()`
@@ -127,7 +133,7 @@ placeholders.
 Run the generated service from its output directory:
 
 ```bash
-go run .
+go run ./cmd
 ```
 
 Default gRPC port:

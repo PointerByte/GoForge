@@ -9,8 +9,8 @@ replace (
 )
 
 require (
-	github.com/PointerByte/GoForge/logger v0.0.51
-	github.com/PointerByte/GoForge/security v0.0.58
+	github.com/PointerByte/GoForge/logger v0.0.52
+	github.com/PointerByte/GoForge/security v0.0.59
 	github.com/gin-contrib/cors v1.7.7
 	github.com/gin-gonic/gin v1.12.0
 	github.com/golang/mock v1.6.0
@@ -40,7 +40,7 @@ require (
 )
 
 require (
-	github.com/PointerByte/GoForge/encrypt v0.0.33 // indirect
+	github.com/PointerByte/GoForge/encrypt v0.0.34 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bytedance/gopkg v0.1.4 // indirect
 	github.com/bytedance/sonic v1.15.2 // indirect

@@ -15,11 +15,11 @@ import (
 
 type LogFormat struct {
 	Level     Level     `json:"level"`
+	Timestamp string    `json:"timestamp"`
 	TraceID   string    `json:"traceID"`
 	Message   string    `json:"message"`
 	Details   Details   `json:"details"`
 	Process   []Process `json:"proccess"`
-	Timestamp string    `json:"timestamp"`
 	Method    string    `json:"method"`
 	Line      int       `json:"line"`
 	Latency   int64     `json:"latency"`

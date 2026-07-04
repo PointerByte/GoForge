@@ -409,8 +409,8 @@ func TestTraceEnd_IgnoreHeaders(t *testing.T) {
 	})
 
 	viper.Set(string(viperdata.LoggerIgnoredHeadersAtribute), []string{
-		"Authorization",
-		"Cookie",
+		"authorization",
+		"cookie",
 	})
 
 	ctx := New(context.Background())
@@ -418,10 +418,11 @@ func TestTraceEnd_IgnoreHeaders(t *testing.T) {
 	ctx.Set(servicesKey, &services)
 
 	headers := http.Header{
-		"Content-Type":  {"application/json"},
-		"X-Trace-Id":    {"abc-123", "def-456"},
-		"Authorization": {"Bearer secret"},
-		"Cookie":        {"session=123"},
+		"Content-Type":          {"application/json"},
+		"X-Trace-Id":            {"abc-123", "def-456"},
+		"Authorization":         {"Bearer secret"},
+		"Cookie":                {"session=123"},
+		"X-Authorization-Token": {"kept"},
 	}
 
 	process := &formatter.Process{
@@ -461,6 +462,10 @@ func TestTraceEnd_IgnoreHeaders(t *testing.T) {
 		t.Fatalf("Cookie = %q, want empty because it must be ignored", got)
 	}
 
+	if got := gotHeaders.Get("X-Authorization-Token"); got != "kept" {
+		t.Fatalf("X-Authorization-Token = %q, want %q", got, "kept")
+	}
+
 	// Verify deep copy after TraceEnd/ignoreHeaders.
 	headers["Content-Type"][0] = "text/plain"
 	headers["X-Trace-Id"][0] = "mutated"
@@ -490,6 +495,9 @@ func TestTraceEnd_IgnoreHeaders(t *testing.T) {
 	}
 	if got := appendedHeaders.Get("Content-Type"); got != "application/json" {
 		t.Fatalf("appended Content-Type = %q, want %q", got, "application/json")
+	}
+	if got := appendedHeaders.Get("X-Authorization-Token"); got != "kept" {
+		t.Fatalf("appended X-Authorization-Token = %q, want %q", got, "kept")
 	}
 }
 

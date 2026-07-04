@@ -5,7 +5,6 @@ package formatter
 
 import (
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
@@ -48,11 +47,8 @@ func (k *Details) SetHeaders(headers http.Header) {
 	if k.Headers == nil {
 		k.Headers = make(http.Header, len(headers))
 	}
-	loggerIgnoredHeadersAtribute := string(viperdata.LoggerIgnoredHeadersAtribute)
-	_ignoredHeaders := viperdata.GetViperData(loggerIgnoredHeadersAtribute).([]string)
-	ignoredHeaders := strings.Join(_ignoredHeaders, ",")
 	for key, vv := range headers {
-		if strings.Contains(ignoredHeaders, key) {
+		if viperdata.IsIgnoredHeader(key) {
 			continue
 		}
 		vvCopy := make([]string, len(vv))

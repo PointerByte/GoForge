@@ -42,3 +42,35 @@ func TestGetViperData(t *testing.T) {
 	}
 }
 
+func TestIsIgnoredHeader(t *testing.T) {
+	ResetViperDataSingleton()
+	viper.Reset()
+	t.Cleanup(func() {
+		viper.Reset()
+		ResetViperDataSingleton()
+	})
+
+	viper.Set(string(LoggerIgnoredHeadersAtribute), []string{
+		"authorization",
+		"COOKIE",
+	})
+
+	tests := []struct {
+		name   string
+		header string
+		want   bool
+	}{
+		{name: "matches lower configured header", header: "Authorization", want: true},
+		{name: "matches upper configured header", header: "Cookie", want: true},
+		{name: "does not match substring", header: "X-Authorization-Token", want: false},
+		{name: "does not match unrelated header", header: "Content-Type", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IsIgnoredHeader(tt.header); got != tt.want {
+				t.Fatalf("IsIgnoredHeader(%q) = %v, want %v", tt.header, got, tt.want)
+			}
+		})
+	}
+}

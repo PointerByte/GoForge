@@ -371,15 +371,16 @@ func TestDetails_SetHeaders(t *testing.T) {
 		})
 
 		viper.Set(string(viperdata.LoggerIgnoredHeadersAtribute), []string{
-			"Authorization",
-			"Cookie",
+			"authorization",
+			"cookie",
 		})
 
 		src := http.Header{
-			"Content-Type":  {"application/json"},
-			"X-Trace-Id":    {"abc-123", "def-456"},
-			"Authorization": {"Bearer secret"},
-			"Cookie":        {"session=123"},
+			"Content-Type":          {"application/json"},
+			"X-Trace-Id":            {"abc-123", "def-456"},
+			"Authorization":         {"Bearer secret"},
+			"Cookie":                {"session=123"},
+			"X-Authorization-Token": {"kept"},
 		}
 
 		k := &Details{}
@@ -403,6 +404,10 @@ func TestDetails_SetHeaders(t *testing.T) {
 
 		if got := k.Headers.Get("Cookie"); got != "" {
 			t.Fatalf("Cookie = %q, want empty because it must be ignored", got)
+		}
+
+		if got := k.Headers.Get("X-Authorization-Token"); got != "kept" {
+			t.Fatalf("X-Authorization-Token = %q, want %q", got, "kept")
 		}
 
 		src["Content-Type"][0] = "text/plain"

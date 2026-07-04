@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/PointerByte/GoForge/logger/common"
@@ -151,11 +150,8 @@ func ignoreHeaders(process *formatter.Process) {
 	}
 
 	headers := make(http.Header, len(*process.Headers))
-	loggerIgnoredHeadersAtribute := string(viperdata.LoggerIgnoredHeadersAtribute)
-	_ignoredHeaders := viperdata.GetViperData(loggerIgnoredHeadersAtribute).([]string)
-	ignoredHeaders := strings.Join(_ignoredHeaders, ",")
 	for key, vv := range *process.Headers {
-		if strings.Contains(ignoredHeaders, key) {
+		if viperdata.IsIgnoredHeader(key) {
 			continue
 		}
 		vvCopy := make([]string, len(vv))

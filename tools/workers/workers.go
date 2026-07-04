@@ -1,11 +1,12 @@
 package workers
 
 import (
+	"runtime"
 	"sync"
 	"sync/atomic"
 )
 
-const defaultWorkerLimit = 10000
+var defaultWorkerLimit = 1000
 
 var (
 	workerPool  chan func()
@@ -15,6 +16,7 @@ var (
 )
 
 func init() {
+	defaultWorkerLimit = defaultWorkerLimit * runtime.NumCPU()
 	workerPool = make(chan func(), defaultWorkerLimit)
 }
 

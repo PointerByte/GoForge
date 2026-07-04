@@ -4,6 +4,7 @@
 package viperdata
 
 import (
+	"strings"
 	"sync"
 
 	"github.com/spf13/viper"
@@ -58,3 +59,12 @@ func GetViperData(key string) any {
 	return viperData[key]
 }
 
+func IsIgnoredHeader(header string) bool {
+	ignoredHeaders := GetViperData(string(LoggerIgnoredHeadersAtribute)).([]string)
+	for _, ignoredHeader := range ignoredHeaders {
+		if strings.EqualFold(ignoredHeader, header) {
+			return true
+		}
+	}
+	return false
+}

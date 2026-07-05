@@ -18,7 +18,7 @@ type LogFormat struct {
 	TraceID   string    `json:"traceID"`
 	Message   string    `json:"message"`
 	Details   Details   `json:"details"`
-	Process   []Process `json:"proccess"`
+	Process   []Process `json:"process"`
 	Method    string    `json:"method"`
 	Line      int       `json:"line"`
 	Latency   int64     `json:"latency"`

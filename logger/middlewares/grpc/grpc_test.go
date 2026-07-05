@@ -105,11 +105,11 @@ func TestInitLoggerUnaryServerInterceptor(t *testing.T) {
 	if details.Protocol != "gRPC" {
 		t.Fatalf("details.Protocol = %q, want %q", details.Protocol, "gRPC")
 	}
-	if details.Method != "" {
-		t.Fatalf("details.Method = %q, want empty", details.Method)
+	if details.Method != "SayHello" {
+		t.Fatalf("details.Method = %q, want %q", details.Method, "SayHello")
 	}
-	if details.Path != "" {
-		t.Fatalf("details.Path = %q, want empty", details.Path)
+	if details.Path != "/pkg.Greeter/SayHello" {
+		t.Fatalf("details.Path = %q, want %q", details.Path, "/pkg.Greeter/SayHello")
 	}
 	if got := details.Headers.Get("x-request-id"); got != "abc123" {
 		t.Fatalf("details.Headers[x-request-id] = %q, want %q", got, "abc123")
@@ -159,6 +159,12 @@ func TestUnaryInterceptorsCaptureBodiesAndPopulateDetails(t *testing.T) {
 	responseBody, ok := details.Response.(map[string]any)
 	if !ok || responseBody["message"] != "ok" {
 		t.Fatalf("details.Response = %#v, want captured response map", details.Response)
+	}
+	if details.Method != "SayHello" {
+		t.Fatalf("details.Method = %q, want %q", details.Method, "SayHello")
+	}
+	if details.Path != "/pkg.Greeter/SayHello" {
+		t.Fatalf("details.Path = %q, want %q", details.Path, "/pkg.Greeter/SayHello")
 	}
 }
 
@@ -470,8 +476,11 @@ func TestInitLoggerStreamServerInterceptor(t *testing.T) {
 		t.Fatalf("expected %q in logger context", common.DetailsKey)
 	}
 	details := detailsAny.(formatter.Details)
-	if details.Method != "" {
-		t.Fatalf("details.Method = %q, want empty", details.Method)
+	if details.Method != "StreamAlerts" {
+		t.Fatalf("details.Method = %q, want %q", details.Method, "StreamAlerts")
+	}
+	if details.Path != "/pkg.Greeter/StreamAlerts" {
+		t.Fatalf("details.Path = %q, want %q", details.Path, "/pkg.Greeter/StreamAlerts")
 	}
 	if got := details.Headers.Get("X-Request-Id"); got != "stream-123" {
 		t.Fatalf("details.Headers[X-Request-Id] = %q, want %q", got, "stream-123")
@@ -518,6 +527,12 @@ func TestLoggerWithConfigStreamServerInterceptor(t *testing.T) {
 	details := detailsAny.(formatter.Details)
 	if details.Response != "out" {
 		t.Fatalf("details.Response = %#v, want %#v", details.Response, "out")
+	}
+	if details.Method != "StreamAlerts" {
+		t.Fatalf("details.Method = %q, want %q", details.Method, "StreamAlerts")
+	}
+	if details.Path != "/pkg.Greeter/StreamAlerts" {
+		t.Fatalf("details.Path = %q, want %q", details.Path, "/pkg.Greeter/StreamAlerts")
 	}
 }
 
@@ -638,6 +653,34 @@ func TestApplyGRPCBodyDetailsGuards(t *testing.T) {
 		ctxLogger.Set(common.RequestbodyKey, "req")
 		applyGRPCBodyDetails(ctxLogger)
 	})
+}
+
+func TestSetGRPCMethodDetails(t *testing.T) {
+	resetGRPCTestState(t)
+
+	ctxLogger := builder.New(context.Background())
+	ctxLogger.Details = formatter.Details{
+		System:   "test-service",
+		Client:   "client",
+		Protocol: "gRPC",
+	}
+
+	setGRPCMethodDetails(ctxLogger, "/pkg.Greeter/SayHello")
+
+	if ctxLogger.Details.Method != "SayHello" {
+		t.Fatalf("Details.Method = %q, want %q", ctxLogger.Details.Method, "SayHello")
+	}
+	if ctxLogger.Details.Path != "/pkg.Greeter/SayHello" {
+		t.Fatalf("Details.Path = %q, want %q", ctxLogger.Details.Path, "/pkg.Greeter/SayHello")
+	}
+	detailsAny, ok := ctxLogger.Get(common.DetailsKey)
+	if !ok {
+		t.Fatalf("expected %q in logger context", common.DetailsKey)
+	}
+	details := detailsAny.(formatter.Details)
+	if details.Method != "SayHello" || details.Path != "/pkg.Greeter/SayHello" {
+		t.Fatalf("details from context = %#v, want gRPC method details", details)
+	}
 }
 
 func TestWriteGRPCLogBranches(t *testing.T) {

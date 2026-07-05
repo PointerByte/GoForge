@@ -88,6 +88,9 @@ func InitLoggerUnaryServerInterceptor() grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		parent := extractGRPCContext(ctx)
 		ctxLogger, span := newGRPCLoggerContext(parent, ctx)
+		if info != nil {
+			setGRPCMethodDetails(builder.New(ctxLogger), info.FullMethod)
+		}
 		defer span.End()
 		return handler(ctxLogger, req)
 	}
@@ -103,6 +106,9 @@ func InitLoggerStreamServerInterceptor() grpc.StreamServerInterceptor {
 	return func(srv any, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		parent := extractGRPCContext(stream.Context())
 		ctxLogger, span := newGRPCLoggerContext(parent, stream.Context())
+		if info != nil {
+			setGRPCMethodDetails(builder.New(ctxLogger), info.FullMethod)
+		}
 		defer span.End()
 
 		return handler(srv, &grpcContextStream{
@@ -192,8 +198,13 @@ func LoggerWithConfigUnaryServerInterceptor() grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		ctxLogger := builder.New(ctx)
 		resp, err := handler(ctxLogger, req)
+		fullMethod := ""
+		if info != nil {
+			fullMethod = info.FullMethod
+			setGRPCMethodDetails(ctxLogger, fullMethod)
+		}
 		applyGRPCBodyDetails(ctxLogger)
-		writeGRPCLog(ctxLogger, info.FullMethod, err)
+		writeGRPCLog(ctxLogger, fullMethod, err)
 		return resp, err
 	}
 }
@@ -210,8 +221,13 @@ func LoggerWithConfigStreamServerInterceptor() grpc.StreamServerInterceptor {
 			ServerStream: stream,
 			ctx:          ctxLogger,
 		})
+		fullMethod := ""
+		if info != nil {
+			fullMethod = info.FullMethod
+			setGRPCMethodDetails(ctxLogger, fullMethod)
+		}
 		applyGRPCBodyDetails(ctxLogger)
-		writeGRPCLog(ctxLogger, info.FullMethod, err)
+		writeGRPCLog(ctxLogger, fullMethod, err)
 		return err
 	}
 }
@@ -327,6 +343,25 @@ func applyGRPCBodyDetails(ctxLogger *builder.Context) {
 	if responseBody, ok := ctxLogger.Get(common.ResponsebodyKey); includeResponse && ok {
 		details.Response = responseBody
 	}
+	ctxLogger.Details = details
+	ctxLogger.Set(common.DetailsKey, details)
+}
+
+func setGRPCMethodDetails(ctxLogger *builder.Context, fullMethod string) {
+	if fullMethod == "" {
+		return
+	}
+
+	details := ctxLogger.Details
+	if details.System == "" {
+		if detailsAny, ok := ctxLogger.Get(common.DetailsKey); ok {
+			if castDetails, castOK := detailsAny.(formatter.Details); castOK {
+				details = castDetails
+			}
+		}
+	}
+	details.Method = grpcFunctionName(fullMethod)
+	details.Path = fullMethod
 	ctxLogger.Details = details
 	ctxLogger.Set(common.DetailsKey, details)
 }

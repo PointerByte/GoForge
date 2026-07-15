@@ -8,14 +8,14 @@ replace (
 )
 
 require (
-	github.com/PointerByte/GoForge/encrypt v0.0.37
+	github.com/PointerByte/GoForge/encrypt v0.0.38
 	github.com/gin-gonic/gin v1.12.0
 	github.com/spf13/viper v1.21.0
 	google.golang.org/grpc v1.82.0
 )
 
 require (
-	github.com/PointerByte/GoForge/logger v0.0.55 // indirect
+	github.com/PointerByte/GoForge/logger v0.0.56 // indirect
 	github.com/bytedance/gopkg v0.1.4 // indirect
 	github.com/bytedance/sonic v1.15.2 // indirect
 	github.com/bytedance/sonic/loader v0.5.1 // indirect
@@ -69,8 +69,8 @@ require (
 	golang.org/x/net v0.56.0 // indirect
 	golang.org/x/sys v0.46.0 // indirect
 	golang.org/x/text v0.38.0 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20260630182238-925bb5da69e7 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260630182238-925bb5da69e7 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20260713224248-f5fc221cf8c4 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260713224248-f5fc221cf8c4 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 )

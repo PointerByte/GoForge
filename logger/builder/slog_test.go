@@ -187,9 +187,9 @@ func TestJSONHandler_Handle_JSON(t *testing.T) {
 		t.Fatalf("details.path = %#v, want %#v", details["path"], "/loan/simulate")
 	}
 
-	servicesAny, ok := decoded["proccess"]
+	servicesAny, ok := decoded["process"]
 	if !ok {
-		t.Fatal("proccess field not found")
+		t.Fatal("process field not found")
 	}
 	services, ok := servicesAny.([]any)
 	if !ok {
@@ -197,6 +197,84 @@ func TestJSONHandler_Handle_JSON(t *testing.T) {
 	}
 	if len(services) != 0 {
 		t.Fatalf("services len = %d, want 0", len(services))
+	}
+}
+
+func TestJSONHandler_HandleNormalizesMissingOrInvalidProcessCollection(t *testing.T) {
+	resetBuilderViper()
+	t.Cleanup(resetBuilderViper)
+
+	viper.Set(string(viperdata.LoggerFormatDateAtribute), "2006-01-02T15:04:05.000")
+	viper.Set(string(viperdata.LoggerFormatterAtribute), "json")
+	viper.Set(string(viperdata.AppAtribute), "test-app")
+
+	buf := &bytes.Buffer{}
+	h := newHandler(slog.LevelDebug, buf)
+	ctx := New(context.Background())
+	ctx.fields.Delete(servicesKey)
+
+	if err := h.Handle(ctx, slog.NewRecord(time.Now(), slog.LevelInfo, "no traces", 0)); err != nil {
+		t.Fatalf("Handle() error = %v", err)
+	}
+
+	var decoded map[string]any
+	if err := json.Unmarshal(bytes.TrimSpace(buf.Bytes()), &decoded); err != nil {
+		t.Fatalf("invalid JSON output: %v", err)
+	}
+	process, ok := decoded["process"].([]any)
+	if !ok {
+		t.Fatalf("process = %T, want []any", decoded["process"])
+	}
+	if len(process) != 0 {
+		t.Fatalf("process = %#v, want []", process)
+	}
+	if _, exists := decoded["pro"+"ccess"]; exists {
+		t.Fatalf("unexpected legacy process field in %#v", decoded)
+	}
+}
+
+func TestJSONHandler_HandleSerializesCompletedTracesInOrder(t *testing.T) {
+	resetBuilderViper()
+	t.Cleanup(resetBuilderViper)
+
+	viper.Set(string(viperdata.LoggerFormatDateAtribute), "2006-01-02T15:04:05.000")
+	viper.Set(string(viperdata.LoggerFormatterAtribute), "json")
+	viper.Set(string(viperdata.AppAtribute), "test-service")
+	viper.Set(string(viperdata.LoggerModeTestAtribute), false)
+
+	buf := &bytes.Buffer{}
+	h := newHandler(slog.LevelDebug, buf)
+	ctx := New(context.Background())
+
+	for _, name := range []string{"query database", "write audit record"} {
+		process := &formatter.Process{System: "test-service", Process: name}
+		ctx.TraceInit(process)
+		ctx.TraceEnd(process)
+	}
+
+	if err := h.Handle(ctx, slog.NewRecord(time.Now(), slog.LevelInfo, "request completed", 0)); err != nil {
+		t.Fatalf("Handle() error = %v", err)
+	}
+
+	var decoded map[string]any
+	if err := json.Unmarshal(bytes.TrimSpace(buf.Bytes()), &decoded); err != nil {
+		t.Fatalf("invalid JSON output: %v", err)
+	}
+	processes, ok := decoded["process"].([]any)
+	if !ok || len(processes) != 2 {
+		t.Fatalf("process = %#v, want two completed traces", decoded["process"])
+	}
+	for index, want := range []string{"query database", "write audit record"} {
+		process, ok := processes[index].(map[string]any)
+		if !ok {
+			t.Fatalf("process[%d] = %T, want object", index, processes[index])
+		}
+		if process["system"] != "test-service" || process["process"] != want || process["status"] != "SUCCESS" {
+			t.Fatalf("process[%d] = %#v, want completed %q trace", index, process, want)
+		}
+	}
+	if remaining := ctx.Processes(); len(remaining) != 0 {
+		t.Fatalf("process collection was not cleared after final serialization: %#v", remaining)
 	}
 }
 

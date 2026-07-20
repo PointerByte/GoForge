@@ -26,6 +26,25 @@ func TestNew(t *testing.T) {
 	}
 }
 
+func TestLogFormatMarshalJSONNormalizesNilProcess(t *testing.T) {
+	got, err := json.Marshal(LogFormat{Message: "no child traces"})
+	if err != nil {
+		t.Fatalf("json.Marshal(LogFormat) error = %v", err)
+	}
+
+	var decoded map[string]any
+	if err := json.Unmarshal(got, &decoded); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	process, ok := decoded["process"].([]any)
+	if !ok || len(process) != 0 {
+		t.Fatalf("process = %#v, want []", decoded["process"])
+	}
+	if _, exists := decoded["pro"+"ccess"]; exists {
+		t.Fatalf("unexpected legacy process field in %s", got)
+	}
+}
+
 func TestCustomFormatter_Format(t *testing.T) {
 	baseLog := LogFormat{
 		Timestamp: "2026-03-13T01:10:23.123",
@@ -36,7 +55,7 @@ func TestCustomFormatter_Format(t *testing.T) {
 		Latency:   155,
 	}
 
-	jsonExpected := []byte(`{"timestamp":"2026-03-13T01:10:23.123","traceID":"8f3a5d9c-9f2a-4e1d-b3a7-7f23d9a1e4aa","level":"","message":"Request processed successfully","details":{"system":""},"proccess":[],"method":"ProcessPayment","line":142,"latency":155}`)
+	jsonExpected := []byte(`{"timestamp":"2026-03-13T01:10:23.123","traceID":"8f3a5d9c-9f2a-4e1d-b3a7-7f23d9a1e4aa","level":"","message":"Request processed successfully","details":{"system":""},"process":[],"method":"ProcessPayment","line":142,"latency":155}`)
 
 	textExpectedWithTime := []byte(fmt.Sprintf(
 		"[%s] [%v] [%s] %s:%d - %s latency=%dms",

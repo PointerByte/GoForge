@@ -62,6 +62,10 @@ func (h *jsonHandler) Handle(ctx context.Context, r slog.Record) error {
 	if err != nil {
 		panic(err)
 	}
+	// The formatter now owns a snapshot of completed traces. Clear only after
+	// that final payload has been built, so TraceEnd entries cannot disappear
+	// before serialization.
+	ctxLogger.clearProcesses(len(logObj.Process))
 	var jsonMap any
 	if err := json.Unmarshal(jsonBytes, &jsonMap); err != nil {
 		if err = h.writeData(jsonBytes); err != nil {

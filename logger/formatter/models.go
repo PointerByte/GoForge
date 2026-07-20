@@ -4,6 +4,7 @@
 package formatter
 
 import (
+	"encoding/json"
 	"net/http"
 	"sync"
 	"time"
@@ -22,6 +23,30 @@ type LogFormat struct {
 	Method    string    `json:"method"`
 	Line      int       `json:"line"`
 	Latency   int64     `json:"latency"`
+}
+
+// NewLogFormat creates a log payload with the public process collection
+// initialized. A log entry always exposes process as an array, even when no
+// downstream operation was traced.
+func NewLogFormat() LogFormat {
+	return LogFormat{Process: make([]Process, 0)}
+}
+
+// Normalize returns a log payload safe for serialization. In particular,
+// process is part of the public JSON contract and must never be encoded as
+// null.
+func (l LogFormat) Normalize() LogFormat {
+	if l.Process == nil {
+		l.Process = make([]Process, 0)
+	}
+	return l
+}
+
+// MarshalJSON preserves the process JSON contract for every consumer that
+// serializes LogFormat directly, including custom formatter templates.
+func (l LogFormat) MarshalJSON() ([]byte, error) {
+	type logFormatAlias LogFormat
+	return json.Marshal(logFormatAlias(l.Normalize()))
 }
 
 type Details struct {

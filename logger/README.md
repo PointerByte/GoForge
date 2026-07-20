@@ -299,7 +299,7 @@ log entry.
   "level": "info",
   "message": "request completed",
   "details": { "system": "orders-api", "method": "GET", "path": "/api/v1/orders" },
-  "proccess": [
+  "process": [
     { "system": "orders-api", "process": "GetOrders", "status": "OK", "latency": 12 }
   ],
   "method": "handler.go",

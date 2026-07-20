@@ -37,35 +37,78 @@ func (c *Context) customLogFormat() map[string]any {
 	// ---------- Details ----------
 	var details formatter.Details
 	if v, ok := c.Get(detailsKey); ok {
-		details = v.(formatter.Details)
+		if storedDetails, ok := v.(formatter.Details); ok {
+			details = storedDetails
+		}
 	}
 	if details.System == "" {
 		details.System = viperdata.GetViperData(string(viperdata.AppAtribute)).(string)
 	}
 
 	// ---------- Services ----------
-	var services *[]formatter.Process
-	if v, ok := c.Get(servicesKey); ok {
-		services = v.(*[]formatter.Process)
-	}
-	defer func() {
-		c.mux.Lock()
-		*services = make([]formatter.Process, 0)
-		c.mux.Unlock()
-	}()
+	services := c.Processes()
 
 	// ---------- Format Logger ----------
-	entry := formatter.LogFormat{
-		TraceID: traceID,
-		Details: details,
-		Process: *services,
-		Method:  funcName,
-		Line:    line,
-	}
+	entry := formatter.NewLogFormat()
+	entry.TraceID = traceID
+	entry.Details = details
+	entry.Process = services
+	entry.Method = funcName
+	entry.Line = line
 	jsonBytes, _ := json.Marshal(entry)
 	var m map[string]any
 	_ = json.Unmarshal(jsonBytes, &m)
 	return m
+}
+
+// Processes returns a snapshot of the request's completed child traces. It is
+// safe when an older or user-created context has no process collection.
+func (c *Context) Processes() []formatter.Process {
+	c.mux.Lock()
+	defer c.mux.Unlock()
+
+	services := c.processCollectionLocked()
+	result := make([]formatter.Process, len(*services))
+	copy(result, *services)
+	return result
+}
+
+// clearProcesses removes only the traces included in a completed log payload.
+// It deliberately runs after formatting so TraceEnd entries remain available
+// to the final request log.
+func (c *Context) clearProcesses(count int) {
+	if count <= 0 {
+		return
+	}
+
+	c.mux.Lock()
+	defer c.mux.Unlock()
+
+	services := c.processCollectionLocked()
+	if len(*services) <= count {
+		*services = make([]formatter.Process, 0)
+		return
+	}
+	remaining := make([]formatter.Process, len(*services)-count)
+	copy(remaining, (*services)[count:])
+	*services = remaining
+}
+
+// processCollectionLocked returns the collection shared by every derived
+// builder.Context. c.mux must be held by the caller.
+func (c *Context) processCollectionLocked() *[]formatter.Process {
+	if value, ok := c.Get(servicesKey); ok {
+		if services, ok := value.(*[]formatter.Process); ok && services != nil {
+			if *services == nil {
+				*services = make([]formatter.Process, 0)
+			}
+			return services
+		}
+	}
+
+	services := make([]formatter.Process, 0)
+	c.Set(servicesKey, &services)
+	return &services
 }
 
 // TraceInit marks the start of tracing for a process or subprocess.
@@ -84,6 +127,9 @@ func (c *Context) customLogFormat() map[string]any {
 //	ctx.TraceInit(process)
 //	defer ctx.TraceEnd(process)
 func (c *Context) TraceInit(process *formatter.Process) {
+	if process == nil {
+		return
+	}
 	if viperdata.GetViperData(string(viperdata.LoggerModeTestAtribute)).(bool) {
 		return
 	}
@@ -115,6 +161,9 @@ func (c *Context) startSpan(process *formatter.Process) {
 //
 // It should normally be used with defer immediately after TraceInit.
 func (c *Context) TraceEnd(process *formatter.Process) {
+	if process == nil {
+		return
+	}
 	if viperdata.GetViperData(string(viperdata.LoggerModeTestAtribute)).(bool) {
 		return
 	}
@@ -136,10 +185,12 @@ func (c *Context) TraceEnd(process *formatter.Process) {
 	classifyStatus(process)
 	ignoreHeaders(process)
 
-	services, _ := c.Get(servicesKey)
-	vl := services.(*[]formatter.Process)
+	services := c.processCollectionLocked()
+	if process.TimeInit.IsZero() {
+		process.TimeInit = time.Now()
+	}
 	process.Latency = time.Since(process.TimeInit).Milliseconds()
-	*vl = append(*vl, *process)
+	*services = append(*services, *process)
 
 	c.setSpanAttributes(process)
 }
@@ -163,7 +214,7 @@ func ignoreHeaders(process *formatter.Process) {
 }
 
 func (c *Context) setSpanAttributes(process *formatter.Process) {
-	if c.disableTrace {
+	if c.disableTrace || process.Span == nil {
 		return
 	}
 	defer process.Span.End()
@@ -171,7 +222,7 @@ func (c *Context) setSpanAttributes(process *formatter.Process) {
 }
 
 func (c *Context) setTraceID(process *formatter.Process) {
-	if c.disableTrace {
+	if c.disableTrace || process.Span == nil {
 		return
 	}
 	sc := process.Span.SpanContext()

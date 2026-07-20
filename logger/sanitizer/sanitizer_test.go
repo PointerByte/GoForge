@@ -30,6 +30,10 @@ func (unsupportedLoginRequest) String() string {
 
 func TestLogFormatRedactsSensitiveKeys(t *testing.T) {
 	s := New([]string{"password", "email", "phone"})
+	processHeaders := http.Header{
+		"X-Password": {"header-secret"},
+		"X-Trace":    {`{"email":"trace@example.com"}`},
+	}
 
 	log := formatter.LogFormat{
 		Message: "login failed password=message-secret token=public",
@@ -47,8 +51,10 @@ func TestLogFormatRedactsSensitiveKeys(t *testing.T) {
 		},
 		Process: []formatter.Process{
 			{
-				System:  "auth",
-				Request: loginRequest{Email: "service@example.com", Password: "service-secret", Public: "ok"},
+				System:   "auth",
+				Headers:  &processHeaders,
+				Request:  loginRequest{Email: "service@example.com", Password: "service-secret", Public: "ok"},
+				Response: `{"phone":"555-0199","password":"trace-response-secret"}`,
 			},
 		},
 	}
@@ -60,7 +66,7 @@ func TestLogFormatRedactsSensitiveKeys(t *testing.T) {
 	}
 	out := string(data)
 
-	for _, secret := range []string{"message-secret", "person@example.com", "secret", "555-0100", "service@example.com", "service-secret"} {
+	for _, secret := range []string{"message-secret", "person@example.com", "secret", "555-0100", "service@example.com", "service-secret", "header-secret", "trace@example.com", "555-0199", "trace-response-secret"} {
 		if strings.Contains(out, secret) {
 			t.Fatalf("sanitized log still contains %q: %s", secret, out)
 		}

@@ -23,9 +23,10 @@ type CustomFormatter struct {
 	Template string
 }
 
-const defaultJSONTemplate = `{"timestamp":{{json .Timestamp}},"traceID":{{json .TraceID}},"level":{{json .Level}},"message":{{json .Message}},"details":{{json (buildDetails .Details)}},"proccess":{{json (buildServices .Process)}},"method":{{json .Method}},"line":{{json .Line}},"latency":{{json .Latency}}}`
+const defaultJSONTemplate = `{"timestamp":{{json .Timestamp}},"traceID":{{json .TraceID}},"level":{{json .Level}},"message":{{json .Message}},"details":{{json (buildDetails .Details)}},"process":{{json (buildServices .Process)}},"method":{{json .Method}},"line":{{json .Line}},"latency":{{json .Latency}}}`
 
 func (f *CustomFormatter) Format(log LogFormat) ([]byte, error) {
+	log = log.Normalize()
 	switch strings.ToLower(strings.TrimSpace(f.Template)) {
 	case "json":
 		return f.FormatJSON(log)
@@ -140,6 +141,9 @@ func (f *CustomFormatter) FormatText(log LogFormat) ([]byte, error) {
 			if s.Server != "" {
 				writeServiceField("server", s.Server)
 			}
+			if s.Headers != nil {
+				writeServiceField("headers", toJSON(*s.Headers))
+			}
 			if s.Protocol != "" {
 				writeServiceField("protocol", s.Protocol)
 			}
@@ -188,6 +192,7 @@ func (f *CustomFormatter) FormatTemplate(log LogFormat) ([]byte, error) {
 }
 
 func (f *CustomFormatter) executeTemplate(tpl string, log LogFormat) ([]byte, error) {
+	log = log.Normalize()
 	funcMap := template.FuncMap{
 		"json": func(v any) string {
 			b, _ := json.Marshal(v)
@@ -261,6 +266,9 @@ func buildServices(items []Process) []map[string]any {
 		}
 		if s.Server != "" {
 			row["server"] = s.Server
+		}
+		if s.Headers != nil {
+			row["headers"] = *s.Headers
 		}
 		if s.Protocol != "" {
 			row["protocol"] = s.Protocol

@@ -201,8 +201,8 @@ func TestCustomLogFormat(t *testing.T) {
 		t.Fatal("expected non-nil formatted map")
 	}
 
-	if len(services) != 0 {
-		t.Fatalf("expected services slice to be reset, got len=%d", len(services))
+	if len(services) != 1 {
+		t.Fatalf("expected services slice to remain available until final serialization, got len=%d", len(services))
 	}
 
 	if time.Since(ctx.startTime) > time.Second {
@@ -247,6 +247,25 @@ func TestTraceInitAndTraceEnd_SuccessFlow(t *testing.T) {
 
 	if len(services) != 1 {
 		t.Fatalf("expected 1 service appended, got %d", len(services))
+	}
+}
+
+func TestTraceEndRecreatesMissingProcessCollection(t *testing.T) {
+	resetViperForTest()
+
+	ctx := New(context.Background())
+	ctx.fields.Delete(servicesKey)
+	process := &formatter.Process{System: "test-service", Process: "query database"}
+
+	ctx.TraceInit(process)
+	ctx.TraceEnd(process)
+
+	processes := ctx.Processes()
+	if len(processes) != 1 {
+		t.Fatalf("processes = %#v, want one completed trace", processes)
+	}
+	if got := processes[0]; got.System != "test-service" || got.Process != "query database" || got.Status != formatter.SUCCESS {
+		t.Fatalf("process = %#v, want completed database query", got)
 	}
 }
 

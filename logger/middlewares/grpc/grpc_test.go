@@ -5,8 +5,10 @@ package grpc
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"testing"
@@ -35,6 +37,38 @@ type fakeServerStream struct {
 	recvItems []any
 	sendItems []any
 	sendErr   error
+}
+
+type grpcLogCaptureHandler struct {
+	payload []byte
+}
+
+func (h *grpcLogCaptureHandler) Enabled(context.Context, slog.Level) bool {
+	return true
+}
+
+func (h *grpcLogCaptureHandler) Handle(ctx context.Context, record slog.Record) error {
+	ctxLogger, ok := builder.From(ctx)
+	if !ok {
+		return errors.New("logger context was not propagated to final log")
+	}
+	payload, err := formatter.New("json").Format(formatter.LogFormat{
+		Message: record.Message,
+		Process: ctxLogger.Processes(),
+	})
+	if err != nil {
+		return err
+	}
+	h.payload = payload
+	return nil
+}
+
+func (h *grpcLogCaptureHandler) WithAttrs([]slog.Attr) slog.Handler {
+	return h
+}
+
+func (h *grpcLogCaptureHandler) WithGroup(string) slog.Handler {
+	return h
 }
 
 func (s *fakeServerStream) Context() context.Context {
@@ -165,6 +199,72 @@ func TestUnaryInterceptorsCaptureBodiesAndPopulateDetails(t *testing.T) {
 	}
 	if details.Path != "/pkg.Greeter/SayHello" {
 		t.Fatalf("details.Path = %q, want %q", details.Path, "/pkg.Greeter/SayHello")
+	}
+}
+
+func TestUnaryInterceptorChainPreservesAndSerializesCompletedTraces(t *testing.T) {
+	resetGRPCTestState(t)
+
+	oldLogger := slog.Default()
+	capture := &grpcLogCaptureHandler{}
+	slog.SetDefault(slog.New(capture))
+	t.Cleanup(func() { slog.SetDefault(oldLogger) })
+
+	var handlerLogger *builder.Context
+	userInterceptor := func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+		// A user interceptor may wrap the context; builder.From must still find
+		// the request-scoped logger and its shared process collection.
+		return handler(context.WithValue(ctx, "user-interceptor", true), req)
+	}
+
+	_, err := InitLoggerUnaryServerInterceptor()(context.Background(), "request", &grpc.UnaryServerInfo{
+		FullMethod: "/pkg.CMK/Decrypt",
+	}, func(ctx context.Context, req any) (any, error) {
+		return LoggerWithConfigUnaryServerInterceptor()(ctx, req, &grpc.UnaryServerInfo{
+			FullMethod: "/pkg.CMK/Decrypt",
+		}, func(ctx context.Context, req any) (any, error) {
+			return CaptureBodyUnaryServerInterceptor()(ctx, req, &grpc.UnaryServerInfo{
+				FullMethod: "/pkg.CMK/Decrypt",
+			}, func(ctx context.Context, req any) (any, error) {
+				return userInterceptor(ctx, req, &grpc.UnaryServerInfo{FullMethod: "/pkg.CMK/Decrypt"}, func(ctx context.Context, req any) (any, error) {
+					handlerLogger = builder.New(ctx)
+					for _, name := range []string{"query database", "write audit record"} {
+						process := &formatter.Process{System: "test-service", Process: name}
+						handlerLogger.TraceInit(process)
+						handlerLogger.TraceEnd(process)
+					}
+					handlerLogger.Set(formatter.InfoLevel, "Decrypt completed")
+					return "response", nil
+				})
+			})
+		})
+	})
+	if err != nil {
+		t.Fatalf("interceptor chain returned error: %v", err)
+	}
+	if handlerLogger == nil {
+		t.Fatal("handler did not receive a logger context")
+	}
+
+	var decoded map[string]any
+	if err := json.Unmarshal(capture.payload, &decoded); err != nil {
+		t.Fatalf("final log payload is not JSON: %v; payload=%s", err, capture.payload)
+	}
+	processes, ok := decoded["process"].([]any)
+	if !ok || len(processes) != 2 {
+		t.Fatalf("process = %#v, want two traces", decoded["process"])
+	}
+	for index, want := range []string{"query database", "write audit record"} {
+		process, ok := processes[index].(map[string]any)
+		if !ok {
+			t.Fatalf("process[%d] = %T, want object", index, processes[index])
+		}
+		if process["system"] != "test-service" || process["process"] != want || process["status"] != "SUCCESS" {
+			t.Fatalf("process[%d] = %#v, want completed %q trace", index, process, want)
+		}
+	}
+	if _, exists := decoded["pro"+"ccess"]; exists {
+		t.Fatalf("final payload used legacy process field: %s", capture.payload)
 	}
 }
 

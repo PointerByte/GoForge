@@ -3,12 +3,4 @@
 **/coverage.html
 **/.gocache
 **/.idea
-**/.codex
 **/.claude
-**/CLAUDE.md
-**/AGENTS.md
-/scripts
-push.txt
-coverage_report.txt
-coverage.out.total
-.push.txt.kate-swp

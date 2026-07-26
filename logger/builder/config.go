@@ -123,9 +123,17 @@ func setLevel() slog.Level {
 }
 
 func EnableModeTest() {
-	viper.SetDefault(string(viperdata.LoggerModeTestAtribute), true)
+	viper.Set(string(viperdata.LoggerModeTestAtribute), true)
+	viperdata.ResetViperDataSingleton()
 }
 
 func DisableModeTest() {
-	viper.SetDefault(string(viperdata.LoggerModeTestAtribute), false)
+	viper.Set(string(viperdata.LoggerModeTestAtribute), false)
+	viperdata.ResetViperDataSingleton()
+}
+
+// IsModeTest reports whether logger test mode is effectively enabled.
+func IsModeTest() bool {
+	mode, _ := viperdata.GetViperData(string(viperdata.LoggerModeTestAtribute)).(bool)
+	return mode
 }

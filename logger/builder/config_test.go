@@ -331,10 +331,16 @@ func TestInitLogger(t *testing.T) {
 
 func TestEnableModeTest(t *testing.T) {
 	viper.Reset()
-	DisableModeTest()
+	t.Cleanup(func() {
+		viper.Reset()
+		viperdata.ResetViperDataSingleton()
+	})
+	viper.Set(string(viperdata.LoggerModeTestAtribute), false)
+	viperdata.ResetViperDataSingleton()
+
 	EnableModeTest()
 
-	got := viper.GetBool(string(viperdata.LoggerModeTestAtribute))
+	got := IsModeTest()
 	if !got {
 		t.Fatalf("EnableModeTest() = %v, want true", got)
 	}
@@ -342,10 +348,16 @@ func TestEnableModeTest(t *testing.T) {
 
 func TestDisableModeTest(t *testing.T) {
 	viper.Reset()
-	EnableModeTest()
+	t.Cleanup(func() {
+		viper.Reset()
+		viperdata.ResetViperDataSingleton()
+	})
+	viper.Set(string(viperdata.LoggerModeTestAtribute), true)
+	viperdata.ResetViperDataSingleton()
+
 	DisableModeTest()
 
-	got := viper.GetBool(string(viperdata.LoggerModeTestAtribute))
+	got := IsModeTest()
 	if got {
 		t.Fatalf("DisableModeTest() = %v, want false", got)
 	}

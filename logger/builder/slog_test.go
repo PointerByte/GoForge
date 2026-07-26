@@ -468,7 +468,7 @@ func TestJSONHandler_writeDataConcurrentWritesCompleteLines(t *testing.T) {
 		i := i
 		go func() {
 			defer wg.Done()
-			if err := h.writeData([]byte(fmt.Sprintf(`{"n":%d}`, i))); err != nil {
+			if err := h.writeData(fmt.Appendf(nil, `{"n":%d}`, i)); err != nil {
 				t.Errorf("writeData() error = %v", err)
 			}
 		}()

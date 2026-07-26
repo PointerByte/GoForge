@@ -118,20 +118,38 @@ func TestGCPClientFactoryError(t *testing.T) {
 	ctx := context.Background()
 
 	errCalls := map[string]func() error{
-		"GenerateSymetrycKeys":  func() error { _, err := repo.GenerateSymetrycKeys(ctx, models.GenerateSymmetricKeyRequest{Size: common.Key256Bits}); return err },
-		"RotateKey":             func() error { _, err := repo.RotateKey(ctx, models.RotateKeyRequest{KeyID: versionRef}); return err },
-		"GetKey":                func() error { _, err := repo.GetKey(ctx, models.GetKeyRequest{KeyID: versionRef}); return err },
-		"DeactivateKey":         func() error { return repo.DeactivateKey(ctx, models.DeactivateKeyRequest{KeyID: versionRef}) },
-		"EncryptAES":            func() error { _, err := repo.EncryptAES(ctx, models.EncryptAESRequest{SecretKey: keyRef, Value: "v"}); return err },
-		"GenerateRSAKeys":       func() error { _, err := repo.GenerateRSAKeys(ctx, models.GenerateRSAKeyRequest{Size: common.Key2048Bits}); return err },
-		"GenerateEd255Keys":     func() error { _, err := repo.GenerateEd255Keys(ctx); return err },
-		"GenerateECDHCurveKeys": func() error { _, err := repo.GenerateECDHCurveKeys(ctx, models.GenerateECDHCurveKeyRequest{Curve: common.CurveP256}); return err },
-		"RSA_OAEP_Encode":       func() error { _, err := repo.RSA_OAEP_Encode(ctx, models.RSAOAEPEncodeRequest{PublicKey: versionRef, Text: "t"}); return err },
-		"ECDH_Encode":           func() error { _, err := repo.ECDH_Encode(ctx, models.ECDHEncodeRequest{PublicKey: versionRef, Text: "t"}); return err },
-		"SignEd25519":           func() error { _, err := repo.SignEd25519(ctx, versionRef, "t"); return err },
-		"VerifyEd25519":         func() error { return repo.VerifyEd25519(ctx, versionRef, "t", "s") },
-		"SignRSAPSS":            func() error { _, err := repo.SignRSAPSS(ctx, versionRef, "t"); return err },
-		"VerifyRSAPSS":          func() error { return repo.VerifyRSAPSS(ctx, versionRef, "t", "s") },
+		"GenerateSymetrycKeys": func() error {
+			_, err := repo.GenerateSymetrycKeys(ctx, models.GenerateSymmetricKeyRequest{Size: common.Key256Bits})
+			return err
+		},
+		"RotateKey":     func() error { _, err := repo.RotateKey(ctx, models.RotateKeyRequest{KeyID: versionRef}); return err },
+		"GetKey":        func() error { _, err := repo.GetKey(ctx, models.GetKeyRequest{KeyID: versionRef}); return err },
+		"DeactivateKey": func() error { return repo.DeactivateKey(ctx, models.DeactivateKeyRequest{KeyID: versionRef}) },
+		"EncryptAES": func() error {
+			_, err := repo.EncryptAES(ctx, models.EncryptAESRequest{SecretKey: keyRef, Value: "v"})
+			return err
+		},
+		"GenerateRSAKeys": func() error {
+			_, err := repo.GenerateRSAKeys(ctx, models.GenerateRSAKeyRequest{Size: common.Key2048Bits})
+			return err
+		},
+		"GenerateEd255Keys": func() error { _, err := repo.GenerateEd255Keys(ctx); return err },
+		"GenerateECDHCurveKeys": func() error {
+			_, err := repo.GenerateECDHCurveKeys(ctx, models.GenerateECDHCurveKeyRequest{Curve: common.CurveP256})
+			return err
+		},
+		"RSA_OAEP_Encode": func() error {
+			_, err := repo.RSA_OAEP_Encode(ctx, models.RSAOAEPEncodeRequest{PublicKey: versionRef, Text: "t"})
+			return err
+		},
+		"ECDH_Encode": func() error {
+			_, err := repo.ECDH_Encode(ctx, models.ECDHEncodeRequest{PublicKey: versionRef, Text: "t"})
+			return err
+		},
+		"SignEd25519":   func() error { _, err := repo.SignEd25519(ctx, versionRef, "t"); return err },
+		"VerifyEd25519": func() error { return repo.VerifyEd25519(ctx, versionRef, "t", "s") },
+		"SignRSAPSS":    func() error { _, err := repo.SignRSAPSS(ctx, versionRef, "t"); return err },
+		"VerifyRSAPSS":  func() error { return repo.VerifyRSAPSS(ctx, versionRef, "t", "s") },
 	}
 
 	for name, call := range errCalls {

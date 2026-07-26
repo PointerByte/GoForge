@@ -8,10 +8,10 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/PointerByte/GoForge/encrypt/common"
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/kms/types"
-	"github.com/PointerByte/GoForge/encrypt/common"
 	"github.com/spf13/viper"
 )
 

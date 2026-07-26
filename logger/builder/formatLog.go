@@ -130,7 +130,7 @@ func (c *Context) TraceInit(process *formatter.Process) {
 	if process == nil {
 		return
 	}
-	if viperdata.GetViperData(string(viperdata.LoggerModeTestAtribute)).(bool) {
+	if IsModeTest() {
 		return
 	}
 	c.mux.Lock()
@@ -164,7 +164,7 @@ func (c *Context) TraceEnd(process *formatter.Process) {
 	if process == nil {
 		return
 	}
-	if viperdata.GetViperData(string(viperdata.LoggerModeTestAtribute)).(bool) {
+	if IsModeTest() {
 		return
 	}
 	c.mux.Lock()
@@ -258,7 +258,7 @@ func classifyStatus(process *formatter.Process) {
 }
 
 func (c *Context) prepareLog() bool {
-	if viperdata.GetViperData(string(viperdata.LoggerModeTestAtribute)).(bool) {
+	if IsModeTest() {
 		return false
 	}
 	if v, ok := c.Get(detailsKey); ok {

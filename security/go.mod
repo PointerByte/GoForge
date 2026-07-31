@@ -8,14 +8,14 @@ replace (
 )
 
 require (
-	github.com/PointerByte/GoForge/encrypt v0.0.41
+	github.com/PointerByte/GoForge/encrypt v0.0.42
 	github.com/gin-gonic/gin v1.12.0
 	github.com/spf13/viper v1.21.0
 	google.golang.org/grpc v1.82.0
 )
 
 require (
-	github.com/PointerByte/GoForge/logger v0.0.59 // indirect
+	github.com/PointerByte/GoForge/logger v0.0.60 // indirect
 	github.com/bytedance/gopkg v0.1.4 // indirect
 	github.com/bytedance/sonic v1.15.2 // indirect
 	github.com/bytedance/sonic/loader v0.5.1 // indirect

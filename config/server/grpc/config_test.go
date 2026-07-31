@@ -47,6 +47,28 @@ type mockUnitary struct {
 	gracefulCalls int
 }
 
+type shutdownObservationProcessor struct {
+	shutdownCalls int
+	shutdownErr   error
+}
+
+func (*shutdownObservationProcessor) Enabled(context.Context, sdklog.EnabledParameters) bool {
+	return true
+}
+
+func (*shutdownObservationProcessor) OnEmit(context.Context, *sdklog.Record) error {
+	return nil
+}
+
+func (p *shutdownObservationProcessor) Shutdown(context.Context) error {
+	p.shutdownCalls++
+	return p.shutdownErr
+}
+
+func (*shutdownObservationProcessor) ForceFlush(context.Context) error {
+	return nil
+}
+
 func (m *mockUnitary) SetAddress(string)        {}
 func (m *mockUnitary) SetListener(net.Listener) {}
 func (m *mockUnitary) Register(RegisterServiceFunc) error {
@@ -142,7 +164,7 @@ func resetServerGRPCTestState(t *testing.T) {
 		return func(context.Context) error { return nil }, nil
 	}
 	runAsyncFn = func(fn func()) { go fn() }
-	waitForShutdownSignalFn = func(*grpc.Server, []handlerShutdown) {}
+	waitForShutdownSignalFn = func(*grpc.Server, []handlerShutdown, <-chan struct{}) {}
 	quit = make(chan os.Signal, 1)
 }
 
@@ -386,6 +408,31 @@ func TestNewIConfigInitLoggerError(t *testing.T) {
 	})
 	if !errors.Is(err, wantErr) {
 		t.Fatalf("Register() error = %v, want %v", err, wantErr)
+	}
+}
+
+func TestLoadConfigShutsDownLoggerWhenOtelInitializationFails(t *testing.T) {
+	resetServerGRPCTestState(t)
+
+	otelErr := errors.New("init otel failed")
+	shutdownErr := errors.New("shutdown logger failed")
+	processor := &shutdownObservationProcessor{shutdownErr: shutdownErr}
+	initLogger = func(context.Context, string) (*sdklog.LoggerProvider, error) {
+		return sdklog.NewLoggerProvider(sdklog.WithProcessor(processor)), nil
+	}
+	initOtel = func(context.Context) (func(context.Context) error, error) {
+		return nil, otelErr
+	}
+
+	shutdownList, err := loadConfig(t.TempDir())
+	if shutdownList != nil {
+		t.Fatalf("shutdownList = %#v, want nil after failed initialization", shutdownList)
+	}
+	if !errors.Is(err, otelErr) || !errors.Is(err, shutdownErr) {
+		t.Fatalf("loadConfig() error = %v, want joined OTEL and logger shutdown errors", err)
+	}
+	if processor.shutdownCalls != 1 {
+		t.Fatalf("logger processor Shutdown calls = %d, want 1", processor.shutdownCalls)
 	}
 }
 
@@ -666,7 +713,7 @@ func TestWaitForShutdownSignalGracefullyStopsServer(t *testing.T) {
 				shutdownCalled = true
 				return nil
 			},
-		})
+		}, make(chan struct{}))
 		close(stopped)
 	})
 
@@ -680,6 +727,63 @@ func TestWaitForShutdownSignalGracefullyStopsServer(t *testing.T) {
 	if !shutdownCalled {
 		t.Fatal("expected shutdown handler to be called")
 	}
+}
+
+func TestWaitForShutdownSignalReturnsWhenServeCompletes(t *testing.T) {
+	resetServerGRPCTestState(t)
+
+	done := make(chan struct{})
+	returned := make(chan struct{})
+	go func() {
+		waitForShutdownSignal(grpc.NewServer(), nil, done)
+		close(returned)
+	}()
+	close(done)
+
+	select {
+	case <-returned:
+	case <-time.After(time.Second):
+		t.Fatal("shutdown waiter leaked after serve completion")
+	}
+}
+
+func TestStopMethodsAreSafeWhenInitializationFailed(t *testing.T) {
+	resetServerGRPCTestState(t)
+
+	wantErr := errors.New("load failed")
+	loadEnv = func(string) error { return wantErr }
+	var logged []error
+	logServerErrorFn = func(err error) {
+		logged = append(logged, err)
+	}
+
+	srv := NewIConfig(nil, nil)
+	srv.GracefulStop()
+	srv.Stop()
+	if got := srv.GetServer(); got != nil {
+		t.Fatalf("GetServer() = %v, want nil after initialization failure", got)
+	}
+	if len(logged) != 3 {
+		t.Fatalf("logged initialization errors = %d, want 3", len(logged))
+	}
+	for _, err := range logged {
+		if !errors.Is(err, wantErr) {
+			t.Fatalf("logged error %v does not wrap %v", err, wantErr)
+		}
+	}
+}
+
+func TestStopMethodsRetainInjectedServerAfterConfigurationFailure(t *testing.T) {
+	resetServerGRPCTestState(t)
+
+	loadEnv = func(string) error { return errors.New("load failed") }
+	injected := grpc.NewServer()
+	srv := NewIConfig(nil, injected)
+	if got := srv.GetServer(); got != injected {
+		t.Fatalf("GetServer() = %v, want injected server %v", got, injected)
+	}
+	srv.GracefulStop()
+	srv.Stop()
 }
 
 func TestSubUnitaryStopAndGettersDelegateToMock(t *testing.T) {

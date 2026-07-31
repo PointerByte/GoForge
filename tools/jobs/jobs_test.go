@@ -414,3 +414,85 @@ func TestStartJobsDoesNothingInModeTest(t *testing.T) {
 		t.Fatalf("expected no executions in mode test, got %d", got)
 	}
 }
+
+func TestRestartJobsBeforeStartReturnsAndStartsRegisteredJobs(t *testing.T) {
+	setupJobsTest(t)
+
+	var hits int32
+	if _, err := Job(func() {
+		atomic.AddInt32(&hits, 1)
+	}, 15*time.Millisecond, nil); err != nil {
+		t.Fatalf("expected package job registration, got %v", err)
+	}
+
+	returned := make(chan struct{})
+	go func() {
+		RestartJobs()
+		close(returned)
+	}()
+
+	select {
+	case <-returned:
+	case <-time.After(250 * time.Millisecond):
+		t.Fatal("RestartJobs blocked before StartJobs")
+	}
+
+	waitFor(t, 120*time.Millisecond, func() bool {
+		return atomic.LoadInt32(&hits) >= 2
+	})
+}
+
+func TestRestartJobsPreservesDefinitions(t *testing.T) {
+	setupJobsTest(t)
+
+	var hits int32
+	if err := JobWithID("restart-preserves", func() {
+		atomic.AddInt32(&hits, 1)
+	}, 15*time.Millisecond, nil); err != nil {
+		t.Fatalf("expected package job registration, got %v", err)
+	}
+	StartJobs()
+
+	waitFor(t, 120*time.Millisecond, func() bool {
+		return atomic.LoadInt32(&hits) >= 2
+	})
+	before := atomic.LoadInt32(&hits)
+
+	RestartJobs()
+
+	waitFor(t, 120*time.Millisecond, func() bool {
+		return atomic.LoadInt32(&hits) > before
+	})
+}
+
+func TestConcurrentPackageLifecycleCallsReturn(t *testing.T) {
+	setupJobsTest(t)
+
+	if _, err := Job(func() {}, time.Second, nil); err != nil {
+		t.Fatalf("expected package job registration, got %v", err)
+	}
+
+	const calls = 24
+	done := make(chan struct{}, calls)
+	for i := 0; i < calls; i++ {
+		go func(call int) {
+			switch call % 3 {
+			case 0:
+				StartJobs()
+			case 1:
+				RestartJobs()
+			default:
+				StopAllJobs(false)
+			}
+			done <- struct{}{}
+		}(i)
+	}
+
+	for i := 0; i < calls; i++ {
+		select {
+		case <-done:
+		case <-time.After(time.Second):
+			t.Fatal("concurrent lifecycle call did not return")
+		}
+	}
+}

@@ -20,20 +20,26 @@ const (
 )
 
 type generateCommand struct {
-	app     *App
-	options *Options
+	app                  *App
+	options              *Options
+	encryptSecretSource  secretSourceFlags
+	signedBySecretSource secretSourceFlags
+	caKeySecretSource    secretSourceFlags
 }
 
 type readCommand struct {
 	app        *App
 	file       string
 	secret     string
+	source     secretSourceFlags
 	outputFile string
 }
 
 type reencryptCommand struct {
-	app     *App
-	options *UpdateEncryptionSecretOptions
+	app             *App
+	options         *UpdateEncryptionSecretOptions
+	oldSecretSource secretSourceFlags
+	newSecretSource secretSourceFlags
 }
 
 // newGenerateCommand creates the certificate generation command.
@@ -50,12 +56,22 @@ func (command *generateCommand) Cobra() *cobra.Command {
 		Use:   "generate",
 		Short: "Generate a certificate and key files",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			resolvedOptions, err := normalizeOptions(*command.options)
+			options := *command.options
+			var err error
+			options.EncryptSecret, err = resolveSecretSource("encryption secret", options.EncryptSecret, command.encryptSecretSource)
+			if err != nil {
+				return err
+			}
+			options.SignedBySecret, err = resolveSecretSource("signed-by secret", options.SignedBySecret, command.signedBySecretSource)
+			if err != nil {
+				return err
+			}
+			options.CAKeySecret, err = resolveSecretSource("CA key secret", options.CAKeySecret, command.caKeySecretSource)
 			if err != nil {
 				return err
 			}
 
-			result, err := command.app.generator.Generate(resolvedOptions)
+			result, err := command.app.generator.Generate(options)
 			if err != nil {
 				return err
 			}
@@ -92,6 +108,12 @@ func (command *generateCommand) Cobra() *cobra.Command {
 	cobraCmd.Flags().StringVar(&command.options.EncryptSecret, "encrypt-secret", command.options.EncryptSecret, "Secret used to encrypt generated PEM files; must be at least 256 bits")
 	cobraCmd.Flags().StringVar(&command.options.SignedBySecret, "signed-by-secret", command.options.SignedBySecret, "Secret used to read an encrypted signed-by certificate")
 	cobraCmd.Flags().StringVar(&command.options.CAKeySecret, "ca-key-secret", command.options.CAKeySecret, "Secret used to read an encrypted CA private key")
+	addSecretSourceFlags(cobraCmd, &command.encryptSecretSource, "encrypt-secret", "generated PEM encryption secret")
+	addSecretSourceFlags(cobraCmd, &command.signedBySecretSource, "signed-by-secret", "signed-by certificate secret")
+	addSecretSourceFlags(cobraCmd, &command.caKeySecretSource, "ca-key-secret", "CA private key secret")
+	deprecateLiteralSecretFlag(cobraCmd, "encrypt-secret")
+	deprecateLiteralSecretFlag(cobraCmd, "signed-by-secret")
+	deprecateLiteralSecretFlag(cobraCmd, "ca-key-secret")
 	return cobraCmd
 }
 
@@ -112,12 +134,21 @@ func (command *readCommand) Cobra() *cobra.Command {
 				return fmt.Errorf("file is required")
 			}
 
-			content, err := ReadPEMFile(command.file, command.secret)
+			secret, err := resolveSecretSource("decryption secret", command.secret, command.source)
 			if err != nil {
 				return err
 			}
+			content, err := ReadPEMFile(command.file, secret)
+			if err != nil {
+				return err
+			}
+			defer clear(content)
 			if strings.TrimSpace(command.outputFile) != "" {
-				return command.app.generator.writeFileFn(command.outputFile, content, 0o600)
+				return command.app.generator.writeFilesFn([]pemFileUpdate{{
+					path:    command.outputFile,
+					content: content,
+					mode:    0o600,
+				}})
 			}
 			_, err = command.app.streams.Out.Write(content)
 			return err
@@ -127,6 +158,8 @@ func (command *readCommand) Cobra() *cobra.Command {
 	cobraCmd.Flags().StringVarP(&command.file, "file", "f", command.file, "Plain or encrypted PEM file to read")
 	cobraCmd.Flags().StringVarP(&command.secret, "secret", "s", command.secret, "Secret used to decrypt encrypted PEM files")
 	cobraCmd.Flags().StringVarP(&command.outputFile, "out", "o", command.outputFile, "Optional output file for the decrypted PEM")
+	addSecretSourceFlags(cobraCmd, &command.source, "secret", "decryption secret")
+	deprecateLiteralSecretFlag(cobraCmd, "secret")
 	return cobraCmd
 }
 
@@ -149,7 +182,18 @@ func (command *reencryptCommand) Cobra() *cobra.Command {
 		Use:   "reencrypt",
 		Short: "Update the encryption secret for existing encrypted PEM files",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			result, err := command.app.generator.UpdateEncryptionSecret(*command.options)
+			options := *command.options
+			var err error
+			options.EncryptSecretOld, err = resolveSecretSource("old encryption secret", options.EncryptSecretOld, command.oldSecretSource)
+			if err != nil {
+				return err
+			}
+			options.EncryptSecretNew, err = resolveSecretSource("new encryption secret", options.EncryptSecretNew, command.newSecretSource)
+			if err != nil {
+				return err
+			}
+
+			result, err := command.app.generator.UpdateEncryptionSecret(options)
 			if err != nil {
 				return err
 			}
@@ -170,5 +214,31 @@ func (command *reencryptCommand) Cobra() *cobra.Command {
 	cobraCmd.Flags().StringVar(&command.options.PublicKeyPath, "public-key-file", command.options.PublicKeyPath, "Encrypted public key PEM file path")
 	cobraCmd.Flags().StringVar(&command.options.EncryptSecretOld, "encrypt-secret-old", command.options.EncryptSecretOld, "Current secret used to decrypt encrypted PEM files")
 	cobraCmd.Flags().StringVar(&command.options.EncryptSecretNew, "encrypt-secret-new", command.options.EncryptSecretNew, "New secret used to re-encrypt encrypted PEM files")
+	addSecretSourceFlags(cobraCmd, &command.oldSecretSource, "encrypt-secret-old", "current encryption secret")
+	addSecretSourceFlags(cobraCmd, &command.newSecretSource, "encrypt-secret-new", "new encryption secret")
+	deprecateLiteralSecretFlag(cobraCmd, "encrypt-secret-old")
+	deprecateLiteralSecretFlag(cobraCmd, "encrypt-secret-new")
 	return cobraCmd
+}
+
+func addSecretSourceFlags(command *cobra.Command, source *secretSourceFlags, baseName string, description string) {
+	command.Flags().StringVar(
+		&source.environment,
+		baseName+"-env",
+		source.environment,
+		"Environment variable containing the "+description,
+	)
+	command.Flags().StringVar(
+		&source.file,
+		baseName+"-file",
+		source.file,
+		"Regular file containing the "+description,
+	)
+}
+
+func deprecateLiteralSecretFlag(command *cobra.Command, name string) {
+	flag := command.Flags().Lookup(name)
+	if flag != nil {
+		flag.Deprecated = "use --" + name + "-env or --" + name + "-file to keep the secret out of process arguments"
+	}
 }

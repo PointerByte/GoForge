@@ -25,6 +25,7 @@
         "ignoredHeaders": ["Authorization", "Cookie"],
         "formatter": "json",
         "formatDate": "2006-01-02T15:04:05.000",
+        "bodyCaptureMaxBytes": 65536,
         "rotate": {
             "enable": true,
             "maxSize": 10,

@@ -162,6 +162,198 @@ func TestCreateValidateAndReadJWT(t *testing.T) {
 	}
 }
 
+func TestRegisteredTimeClaimValidation(t *testing.T) {
+	fixedNow := time.Unix(1_700_000_000, 500_000_000)
+
+	tests := []struct {
+		name      string
+		claims    map[string]any
+		leeway    time.Duration
+		wantError error
+	}{
+		{
+			name: "valid registered times and custom claims",
+			claims: map[string]any{
+				"exp":     float64(fixedNow.Unix()) + 60,
+				"nbf":     float64(fixedNow.Unix()) - 60,
+				"iss":     "caller-owned",
+				"aud":     []string{"api", "worker"},
+				"profile": map[string]any{"role": "admin"},
+			},
+		},
+		{
+			name:      "expiration at current time is expired",
+			claims:    map[string]any{"exp": float64(fixedNow.Unix()) + 0.5},
+			wantError: ErrTokenExpired,
+		},
+		{
+			name:      "expired token",
+			claims:    map[string]any{"exp": fixedNow.Unix() - 1},
+			wantError: ErrTokenExpired,
+		},
+		{
+			name:      "token not valid yet",
+			claims:    map[string]any{"nbf": fixedNow.Unix() + 1},
+			wantError: ErrTokenNotYetValid,
+		},
+		{
+			name:      "string expiration is invalid",
+			claims:    map[string]any{"exp": "1700000000"},
+			wantError: ErrInvalidExpirationClaim,
+		},
+		{
+			name:      "null expiration is invalid",
+			claims:    map[string]any{"exp": nil},
+			wantError: ErrInvalidExpirationClaim,
+		},
+		{
+			name:      "boolean not-before is invalid",
+			claims:    map[string]any{"nbf": true},
+			wantError: ErrInvalidNotBeforeClaim,
+		},
+		{
+			name: "leeway accepts bounded clock skew",
+			claims: map[string]any{
+				"exp": float64(fixedNow.Unix()),
+				"nbf": float64(fixedNow.Unix()) + 1,
+			},
+			leeway: time.Second,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			options := []Option{
+				WithHMACSHA256("time-claim-secret"),
+				WithClock(func() time.Time { return fixedNow }),
+			}
+			if test.leeway != 0 {
+				options = append(options, WithLeeway(test.leeway))
+			}
+			service, err := New(options...)
+			if err != nil {
+				t.Fatalf("New() error = %v", err)
+			}
+			token, err := service.Create(test.claims)
+			if err != nil {
+				t.Fatalf("Create() error = %v", err)
+			}
+
+			var got map[string]any
+			parsed, err := service.Decode(context.Background(), token, &got)
+			if !errors.Is(err, test.wantError) {
+				t.Fatalf("Decode() error = %v, want %v", err, test.wantError)
+			}
+			if test.wantError != nil {
+				return
+			}
+			if parsed == nil {
+				t.Fatal("Decode() returned a nil parsed token")
+			}
+			if got["iss"] != test.claims["iss"] {
+				t.Fatalf("custom issuer claim = %#v, want %#v", got["iss"], test.claims["iss"])
+			}
+			if _, hasProfile := test.claims["profile"]; hasProfile &&
+				!strings.Contains(string(parsed.Claims), `"profile"`) {
+				t.Fatalf("parsed claims lost custom payload: %s", parsed.Claims)
+			}
+		})
+	}
+}
+
+func TestRegisteredTimeClaimsRunAfterSignatureVerification(t *testing.T) {
+	fixedNow := time.Unix(1_700_000_000, 0)
+	issuer, err := New(WithHMACSHA256("issuer-secret"))
+	if err != nil {
+		t.Fatalf("New(issuer) error = %v", err)
+	}
+	token, err := issuer.Create(map[string]any{"exp": fixedNow.Unix() - 1})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+
+	verifier, err := New(
+		WithHMACSHA256("different-secret"),
+		WithClock(func() time.Time { return fixedNow }),
+	)
+	if err != nil {
+		t.Fatalf("New(verifier) error = %v", err)
+	}
+	if err := verifier.ValidateSignature(token); !errors.Is(err, ErrInvalidSignature) {
+		t.Fatalf("ValidateSignature() error = %v, want ErrInvalidSignature", err)
+	}
+}
+
+func TestRegisteredTimeValidationPreservesNonObjectClaims(t *testing.T) {
+	clockCalls := 0
+	service, err := New(
+		WithHMACSHA256("arbitrary-claims-secret"),
+		WithClock(func() time.Time {
+			clockCalls++
+			return time.Unix(1_700_000_000, 0)
+		}),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	token, err := service.Create([]string{"custom", "claims"})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+
+	var claims []string
+	if _, err := service.Decode(context.Background(), token, &claims); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if len(claims) != 2 || claims[0] != "custom" || claims[1] != "claims" {
+		t.Fatalf("decoded arbitrary claims = %#v", claims)
+	}
+	if clockCalls != 0 {
+		t.Fatalf("clock called %d times for claims without exp or nbf", clockCalls)
+	}
+}
+
+func TestRegisteredTimeClaimsPrecedeCallerValidators(t *testing.T) {
+	fixedNow := time.Unix(1_700_000_000, 0)
+	validatorCalled := false
+	service, err := New(
+		WithHMACSHA256("validator-order-secret"),
+		WithClock(func() time.Time { return fixedNow }),
+		WithValidator(func(context.Context, Token) error {
+			validatorCalled = true
+			return nil
+		}),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	token, err := service.Create(map[string]any{
+		"exp": fixedNow.Unix() - 1,
+		"iss": "untrusted",
+		"aud": "untrusted",
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+
+	var claims map[string]any
+	if _, err := service.Decode(context.Background(), token, &claims); !errors.Is(err, ErrTokenExpired) {
+		t.Fatalf("Decode() error = %v, want ErrTokenExpired", err)
+	}
+	if validatorCalled {
+		t.Fatal("caller validator ran before registered-time validation")
+	}
+}
+
+func TestClockAndLeewayOptionValidation(t *testing.T) {
+	if _, err := New(WithHMACSHA256("secret"), WithClock(nil)); !errors.Is(err, ErrNilClock) {
+		t.Fatalf("New() error = %v, want ErrNilClock", err)
+	}
+	if _, err := New(WithHMACSHA256("secret"), WithLeeway(-time.Nanosecond)); !errors.Is(err, ErrInvalidLeeway) {
+		t.Fatalf("New() error = %v, want ErrInvalidLeeway", err)
+	}
+}
+
 func TestServiceContextTimeout(t *testing.T) {
 	issuer, err := New(WithHMACSHA256("super-secret"))
 	if err != nil {
@@ -653,6 +845,58 @@ func TestNewEd25519ServiceUsesViperKeysAndOptionalValidator(t *testing.T) {
 	}
 }
 
+func TestAsymmetricServicesFallBackToLegacyViperKeys(t *testing.T) {
+	t.Run("rsa and rsa pss", func(t *testing.T) {
+		privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+		if err != nil {
+			t.Fatalf("rsa.GenerateKey() error = %v", err)
+		}
+		setRSALegacyConfig(t, privateKey)
+
+		for _, newService := range []struct {
+			name string
+			new  func(*Validator) (*Service, error)
+		}{
+			{name: "RS256", new: NewRSAService},
+			{name: "PS256", new: NewRSAPSSService},
+		} {
+			t.Run(newService.name, func(t *testing.T) {
+				service, err := newService.new(nil)
+				if err != nil {
+					t.Fatalf("configured service error = %v", err)
+				}
+				token, err := service.Create(map[string]any{"subject": "legacy-rsa"})
+				if err != nil {
+					t.Fatalf("Create() error = %v", err)
+				}
+				if err := service.ValidateSignature(token); err != nil {
+					t.Fatalf("ValidateSignature() error = %v", err)
+				}
+			})
+		}
+	})
+
+	t.Run("ed25519", func(t *testing.T) {
+		publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+		if err != nil {
+			t.Fatalf("ed25519.GenerateKey() error = %v", err)
+		}
+		setEd25519LegacyConfig(t, privateKey, publicKey)
+
+		service, err := NewEd25519Service(nil)
+		if err != nil {
+			t.Fatalf("NewEd25519Service() error = %v", err)
+		}
+		token, err := service.Create(map[string]any{"subject": "legacy-ed25519"})
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		if err := service.ValidateSignature(token); err != nil {
+			t.Fatalf("ValidateSignature() error = %v", err)
+		}
+	})
+}
+
 func TestNewRSAServiceSupportsPEMFiles(t *testing.T) {
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
@@ -846,6 +1090,40 @@ func setEd25519Config(t *testing.T, privateKey ed25519.PrivateKey, publicKey ed2
 
 	viper.Set(DefaultJWTPrivateKeyKey, base64.StdEncoding.EncodeToString(privateDER))
 	viper.Set(DefaultJWTPublicKeyKey, base64.StdEncoding.EncodeToString(publicDER))
+	t.Cleanup(viper.Reset)
+}
+
+func setRSALegacyConfig(t *testing.T, privateKey *rsa.PrivateKey) {
+	t.Helper()
+
+	privateDER, err := x509.MarshalPKCS8PrivateKey(privateKey)
+	if err != nil {
+		t.Fatalf("x509.MarshalPKCS8PrivateKey() error = %v", err)
+	}
+	publicDER, err := x509.MarshalPKIXPublicKey(&privateKey.PublicKey)
+	if err != nil {
+		t.Fatalf("x509.MarshalPKIXPublicKey() error = %v", err)
+	}
+
+	viper.Set(DefaultRSAPrivateKeyKey, base64.StdEncoding.EncodeToString(privateDER))
+	viper.Set(DefaultRSAPublicKeyKey, base64.StdEncoding.EncodeToString(publicDER))
+	t.Cleanup(viper.Reset)
+}
+
+func setEd25519LegacyConfig(t *testing.T, privateKey ed25519.PrivateKey, publicKey ed25519.PublicKey) {
+	t.Helper()
+
+	privateDER, err := x509.MarshalPKCS8PrivateKey(privateKey)
+	if err != nil {
+		t.Fatalf("x509.MarshalPKCS8PrivateKey() error = %v", err)
+	}
+	publicDER, err := x509.MarshalPKIXPublicKey(publicKey)
+	if err != nil {
+		t.Fatalf("x509.MarshalPKIXPublicKey() error = %v", err)
+	}
+
+	viper.Set(DefaultEdDSAPrivateKeyKey, base64.StdEncoding.EncodeToString(privateDER))
+	viper.Set(DefaultEdDSAPublicKeyKey, base64.StdEncoding.EncodeToString(publicDER))
 	t.Cleanup(viper.Reset)
 }
 

@@ -9,6 +9,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -184,17 +185,22 @@ func NewIConfig(mocks IConfig, server *grpc.Server, options ...ConfigOption) ICo
 		server: server,
 	}
 
-	dir, err := os.Getwd()
-	if err != nil {
-		config.serverErr = err
-	} else {
-		config.shutdownList, config.serverErr = loadConfig(dir)
-	}
-
 	for _, option := range options {
 		if option != nil {
 			option(config)
 		}
+	}
+	if mocks != nil {
+		return config
+	}
+
+	dir, err := os.Getwd()
+	if err != nil {
+		config.serverErr = err
+	} else {
+		shutdownList, loadErr := loadConfig(dir)
+		config.shutdownList = onceShutdownHandlers(shutdownList)
+		config.serverErr = loadErr
 	}
 	return config
 }
@@ -216,7 +222,7 @@ func (su *Config) Register(register RegisterServiceFunc) error {
 		return su.mocks.Register(register)
 	}
 	if err := su.ensureServer(); err != nil {
-		return err
+		return errors.Join(err, su.shutdown())
 	}
 	if register == nil {
 		return fmt.Errorf("register function is required")
@@ -225,13 +231,13 @@ func (su *Config) Register(register RegisterServiceFunc) error {
 	return nil
 }
 
-func (su *Config) Serve() error {
+func (su *Config) Serve() (resultErr error) {
 	if su.mocks != nil {
 		return su.mocks.Serve()
 	}
 
 	if err := su.ensureServer(); err != nil {
-		return err
+		return errors.Join(err, su.shutdown())
 	}
 
 	su.mux.Lock()
@@ -241,13 +247,19 @@ func (su *Config) Serve() error {
 		}
 		if su.address == "" {
 			su.mux.Unlock()
-			return fmt.Errorf("address or listener is required")
+			return errors.Join(
+				fmt.Errorf("address or listener is required"),
+				su.shutdown(),
+			)
 		}
 
 		listener, err := listenTCP("tcp", su.address)
 		if err != nil {
 			su.mux.Unlock()
-			return fmt.Errorf("problem creating tcp listener: %w", err)
+			return errors.Join(
+				fmt.Errorf("problem creating tcp listener: %w", err),
+				su.shutdown(),
+			)
 		}
 		su.listener = listener
 	}
@@ -258,8 +270,17 @@ func (su *Config) Serve() error {
 
 	address := listener.Addr().String()
 	logServerInfoFn(fmt.Sprintf("gRPC server started on %s", address))
+	done := make(chan struct{})
+	waiterDone := make(chan struct{})
+	waitFn := waitForShutdownSignalFn
+	defer func() {
+		close(done)
+		<-waiterDone
+		resultErr = errors.Join(resultErr, su.shutdown())
+	}()
 	runAsyncFn(func() {
-		waitForShutdownSignalFn(server, shutdownList)
+		defer close(waiterDone)
+		waitFn(server, shutdownList, done)
 	})
 
 	if err := server.Serve(listener); err != nil {
@@ -294,14 +315,59 @@ func loadConfig(prefixPath string) ([]handlerShutdown, error) {
 	shutdownList := []handlerShutdown{lp.Shutdown}
 	shutdownOtel, err := initOtel(ctx)
 	if err != nil {
-		return nil, err
+		return nil, errors.Join(err, lp.Shutdown(ctx))
 	}
 	shutdownList = append(shutdownList, shutdownOtel)
 	return shutdownList, nil
 }
 
-func waitForShutdownSignal(server *grpc.Server, shutdownList []handlerShutdown) {
-	<-quit
+func onceShutdownHandlers(shutdownList []handlerShutdown) []handlerShutdown {
+	wrapped := make([]handlerShutdown, 0, len(shutdownList))
+	for _, shutdown := range shutdownList {
+		if shutdown == nil {
+			continue
+		}
+		var (
+			once sync.Once
+			err  error
+		)
+		handler := shutdown
+		wrapped = append(wrapped, func(ctx context.Context) error {
+			once.Do(func() {
+				err = handler(ctx)
+			})
+			return err
+		})
+	}
+	return wrapped
+}
+
+func (su *Config) shutdown() error {
+	su.mux.RLock()
+	shutdownList := append([]handlerShutdown(nil), su.shutdownList...)
+	su.mux.RUnlock()
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	var shutdownErr error
+	for _, shutdown := range shutdownList {
+		shutdownErr = errors.Join(shutdownErr, shutdown(ctx))
+	}
+	return shutdownErr
+}
+
+func (su *Config) logShutdownError() {
+	if err := su.shutdown(); err != nil {
+		logServerErrorFn(err)
+	}
+}
+
+func waitForShutdownSignal(server *grpc.Server, shutdownList []handlerShutdown, done <-chan struct{}) {
+	select {
+	case <-quit:
+	case <-done:
+		return
+	}
 	logServerInfoFn("Signal received, turning off gRPC server...")
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -318,7 +384,23 @@ func (su *Config) GracefulStop() {
 		su.mocks.GracefulStop()
 		return
 	}
+	su.mux.RLock()
+	server := su.server
+	su.mux.RUnlock()
+	if server != nil {
+		server.GracefulStop()
+		su.logShutdownError()
+		return
+	}
+	if err := su.ensureServer(); err != nil {
+		logServerErrorFn(errors.Join(
+			fmt.Errorf("gRPC server initialization: %w", err),
+			su.shutdown(),
+		))
+		return
+	}
 	su.server.GracefulStop()
+	su.logShutdownError()
 }
 
 func (su *Config) Stop() {
@@ -326,14 +408,42 @@ func (su *Config) Stop() {
 		su.mocks.Stop()
 		return
 	}
+	su.mux.RLock()
+	server := su.server
+	su.mux.RUnlock()
+	if server != nil {
+		server.Stop()
+		su.logShutdownError()
+		return
+	}
+	if err := su.ensureServer(); err != nil {
+		logServerErrorFn(errors.Join(
+			fmt.Errorf("gRPC server initialization: %w", err),
+			su.shutdown(),
+		))
+		return
+	}
 	su.server.Stop()
+	su.logShutdownError()
 }
 
 func (su *Config) GetServer() *grpc.Server {
 	if su.mocks != nil {
 		return su.mocks.GetServer()
 	}
-	_ = su.ensureServer()
+	su.mux.RLock()
+	server := su.server
+	su.mux.RUnlock()
+	if server != nil {
+		return server
+	}
+	if err := su.ensureServer(); err != nil {
+		logServerErrorFn(errors.Join(
+			fmt.Errorf("gRPC server initialization: %w", err),
+			su.shutdown(),
+		))
+		return nil
+	}
 	return su.server
 }
 

@@ -4,6 +4,7 @@
 package jwt
 
 import (
+	"bytes"
 	"context"
 	"crypto/ed25519"
 	"crypto/hmac"
@@ -14,7 +15,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -41,6 +44,12 @@ var (
 	ErrMissingAlgorithm       = errors.New("jwt: algorithm is required")
 	ErrMissingSignFunc        = errors.New("jwt: custom sign function is required")
 	ErrMissingVerifyFunc      = errors.New("jwt: custom verify function is required")
+	ErrInvalidExpirationClaim = errors.New("jwt: invalid exp claim")
+	ErrInvalidNotBeforeClaim  = errors.New("jwt: invalid nbf claim")
+	ErrTokenExpired           = errors.New("jwt: token is expired")
+	ErrTokenNotYetValid       = errors.New("jwt: token is not valid yet")
+	ErrNilClock               = errors.New("jwt: clock cannot be nil")
+	ErrInvalidLeeway          = errors.New("jwt: leeway cannot be negative")
 )
 
 const (
@@ -98,13 +107,17 @@ type Validator func(ctx context.Context, token Token) error
 type Option func(*Service) error
 
 // Service is a facade over JWT creation and validation.
-// It uses a Strategy for cryptographic concerns and a validation pipeline for
-// domain-specific checks.
+// It uses a Strategy for cryptographic concerns, validates registered exp and
+// nbf claims, and then runs a validation pipeline for domain-specific checks.
 type Service struct {
 	// strategy signs tokens and verifies token signatures.
 	strategy Strategy
 	// validators run after signature verification and claim decoding.
 	validators []Validator
+	// clock supplies the current time for registered time claim validation.
+	clock func() time.Time
+	// leeway permits bounded clock skew when validating exp and nbf.
+	leeway time.Duration
 	// contextTimeout limits signing, verification, and validation operations.
 	contextTimeout time.Duration
 	// contextTimeoutOn indicates whether contextTimeout should be applied.
@@ -176,7 +189,7 @@ type customStrategy struct {
 // A signing strategy must be configured, either directly with WithStrategy or
 // through a convenience option such as WithHMACSHA256.
 func New(options ...Option) (*Service, error) {
-	service := &Service{}
+	service := &Service{clock: time.Now}
 	for _, option := range options {
 		if option == nil {
 			continue
@@ -218,13 +231,15 @@ func NewConfiguredService(validator *Validator) (*Service, error) {
 
 // NewRSAPSSService builds a JWT service for PS256 signatures.
 func NewRSAPSSService(validator *Validator) (*Service, error) {
-	parsedPrivateKey, err := parseRSAPrivateKeyFromConfig(viper.GetString(DefaultJWTPrivateKeyKey))
+	privateKeyValue, privateKeyName := asymmetricConfigValue(DefaultJWTPrivateKeyKey, DefaultRSAPrivateKeyKey)
+	parsedPrivateKey, err := parseRSAPrivateKeyFromConfig(privateKeyValue)
 	if err != nil {
-		return nil, fmt.Errorf("jwt: parse rsa private key from key %s: %w", DefaultJWTPrivateKeyKey, err)
+		return nil, fmt.Errorf("jwt: parse rsa private key from key %s: %w", privateKeyName, err)
 	}
-	parsedPublicKey, err := parseRSAPublicKeyFromConfig(viper.GetString(DefaultJWTPublicKeyKey))
+	publicKeyValue, publicKeyName := asymmetricConfigValue(DefaultJWTPublicKeyKey, DefaultRSAPublicKeyKey)
+	parsedPublicKey, err := parseRSAPublicKeyFromConfig(publicKeyValue)
 	if err != nil {
-		return nil, fmt.Errorf("jwt: parse rsa public key from key %s: %w", DefaultJWTPublicKeyKey, err)
+		return nil, fmt.Errorf("jwt: parse rsa public key from key %s: %w", publicKeyName, err)
 	}
 	options := []Option{WithRSAPSSSHA256(parsedPrivateKey, parsedPublicKey)}
 	if validator != nil {
@@ -235,13 +250,15 @@ func NewRSAPSSService(validator *Validator) (*Service, error) {
 
 // NewEd25519Service builds a JWT service for EdDSA signatures.
 func NewEd25519Service(validator *Validator) (*Service, error) {
-	parsedPrivateKey, err := parseEd25519PrivateKeyFromConfig(viper.GetString(DefaultJWTPrivateKeyKey))
+	privateKeyValue, privateKeyName := asymmetricConfigValue(DefaultJWTPrivateKeyKey, DefaultEdDSAPrivateKeyKey)
+	parsedPrivateKey, err := parseEd25519PrivateKeyFromConfig(privateKeyValue)
 	if err != nil {
-		return nil, fmt.Errorf("jwt: parse ed25519 private key from key %s: %w", DefaultJWTPrivateKeyKey, err)
+		return nil, fmt.Errorf("jwt: parse ed25519 private key from key %s: %w", privateKeyName, err)
 	}
-	parsedPublicKey, err := parseEd25519PublicKeyFromConfig(viper.GetString(DefaultJWTPublicKeyKey))
+	publicKeyValue, publicKeyName := asymmetricConfigValue(DefaultJWTPublicKeyKey, DefaultEdDSAPublicKeyKey)
+	parsedPublicKey, err := parseEd25519PublicKeyFromConfig(publicKeyValue)
 	if err != nil {
-		return nil, fmt.Errorf("jwt: parse ed25519 public key from key %s: %w", DefaultJWTPublicKeyKey, err)
+		return nil, fmt.Errorf("jwt: parse ed25519 public key from key %s: %w", publicKeyName, err)
 	}
 	options := []Option{WithEd25519(parsedPrivateKey, parsedPublicKey)}
 	if validator != nil {
@@ -266,13 +283,15 @@ func NewHMACService(validator *Validator) (*Service, error) {
 // may point to PEM files containing PKCS#8 private and X.509 public keys, or
 // keep the previous Base64-encoded DER format for compatibility.
 func NewRSAService(validator *Validator) (*Service, error) {
-	parsedPrivateKey, err := parseRSAPrivateKeyFromConfig(viper.GetString(DefaultJWTPrivateKeyKey))
+	privateKeyValue, privateKeyName := asymmetricConfigValue(DefaultJWTPrivateKeyKey, DefaultRSAPrivateKeyKey)
+	parsedPrivateKey, err := parseRSAPrivateKeyFromConfig(privateKeyValue)
 	if err != nil {
-		return nil, fmt.Errorf("jwt: parse rsa private key from key %s: %w", DefaultJWTPrivateKeyKey, err)
+		return nil, fmt.Errorf("jwt: parse rsa private key from key %s: %w", privateKeyName, err)
 	}
-	parsedPublicKey, err := parseRSAPublicKeyFromConfig(viper.GetString(DefaultJWTPublicKeyKey))
+	publicKeyValue, publicKeyName := asymmetricConfigValue(DefaultJWTPublicKeyKey, DefaultRSAPublicKeyKey)
+	parsedPublicKey, err := parseRSAPublicKeyFromConfig(publicKeyValue)
 	if err != nil {
-		return nil, fmt.Errorf("jwt: parse rsa public key from key %s: %w", DefaultJWTPublicKeyKey, err)
+		return nil, fmt.Errorf("jwt: parse rsa public key from key %s: %w", publicKeyName, err)
 	}
 	options := []Option{WithRSASHA256(parsedPrivateKey, parsedPublicKey)}
 	if validator != nil {
@@ -427,6 +446,30 @@ func WithValidator(validator Validator) Option {
 	}
 }
 
+// WithClock configures the clock used to validate registered exp and nbf
+// claims. It is primarily useful for deterministic tests.
+func WithClock(clock func() time.Time) Option {
+	return func(service *Service) error {
+		if clock == nil {
+			return ErrNilClock
+		}
+		service.clock = clock
+		return nil
+	}
+}
+
+// WithLeeway permits a non-negative amount of clock skew when validating
+// registered exp and nbf claims. The default is zero.
+func WithLeeway(leeway time.Duration) Option {
+	return func(service *Service) error {
+		if leeway < 0 {
+			return ErrInvalidLeeway
+		}
+		service.leeway = leeway
+		return nil
+	}
+}
+
 // WithContextTimeout configures a maximum duration for JWT signing,
 // signature verification, and validation work performed by the service.
 func WithContextTimeout(timeout time.Duration) Option {
@@ -480,14 +523,14 @@ func (service *Service) CreateWithContext(ctx context.Context, claims any) (stri
 	return signingInput + "." + encodeSegment(signature), nil
 }
 
-// ValidateSignature verifies the JWT structure, algorithm, and signature
-// without decoding its claims into a destination value.
+// ValidateSignature verifies the JWT structure, algorithm, signature, and
+// registered exp and nbf claims without decoding claims into a destination.
 func (service *Service) ValidateSignature(token string) error {
 	return service.ValidateSignatureWithContext(context.Background(), token)
 }
 
-// ValidateSignatureWithContext verifies the JWT signature using ctx plus any
-// service timeout.
+// ValidateSignatureWithContext verifies the JWT signature and registered time
+// claims using ctx plus any service timeout.
 func (service *Service) ValidateSignatureWithContext(ctx context.Context, token string) error {
 	ctx, cancel := service.contextFor(ctx)
 	defer cancel()
@@ -508,8 +551,8 @@ func (service *Service) ReadWithContext(ctx context.Context, token string, desti
 	return err
 }
 
-// Decode validates the token signature, unmarshals its claims into destination,
-// and runs both service-level and per-call validators.
+// Decode validates the token signature and registered time claims, unmarshals
+// claims into destination, and runs service-level and per-call validators.
 func (service *Service) Decode(ctx context.Context, token string, destination any, validators ...Validator) (*Token, error) {
 	if destination == nil {
 		return nil, ErrNilDestination
@@ -576,12 +619,77 @@ func (service *Service) parseAndValidate(ctx context.Context, token string) (*To
 	if err := verifyStrategy(ctx, service.strategy, signingInput, signatureBytes); err != nil {
 		return nil, err
 	}
+	if err := service.validateRegisteredTimeClaims(claimsBytes); err != nil {
+		return nil, err
+	}
 	return &Token{
 		Raw:       token,
 		Header:    header,
 		Claims:    claimsBytes,
 		Signature: parts[2],
 	}, nil
+}
+
+func (service *Service) validateRegisteredTimeClaims(claimsBytes []byte) error {
+	trimmedClaims := bytes.TrimSpace(claimsBytes)
+	if !json.Valid(trimmedClaims) {
+		return errors.New("jwt: parse claims: invalid JSON")
+	}
+	if len(trimmedClaims) == 0 || trimmedClaims[0] != '{' {
+		return nil
+	}
+
+	var claims struct {
+		Expiration json.RawMessage `json:"exp"`
+		NotBefore  json.RawMessage `json:"nbf"`
+	}
+	if err := json.Unmarshal(trimmedClaims, &claims); err != nil {
+		return fmt.Errorf("jwt: parse claims: %w", err)
+	}
+
+	expiration, hasExpiration, err := numericDateClaim(claims.Expiration, ErrInvalidExpirationClaim)
+	if err != nil {
+		return err
+	}
+	notBefore, hasNotBefore, err := numericDateClaim(claims.NotBefore, ErrInvalidNotBeforeClaim)
+	if err != nil {
+		return err
+	}
+	if !hasExpiration && !hasNotBefore {
+		return nil
+	}
+
+	clock := service.clock
+	if clock == nil {
+		clock = time.Now
+	}
+	now := clock()
+	nowSeconds := float64(now.Unix()) + float64(now.Nanosecond())/float64(time.Second)
+	leewaySeconds := service.leeway.Seconds()
+
+	if hasExpiration && nowSeconds >= expiration+leewaySeconds {
+		return ErrTokenExpired
+	}
+	if hasNotBefore && nowSeconds+leewaySeconds < notBefore {
+		return ErrTokenNotYetValid
+	}
+	return nil
+}
+
+func numericDateClaim(value json.RawMessage, invalidError error) (float64, bool, error) {
+	value = bytes.TrimSpace(value)
+	if len(value) == 0 {
+		return 0, false, nil
+	}
+
+	if value[0] != '-' && (value[0] < '0' || value[0] > '9') {
+		return 0, true, invalidError
+	}
+	seconds, err := strconv.ParseFloat(string(value), 64)
+	if err != nil || math.IsInf(seconds, 0) || math.IsNaN(seconds) {
+		return 0, true, invalidError
+	}
+	return seconds, true, nil
 }
 
 func (service *Service) contextFor(ctx context.Context) (context.Context, context.CancelFunc) {
@@ -882,6 +990,13 @@ func setJWTConfigValue(key string, value string) {
 		return
 	}
 	viper.SetDefault(key, value)
+}
+
+func asymmetricConfigValue(primaryKey string, legacyKey string) (string, string) {
+	if value := viper.GetString(primaryKey); strings.TrimSpace(value) != "" {
+		return value, primaryKey
+	}
+	return viper.GetString(legacyKey), legacyKey
 }
 
 func mustMarshalRSAPrivateKey(privateKey *rsa.PrivateKey) string {

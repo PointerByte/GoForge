@@ -90,7 +90,7 @@ func resolveTLSConfig() (*tls.Config, error) {
 	config := &tls.Config{
 		MinVersion:         parseTLSVersion(viper.GetString("client.http.tls.version")),
 		ServerName:         strings.TrimSpace(viper.GetString("client.http.tls.serverName")),
-		InsecureSkipVerify: viper.GetBool("client.http.tls.insecureSkipVerify"),
+		InsecureSkipVerify: viper.GetBool("client.http.tls.insecureSkipVerify"), // #nosec G402 -- explicitly configured legacy test escape hatch.
 	}
 
 	if caFile := strings.TrimSpace(viper.GetString("client.http.tls.caFile")); caFile != "" {

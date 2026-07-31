@@ -49,6 +49,7 @@ still compiles.
 
 - create JWTs from arbitrary claims
 - validate compact JWT signatures and algorithms
+- validate present `exp` and `nbf` NumericDate claims after signature verification
 - decode claims into `map[string]any` or typed structs
 - add service-level and per-call validators
 - use request contexts and service-level timeouts
@@ -122,9 +123,10 @@ if err != nil {
 ```
 
 Legacy algorithm-specific keys such as `jwt.eddsa.*` and `jwt.rsa.*` are still
-accepted for compatibility and can still be inferred when only one legacy
-strategy is configured. If you configure multiple strategies, set
-`jwt.algorithm` or pass it in `ConfigServiceInput`:
+accepted for compatibility. When a generic private or public key is empty, the
+configured RSA, RSA-PSS, or Ed25519 constructor falls back to the corresponding
+legacy key. If you configure multiple strategies, set `jwt.algorithm` or pass
+it in `ConfigServiceInput`:
 
 ```go
 package main
@@ -204,8 +206,31 @@ if err != nil {
 _ = parsedToken
 ```
 
-Use `ValidateSignatureWithContext(ctx, token)` when you only need to verify the
-JWT structure, algorithm, and signature without decoding claims.
+Use `ValidateSignatureWithContext(ctx, token)` when you need to verify the JWT
+structure, algorithm, signature, and registered time claims without decoding
+claims into a destination.
+
+### Registered Time Claims
+
+After a signature succeeds, the service validates present `exp` and `nbf`
+claims as numeric JWT NumericDate values. A malformed value returns
+`ErrInvalidExpirationClaim` or `ErrInvalidNotBeforeClaim`; an expired or
+premature token returns `ErrTokenExpired` or `ErrTokenNotYetValid`.
+
+The default clock is the system clock and the default leeway is zero. Explicit
+services can use `WithClock` for a testable clock and `WithLeeway` for bounded,
+non-negative clock skew:
+
+```go
+service, err := jwtservice.New(
+	jwtservice.WithHMACSHA256("my-secret"),
+	jwtservice.WithLeeway(30*time.Second),
+)
+```
+
+The package does not enforce `iss` or `aud` because it has no caller-specific
+expectations for those claims. Check them with `WithValidator` or a per-call
+validator when your application requires an issuer or audience policy.
 
 ## Supported Algorithms
 

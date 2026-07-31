@@ -26,21 +26,36 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"golang.org/x/crypto/argon2"
 )
 
 const (
 	encryptedPEMBlockType        = "GoForge ENCRYPTED PEM"
-	encryptedPEMVersion          = 1
+	legacyEncryptedPEMVersion    = 1
+	encryptedPEMVersion          = 2
 	encryptedPEMAlgorithm        = "AES-256-GCM"
+	encryptedPEMKDF              = "ARGON2ID"
 	encryptedKindCertificate     = "certificate"
 	encryptedKindPrivateKey      = "private-key"
 	encryptedKindPublicKey       = "public-key"
 	minimumEncryptionSecretBytes = 32
+	encryptedPEMSaltBytes        = 16
+	encryptedPEMKDFTime          = uint32(3)
+	encryptedPEMKDFMemory        = uint32(64 * 1024)
+	encryptedPEMKDFThreads       = uint8(2)
+	encryptedPEMKDFKeyBytes      = uint32(32)
 )
 
 type encryptedPEMPayload struct {
 	Version    int    `json:"version"`
 	Algorithm  string `json:"algorithm"`
+	KDF        string `json:"kdf,omitempty"`
+	KDFSalt    string `json:"kdfSalt,omitempty"`
+	KDFTime    uint32 `json:"kdfTime,omitempty"`
+	KDFMemory  uint32 `json:"kdfMemory,omitempty"`
+	KDFThreads uint8  `json:"kdfThreads,omitempty"`
+	KDFKeySize uint32 `json:"kdfKeySize,omitempty"`
 	Nonce      string `json:"nonce"`
 	Ciphertext string `json:"ciphertext"`
 }
@@ -137,8 +152,8 @@ type pemFileUpdate struct {
 type Generator struct {
 	// mkdirAllFn creates output directories before writing generated files.
 	mkdirAllFn func(string, os.FileMode) error
-	// writeFileFn writes generated PEM files to disk.
-	writeFileFn func(string, []byte, os.FileMode) error
+	// writeFilesFn atomically writes a complete PEM file batch.
+	writeFilesFn func([]pemFileUpdate) error
 	// nowFn provides the certificate validity start time.
 	nowFn func() time.Time
 	// randReader provides entropy for key and certificate generation.
@@ -148,10 +163,10 @@ type Generator struct {
 // NewGenerator creates the default certificate generator.
 func NewGenerator() *Generator {
 	return &Generator{
-		mkdirAllFn:  os.MkdirAll,
-		writeFileFn: os.WriteFile,
-		nowFn:       time.Now,
-		randReader:  rand.Reader,
+		mkdirAllFn:   os.MkdirAll,
+		writeFilesFn: writePEMFilesAtomically,
+		nowFn:        time.Now,
+		randReader:   rand.Reader,
 	}
 }
 
@@ -160,7 +175,8 @@ func GenerateCertificates(options Options) (Result, error) {
 	return NewGenerator().Generate(options)
 }
 
-// UpdateEncryptionSecret re-encrypts existing encrypted PEM files using a new secret.
+// UpdateEncryptionSecret re-encrypts existing encrypted PEM files using a new
+// secret and upgrades legacy envelopes to the current format.
 func UpdateEncryptionSecret(options UpdateEncryptionSecretOptions) (UpdateEncryptionSecretResult, error) {
 	return NewGenerator().UpdateEncryptionSecret(options)
 }
@@ -226,20 +242,20 @@ func (generator *Generator) Generate(options Options) (Result, error) {
 		Encrypted:       encrypted,
 	}
 
-	if err := generator.writeFileFn(result.CertificatePath, certificatePEM, 0o644); err != nil {
-		return Result{}, fmt.Errorf("write certificate file: %w", err)
+	updates := []pemFileUpdate{
+		{path: result.CertificatePath, content: certificatePEM, mode: 0o644},
+		{path: result.PrivateKeyPath, content: privateKeyPEM, mode: 0o600},
+		{path: result.PublicKeyPath, content: publicKeyPEM, mode: 0o644},
 	}
-	if err := generator.writeFileFn(result.PrivateKeyPath, privateKeyPEM, 0o600); err != nil {
-		return Result{}, fmt.Errorf("write private key file: %w", err)
-	}
-	if err := generator.writeFileFn(result.PublicKeyPath, publicKeyPEM, 0o644); err != nil {
-		return Result{}, fmt.Errorf("write public key file: %w", err)
+	if err := generator.writeFilesFn(updates); err != nil {
+		return Result{}, fmt.Errorf("write generated PEM files: %w", err)
 	}
 
 	return result, nil
 }
 
-// UpdateEncryptionSecret updates existing encrypted certificate, private key, and public key files.
+// UpdateEncryptionSecret atomically updates existing encrypted certificate,
+// private key, and public key files using the current envelope format.
 func (generator *Generator) UpdateEncryptionSecret(options UpdateEncryptionSecretOptions) (UpdateEncryptionSecretResult, error) {
 	resolvedOptions, err := normalizeUpdateEncryptionSecretOptions(options)
 	if err != nil {
@@ -270,10 +286,8 @@ func (generator *Generator) UpdateEncryptionSecret(options UpdateEncryptionSecre
 	}
 	updates = append(updates, publicKeyUpdate)
 
-	for _, update := range updates {
-		if err := generator.writeFileFn(update.path, update.content, update.mode); err != nil {
-			return UpdateEncryptionSecretResult{}, fmt.Errorf("write %s: %w", update.path, err)
-		}
+	if err := generator.writeFilesFn(updates); err != nil {
+		return UpdateEncryptionSecretResult{}, fmt.Errorf("write re-encrypted PEM files: %w", err)
 	}
 
 	return UpdateEncryptionSecretResult{
@@ -296,6 +310,7 @@ func (generator *Generator) prepareReencryptedPEMFile(path string, kind string, 
 	if err != nil {
 		return pemFileUpdate{}, err
 	}
+	defer clear(plainContent)
 
 	encryptedContent, err := encryptPEM(plainContent, newSecret, kind, randomSource)
 	if err != nil {
@@ -356,6 +371,14 @@ func normalizeOptions(options Options) (Options, error) {
 	}
 	if options.CertFileName == "" || options.KeyFileName == "" || options.PublicKeyFileName == "" {
 		return Options{}, fmt.Errorf("certificate, key, and public key file names are required")
+	}
+	outputPaths := []string{
+		filepath.Clean(filepath.Join(options.OutputDir, options.CertFileName)),
+		filepath.Clean(filepath.Join(options.OutputDir, options.KeyFileName)),
+		filepath.Clean(filepath.Join(options.OutputDir, options.PublicKeyFileName)),
+	}
+	if outputPaths[0] == outputPaths[1] || outputPaths[0] == outputPaths[2] || outputPaths[1] == outputPaths[2] {
+		return Options{}, fmt.Errorf("certificate, key, and public key paths must be different")
 	}
 	if (options.SignedBy == "") != (options.CAKeyFile == "") {
 		return Options{}, fmt.Errorf("signed-by and ca-key must be provided together")
@@ -572,6 +595,7 @@ func readCertificatePEMFile(path string, secret string) (*x509.Certificate, erro
 	if err != nil {
 		return nil, err
 	}
+	defer clear(content)
 
 	block, _ := pem.Decode(content)
 	if block == nil {
@@ -594,6 +618,7 @@ func readPrivateKeyPEMFile(path string, secret string) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer clear(content)
 
 	block, _ := pem.Decode(content)
 	if block == nil {
@@ -652,7 +677,8 @@ func ReadPublicKeyFile(path string, secret string) (any, error) {
 	return publicKey, nil
 }
 
-// DecryptPEM returns plain PEM content. Unencrypted PEM content is returned as-is.
+// DecryptPEM returns plain PEM content. It reads the current and legacy
+// GoForge encrypted envelope versions. Unencrypted PEM content is returned as-is.
 func DecryptPEM(content []byte, secret string) ([]byte, error) {
 	block, _ := pem.Decode(content)
 	if block == nil || block.Type != encryptedPEMBlockType {
@@ -666,11 +692,37 @@ func DecryptPEM(content []byte, secret string) ([]byte, error) {
 	if err := json.Unmarshal(block.Bytes, &payload); err != nil {
 		return nil, fmt.Errorf("decode encrypted PEM payload: %w", err)
 	}
-	if payload.Version != encryptedPEMVersion {
-		return nil, fmt.Errorf("unsupported encrypted PEM version %d", payload.Version)
-	}
 	if payload.Algorithm != encryptedPEMAlgorithm {
 		return nil, fmt.Errorf("unsupported encrypted PEM algorithm %q", payload.Algorithm)
+	}
+
+	var (
+		aead cipher.AEAD
+		aad  []byte
+		err  error
+	)
+	switch payload.Version {
+	case legacyEncryptedPEMVersion:
+		aead, err = newLegacyAESGCM(secret)
+		aad = []byte(block.Headers["Kind"])
+	case encryptedPEMVersion:
+		if err := validateEncryptedPEMKDF(payload); err != nil {
+			return nil, err
+		}
+		kdfSalt, decodeErr := base64.StdEncoding.DecodeString(payload.KDFSalt)
+		if decodeErr != nil {
+			return nil, fmt.Errorf("decode encrypted PEM KDF salt: %w", decodeErr)
+		}
+		if len(kdfSalt) != encryptedPEMSaltBytes {
+			return nil, fmt.Errorf("invalid encrypted PEM KDF salt size")
+		}
+		aead, err = newArgon2idAESGCM(secret, kdfSalt)
+		aad = encryptedPEMAAD(block.Headers["Kind"], payload)
+	default:
+		return nil, fmt.Errorf("unsupported encrypted PEM version %d", payload.Version)
+	}
+	if err != nil {
+		return nil, err
 	}
 
 	nonce, err := base64.StdEncoding.DecodeString(payload.Nonce)
@@ -682,15 +734,11 @@ func DecryptPEM(content []byte, secret string) ([]byte, error) {
 		return nil, fmt.Errorf("decode encrypted PEM ciphertext: %w", err)
 	}
 
-	aead, err := newAESGCM(secret)
-	if err != nil {
-		return nil, err
-	}
 	if len(nonce) != aead.NonceSize() {
 		return nil, fmt.Errorf("invalid encrypted PEM nonce size")
 	}
 
-	plainText, err := aead.Open(nil, nonce, cipherText, []byte(block.Headers["Kind"]))
+	plainText, err := aead.Open(nil, nonce, cipherText, aad)
 	if err != nil {
 		return nil, fmt.Errorf("decrypt encrypted PEM: %w", err)
 	}
@@ -716,7 +764,11 @@ func encryptPEM(content []byte, secret string, kind string, randomSource io.Read
 		return nil, err
 	}
 
-	aead, err := newAESGCM(secret)
+	kdfSalt := make([]byte, encryptedPEMSaltBytes)
+	if _, err := io.ReadFull(randomSource, kdfSalt); err != nil {
+		return nil, fmt.Errorf("generate encrypted PEM KDF salt: %w", err)
+	}
+	aead, err := newArgon2idAESGCM(secret, kdfSalt)
 	if err != nil {
 		return nil, err
 	}
@@ -726,13 +778,20 @@ func encryptPEM(content []byte, secret string, kind string, randomSource io.Read
 		return nil, fmt.Errorf("generate encrypted PEM nonce: %w", err)
 	}
 
-	cipherText := aead.Seal(nil, nonce, content, []byte(kind))
-	payload, err := json.Marshal(encryptedPEMPayload{
+	payload := encryptedPEMPayload{
 		Version:    encryptedPEMVersion,
 		Algorithm:  encryptedPEMAlgorithm,
+		KDF:        encryptedPEMKDF,
+		KDFSalt:    base64.StdEncoding.EncodeToString(kdfSalt),
+		KDFTime:    encryptedPEMKDFTime,
+		KDFMemory:  encryptedPEMKDFMemory,
+		KDFThreads: encryptedPEMKDFThreads,
+		KDFKeySize: encryptedPEMKDFKeyBytes,
 		Nonce:      base64.StdEncoding.EncodeToString(nonce),
-		Ciphertext: base64.StdEncoding.EncodeToString(cipherText),
-	})
+	}
+	cipherText := aead.Seal(nil, nonce, content, encryptedPEMAAD(kind, payload))
+	payload.Ciphertext = base64.StdEncoding.EncodeToString(cipherText)
+	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
 		return nil, fmt.Errorf("encode encrypted PEM payload: %w", err)
 	}
@@ -740,7 +799,7 @@ func encryptPEM(content []byte, secret string, kind string, randomSource io.Read
 	return pem.EncodeToMemory(&pem.Block{
 		Type:    encryptedPEMBlockType,
 		Headers: map[string]string{"Kind": kind},
-		Bytes:   payload,
+		Bytes:   payloadBytes,
 	}), nil
 }
 
@@ -751,9 +810,31 @@ func validateEncryptionSecret(secret string) error {
 	return nil
 }
 
-func newAESGCM(secret string) (cipher.AEAD, error) {
-	key := sha256.Sum256([]byte(secret))
-	block, err := aes.NewCipher(key[:])
+func newLegacyAESGCM(secret string) (cipher.AEAD, error) {
+	password := []byte(secret)
+	defer clear(password)
+	key := sha256.Sum256(password)
+	defer clear(key[:])
+	return newAESGCMWithKey(key[:])
+}
+
+func newArgon2idAESGCM(secret string, salt []byte) (cipher.AEAD, error) {
+	password := []byte(secret)
+	defer clear(password)
+	key := argon2.IDKey(
+		password,
+		salt,
+		encryptedPEMKDFTime,
+		encryptedPEMKDFMemory,
+		encryptedPEMKDFThreads,
+		encryptedPEMKDFKeyBytes,
+	)
+	defer clear(key)
+	return newAESGCMWithKey(key)
+}
+
+func newAESGCMWithKey(key []byte) (cipher.AEAD, error) {
+	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, fmt.Errorf("create AES-256 cipher: %w", err)
 	}
@@ -762,6 +843,34 @@ func newAESGCM(secret string) (cipher.AEAD, error) {
 		return nil, fmt.Errorf("create AES-GCM: %w", err)
 	}
 	return aead, nil
+}
+
+func validateEncryptedPEMKDF(payload encryptedPEMPayload) error {
+	if payload.KDF != encryptedPEMKDF {
+		return fmt.Errorf("unsupported encrypted PEM KDF %q", payload.KDF)
+	}
+	if payload.KDFTime != encryptedPEMKDFTime ||
+		payload.KDFMemory != encryptedPEMKDFMemory ||
+		payload.KDFThreads != encryptedPEMKDFThreads ||
+		payload.KDFKeySize != encryptedPEMKDFKeyBytes {
+		return fmt.Errorf("unsupported encrypted PEM KDF parameters")
+	}
+	return nil
+}
+
+func encryptedPEMAAD(kind string, payload encryptedPEMPayload) []byte {
+	return []byte(fmt.Sprintf(
+		"%s\x00%s\x00%d\x00%s\x00%s\x00%d\x00%d\x00%d\x00%d",
+		encryptedPEMBlockType,
+		kind,
+		payload.Version,
+		payload.Algorithm,
+		payload.KDF,
+		payload.KDFTime,
+		payload.KDFMemory,
+		payload.KDFThreads,
+		payload.KDFKeySize,
+	))
 }
 
 func sanitizeStrings(values []string) []string {

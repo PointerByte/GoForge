@@ -5,8 +5,9 @@
 // for the security module.
 //
 // It supports multiple signing strategies, including HMAC, RSA, RSA-PSS, and
-// Ed25519, and lets applications attach custom validation callbacks after the
-// token signature has been verified.
+// Ed25519. After signature verification it validates present exp and nbf
+// NumericDate claims, then lets applications attach custom validation callbacks
+// for policies such as expected issuers and audiences.
 //
 // Main entry points:
 //   - New to build a Service from explicit options

@@ -45,6 +45,43 @@ func TestLogFormatMarshalJSONNormalizesNilProcess(t *testing.T) {
 	}
 }
 
+func TestFormatIncludesAttributesAndBodyCaptureMetadata(t *testing.T) {
+	log := LogFormat{
+		Message: "bounded",
+		Details: Details{
+			System:          "api",
+			Request:         "prefix",
+			RequestCapture:  &BodyCaptureMetadata{Truncated: true, CapturedBytes: 6, LimitBytes: 6},
+			ResponseCapture: &BodyCaptureMetadata{Truncated: true, CapturedBytes: 0, LimitBytes: 6},
+		},
+		Attributes: map[string]any{
+			"request": map[string]any{"attempt": 2},
+		},
+	}
+
+	output, err := New("json").Format(log)
+	if err != nil {
+		t.Fatalf("Format() error = %v", err)
+	}
+	var decoded map[string]any
+	if err := json.Unmarshal(output, &decoded); err != nil {
+		t.Fatalf("output is invalid JSON: %v", err)
+	}
+	if _, ok := decoded["attributes"].(map[string]any); !ok {
+		t.Fatalf("attributes = %T, want object", decoded["attributes"])
+	}
+	details, ok := decoded["details"].(map[string]any)
+	if !ok {
+		t.Fatalf("details = %T, want object", decoded["details"])
+	}
+	for _, key := range []string{"requestCapture", "responseCapture"} {
+		metadata, ok := details[key].(map[string]any)
+		if !ok || metadata["truncated"] != true || metadata["limitBytes"] != float64(6) {
+			t.Fatalf("%s = %#v, want truncation metadata", key, details[key])
+		}
+	}
+}
+
 func TestCustomFormatter_Format(t *testing.T) {
 	baseLog := LogFormat{
 		Timestamp: "2026-03-13T01:10:23.123",
@@ -285,8 +322,13 @@ func TestFormatText_WithDetailsAndServices(t *testing.T) {
 				Code:     200,
 				Request:  map[string]any{"token": "abc"},
 				Response: map[string]any{"valid": true},
-				Status:   SUCCESS,
-				Latency:  12,
+				ResponseCapture: &BodyCaptureMetadata{
+					Truncated:     true,
+					CapturedBytes: 1024,
+					LimitBytes:    1024,
+				},
+				Status:  SUCCESS,
+				Latency: 12,
 			},
 			{
 				System:  "score-engine",
@@ -323,6 +365,7 @@ func TestFormatText_WithDetailsAndServices(t *testing.T) {
 		"code=200",
 		`request={"token":"abc"}`,
 		`response={"valid":true}`,
+		`responseCapture={"truncated":true,"capturedBytes":1024,"limitBytes":1024}`,
 		"status=SUCCESS",
 		"latency=12ms",
 		"system=score-engine",
@@ -626,40 +669,43 @@ func TestBuildServices(t *testing.T) {
 	t.Run("all fields", func(t *testing.T) {
 		req := map[string]any{"token": "abc"}
 		resp := map[string]any{"valid": true}
+		responseCapture := &BodyCaptureMetadata{Truncated: true, CapturedBytes: 1024, LimitBytes: 1024}
 
 		got := buildServices([]Process{
 			{
-				TraceID:  "sat-001",
-				SpanID:   "span-001",
-				System:   "auth-service",
-				Process:  "validate-token",
-				Server:   "auth.internal",
-				Protocol: "HTTP",
-				Method:   "POST",
-				Path:     "/auth/validate",
-				Code:     200,
-				Request:  req,
-				Response: resp,
-				Status:   SUCCESS,
-				Latency:  12,
+				TraceID:         "sat-001",
+				SpanID:          "span-001",
+				System:          "auth-service",
+				Process:         "validate-token",
+				Server:          "auth.internal",
+				Protocol:        "HTTP",
+				Method:          "POST",
+				Path:            "/auth/validate",
+				Code:            200,
+				Request:         req,
+				Response:        resp,
+				ResponseCapture: responseCapture,
+				Status:          SUCCESS,
+				Latency:         12,
 			},
 		})
 
 		want := []map[string]any{
 			{
-				"traceID":  "sat-001",
-				"spanID":   "span-001",
-				"system":   "auth-service",
-				"process":  "validate-token",
-				"server":   "auth.internal",
-				"protocol": "HTTP",
-				"method":   "POST",
-				"path":     "/auth/validate",
-				"code":     int64(200),
-				"request":  req,
-				"response": resp,
-				"status":   SUCCESS,
-				"latency":  int64(12),
+				"traceID":         "sat-001",
+				"spanID":          "span-001",
+				"system":          "auth-service",
+				"process":         "validate-token",
+				"server":          "auth.internal",
+				"protocol":        "HTTP",
+				"method":          "POST",
+				"path":            "/auth/validate",
+				"code":            int64(200),
+				"request":         req,
+				"response":        resp,
+				"responseCapture": responseCapture,
+				"status":          SUCCESS,
+				"latency":         int64(12),
 			},
 		}
 

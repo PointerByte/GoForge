@@ -205,6 +205,8 @@ func TestUnaryInterceptorsCaptureBodiesAndPopulateDetails(t *testing.T) {
 func TestUnaryInterceptorChainPreservesAndSerializesCompletedTraces(t *testing.T) {
 	resetGRPCTestState(t)
 
+	type userInterceptorContextKey struct{}
+
 	oldLogger := slog.Default()
 	capture := &grpcLogCaptureHandler{}
 	slog.SetDefault(slog.New(capture))
@@ -214,7 +216,7 @@ func TestUnaryInterceptorChainPreservesAndSerializesCompletedTraces(t *testing.T
 	userInterceptor := func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		// A user interceptor may wrap the context; builder.From must still find
 		// the request-scoped logger and its shared process collection.
-		return handler(context.WithValue(ctx, "user-interceptor", true), req)
+		return handler(context.WithValue(ctx, userInterceptorContextKey{}, true), req)
 	}
 
 	_, err := InitLoggerUnaryServerInterceptor()(context.Background(), "request", &grpc.UnaryServerInfo{
@@ -522,15 +524,15 @@ func TestGRPCCaptureStreamHelpers(t *testing.T) {
 	if msg != "hello" {
 		t.Fatalf("RecvMsg() message = %q, want %q", msg, "hello")
 	}
-	if len(stream.requests) != 1 {
-		t.Fatalf("requests len = %d, want 1", len(stream.requests))
+	if stream.requests == nil || len(stream.requests.values) != 1 {
+		t.Fatalf("requests = %#v, want 1 captured value", stream.requests)
 	}
 
 	if err := stream.SendMsg("world"); err != nil {
 		t.Fatalf("SendMsg() error = %v, want nil", err)
 	}
-	if len(stream.responses) != 1 {
-		t.Fatalf("responses len = %d, want 1", len(stream.responses))
+	if stream.responses == nil || len(stream.responses.values) != 1 {
+		t.Fatalf("responses = %#v, want 1 captured value", stream.responses)
 	}
 }
 
@@ -548,8 +550,136 @@ func TestGRPCCaptureStreamSendErrorDoesNotCaptureResponse(t *testing.T) {
 	if !errors.Is(err, wantErr) {
 		t.Fatalf("SendMsg() error = %v, want %v", err, wantErr)
 	}
-	if len(stream.responses) != 0 {
-		t.Fatalf("responses len = %d, want 0", len(stream.responses))
+	if stream.responses != nil && len(stream.responses.values) != 0 {
+		t.Fatalf("responses = %#v, want no captured values", stream.responses.values)
+	}
+}
+
+func TestUnaryBodyCaptureIsBoundedAndReportsTruncation(t *testing.T) {
+	resetGRPCTestState(t)
+	viper.Set(string(viperdata.LoggerBodyCaptureMaxBytesAtribute), 5)
+	viperdata.ResetViperDataSingleton()
+
+	var ctxLogger *builder.Context
+	response, err := CaptureBodyUnaryServerInterceptor()(
+		context.Background(),
+		"request-secret",
+		&grpc.UnaryServerInfo{FullMethod: "/pkg.Service/Call"},
+		func(ctx context.Context, _ any) (any, error) {
+			ctxLogger = builder.New(ctx)
+			EnableBody(ctxLogger, true, true)
+			ctxLogger.Details = formatter.Details{System: "test-service"}
+			ctxLogger.Set(common.DetailsKey, ctxLogger.Details)
+			return "response-secret", nil
+		},
+	)
+	if err != nil || response != "response-secret" {
+		t.Fatalf("interceptor response = %#v, error = %v", response, err)
+	}
+
+	for _, side := range []struct {
+		bodyKey     common.KeyContex
+		metadataKey common.KeyContex
+		want        string
+	}{
+		{bodyKey: common.RequestbodyKey, metadataKey: common.RequestBodyCaptureKey, want: "reque"},
+		{bodyKey: common.ResponsebodyKey, metadataKey: common.ResponseBodyCaptureKey, want: "respo"},
+	} {
+		body, ok := ctxLogger.Get(side.bodyKey)
+		if !ok || body != side.want {
+			t.Fatalf("%q = %#v, want %q", side.bodyKey, body, side.want)
+		}
+		metadataValue, ok := ctxLogger.Get(side.metadataKey)
+		metadata, castOK := metadataValue.(formatter.BodyCaptureMetadata)
+		if !ok || !castOK {
+			t.Fatalf("%q = %T, want formatter.BodyCaptureMetadata", side.metadataKey, metadataValue)
+		}
+		if !metadata.Truncated || metadata.CapturedBytes != 5 || metadata.LimitBytes != 5 {
+			t.Fatalf("%q = %#v, want truncated 5-byte capture", side.metadataKey, metadata)
+		}
+	}
+	applyGRPCBodyDetails(ctxLogger)
+	if ctxLogger.Details.RequestCapture == nil || ctxLogger.Details.ResponseCapture == nil {
+		t.Fatalf("details capture metadata = %#v/%#v, want both sides", ctxLogger.Details.RequestCapture, ctxLogger.Details.ResponseCapture)
+	}
+}
+
+func TestStreamingBodyCaptureUsesAggregateLimit(t *testing.T) {
+	resetGRPCTestState(t)
+	viper.Set(string(viperdata.LoggerBodyCaptureMaxBytesAtribute), 8)
+	viperdata.ResetViperDataSingleton()
+
+	stream := &fakeServerStream{
+		ctx:       context.Background(),
+		recvItems: []any{"first", "second"},
+	}
+	var ctxLogger *builder.Context
+	err := CaptureBodyStreamServerInterceptor()(nil, stream, nil, func(_ any, wrapped grpc.ServerStream) error {
+		ctxLogger = builder.New(wrapped.Context())
+		EnableBody(ctxLogger, true, true)
+		for range 2 {
+			var input string
+			if err := wrapped.RecvMsg(&input); err != nil {
+				return err
+			}
+		}
+		if err := wrapped.SendMsg("out-one"); err != nil {
+			return err
+		}
+		return wrapped.SendMsg("out-two")
+	})
+	if err != nil {
+		t.Fatalf("interceptor error = %v", err)
+	}
+
+	requestValue, requestOK := ctxLogger.Get(common.RequestbodyKey)
+	requests, ok := requestValue.([]any)
+	if !requestOK || !ok || len(requests) != 2 || requests[0] != "first" || requests[1] != "sec" {
+		t.Fatalf("request capture = %#v, want [first sec]", requestValue)
+	}
+	responseValue, responseOK := ctxLogger.Get(common.ResponsebodyKey)
+	responses, ok := responseValue.([]any)
+	if !responseOK || !ok || len(responses) != 2 || responses[0] != "out-one" || responses[1] != "o" {
+		t.Fatalf("response capture = %#v, want [out-one o]", responseValue)
+	}
+	for _, key := range []common.KeyContex{common.RequestBodyCaptureKey, common.ResponseBodyCaptureKey} {
+		value, present := ctxLogger.Get(key)
+		metadata, ok := value.(formatter.BodyCaptureMetadata)
+		if !present || !ok || !metadata.Truncated || metadata.CapturedBytes != 8 || metadata.LimitBytes != 8 {
+			t.Fatalf("%q = %#v, want truncated 8-byte capture", key, value)
+		}
+	}
+}
+
+func TestStructuredBodyCaptureDetachesMutableBackingStorage(t *testing.T) {
+	largeBacking := make([]string, 1, 1<<18)
+	largeBacking[0] = "before"
+	capture := newGRPCBodyCapture(64)
+	capture.add(largeBacking)
+
+	largeBacking[0] = "after"
+	captured, ok := capture.value().([]any)
+	if !ok || len(captured) != 1 || captured[0] != "before" {
+		t.Fatalf("capture = %#v, want detached [before]", capture.value())
+	}
+	if capture.metadata() != nil {
+		t.Fatalf("metadata = %#v, want no truncation", capture.metadata())
+	}
+}
+
+func TestStreamingBodyCaptureChargesEmptyMessagesAgainstLimit(t *testing.T) {
+	capture := newGRPCBodyCapture(2)
+	capture.add("")
+	capture.add([]byte{})
+	capture.add("")
+
+	values, ok := capture.value().([]any)
+	if !ok || len(values) != 2 {
+		t.Fatalf("capture = %#v, want exactly two retained empty messages", capture.value())
+	}
+	metadata := capture.metadata()
+	if metadata == nil || !metadata.Truncated || metadata.CapturedBytes != 2 || metadata.LimitBytes != 2 {
+		t.Fatalf("metadata = %#v, want truncated 2-byte capture", metadata)
 	}
 }
 

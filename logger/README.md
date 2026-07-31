@@ -77,6 +77,7 @@ logger:
     - Cookie
   formatter: json
   formatDate: "2006-01-02T15:04:05.000"
+  bodyCaptureMaxBytes: 65536
   rotate:
     enable: true
     maxSize: 10
@@ -105,12 +106,43 @@ Main keys:
 - `logger.ignoredHeaders`: headers filtered from structured request details
 - `logger.formatter`: `json`, `text`, or a custom Go template
 - `logger.formatDate`: timestamp layout
+- `logger.bodyCaptureMaxBytes`: maximum bytes retained independently for an enabled request or response body; absent and non-positive values use 65536
 - `logger.sensibleKeys`: case-insensitive keys or key fragments whose values are redacted before formatting
 - `logger.rotate.*`: file rotation settings backed by `lumberjack`
 
 `viperData` caches values on first use. In tests that change viper values
 inside the same process, call `viperdata.ResetViperDataSingleton()` before
 re-reading logger configuration.
+
+## Sanitization Safety Bound
+
+When at least one `logger.sensibleKeys` entry is configured, structured values
+are sanitized recursively to a maximum depth of 32. Any uninspected subtree
+beyond that bound is replaced with `sanitizer.RedactedValue` (`"[REDACTED]"`);
+the original subtree is never returned. This also bounds cyclic inputs.
+
+## Bounded Body Capture
+
+Request and response body logging remains disabled by default. When enabled,
+HTTP and gRPC middleware retain at most `logger.bodyCaptureMaxBytes` for each
+side independently. A truncated side adds metadata without changing bodies
+that fit:
+
+```json
+{
+  "requestCapture": {
+    "truncated": true,
+    "capturedBytes": 65536,
+    "limitBytes": 65536
+  }
+}
+```
+
+HTTP capture observes only bytes the handler consumes. It never drains an
+unread request after the handler returns; an unread or partially read request
+is marked truncated instead. The complete body still flows to the handler and
+client. Streaming gRPC capture applies the limit to the aggregate messages on
+each side and detaches retained values from their original backing storage.
 
 ## Initialize The Logger
 
@@ -149,6 +181,12 @@ writes to stdout and, when `logger.rotate.enable=true`, to a rotated log file.
 It also creates an OpenTelemetry logger provider and returns it so the caller
 can shut it down gracefully.
 
+Bound and record-level `slog` attributes are emitted under the optional
+`attributes` object, with `WithGroup` nesting preserved. Messages and
+attributes are sanitized before both local output and OpenTelemetry export.
+Formatter, writer, and secondary-handler failures are returned by the handler
+contract rather than panicking.
+
 ## Gin Middleware
 
 ```go
@@ -182,7 +220,7 @@ Middleware roles:
 
 - `InitLogger()` extracts distributed-tracing headers, creates a request-scoped logger context, and stores request metadata.
 - `LoggerWithConfig()` emits the final structured HTTP log entry through Gin's logger hook.
-- `CaptureBody()` captures request and response bodies only when body logging is enabled, so they can be included in `details.request` and `details.response` without storing disabled payloads.
+- `CaptureBody()` captures consumed request bytes and emitted response bytes only when body logging is enabled, bounded by `logger.bodyCaptureMaxBytes`, so they can be included in `details.request` and `details.response` without storing disabled payloads.
 - `EnableBody(c, request, response)` opts the final HTTP request log into request and response body emission. Bodies are disabled by default.
 - `EnableTraceBody(c, request, response)` opts trace service entries into request and response body emission when `TraceEnd` is called. Trace bodies are disabled by default.
 
@@ -211,7 +249,9 @@ grpcServer := grpc.NewServer(
 The interceptors mirror the Gin middleware behavior for unary and streaming
 RPCs: they build the request-scoped logger context, capture request/response
 payloads, copy metadata into structured details, and write the final log when
-the handler completes.
+the handler completes. Unary bodies and each streaming direction are bounded
+independently by `logger.bodyCaptureMaxBytes`; streaming messages share the
+limit for their direction.
 
 Request and response bodies are disabled by default. Use
 `loggrpc.EnableBody(ctxLogger, true, true)` to include them in the final gRPC

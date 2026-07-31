@@ -14,15 +14,16 @@ import (
 )
 
 type LogFormat struct {
-	Level     Level     `json:"level"`
-	Timestamp string    `json:"timestamp"`
-	TraceID   string    `json:"traceID"`
-	Message   string    `json:"message"`
-	Details   Details   `json:"details"`
-	Process   []Process `json:"process"`
-	Method    string    `json:"method"`
-	Line      int       `json:"line"`
-	Latency   int64     `json:"latency"`
+	Level      Level          `json:"level"`
+	Timestamp  string         `json:"timestamp"`
+	TraceID    string         `json:"traceID"`
+	Message    string         `json:"message"`
+	Details    Details        `json:"details"`
+	Process    []Process      `json:"process"`
+	Attributes map[string]any `json:"attributes,omitempty"`
+	Method     string         `json:"method"`
+	Line       int            `json:"line"`
+	Latency    int64          `json:"latency"`
 }
 
 // NewLogFormat creates a log payload with the public process collection
@@ -50,14 +51,24 @@ func (l LogFormat) MarshalJSON() ([]byte, error) {
 }
 
 type Details struct {
-	System   string      `json:"system"`
-	Client   string      `json:"client,omitempty"`
-	Protocol string      `json:"protocol,omitempty"`
-	Method   string      `json:"method,omitempty"`
-	Path     string      `json:"path,omitempty"`
-	Headers  http.Header `json:"headers,omitempty"`
-	Request  any         `json:"request,omitempty"`
-	Response any         `json:"response,omitempty"`
+	System          string               `json:"system"`
+	Client          string               `json:"client,omitempty"`
+	Protocol        string               `json:"protocol,omitempty"`
+	Method          string               `json:"method,omitempty"`
+	Path            string               `json:"path,omitempty"`
+	Headers         http.Header          `json:"headers,omitempty"`
+	Request         any                  `json:"request,omitempty"`
+	Response        any                  `json:"response,omitempty"`
+	RequestCapture  *BodyCaptureMetadata `json:"requestCapture,omitempty"`
+	ResponseCapture *BodyCaptureMetadata `json:"responseCapture,omitempty"`
+}
+
+// BodyCaptureMetadata describes an opt-in request or response body that could
+// not be retained completely within logger.bodyCaptureMaxBytes.
+type BodyCaptureMetadata struct {
+	Truncated     bool `json:"truncated"`
+	CapturedBytes int  `json:"capturedBytes"`
+	LimitBytes    int  `json:"limitBytes"`
 }
 
 var mux sync.Mutex
@@ -105,10 +116,11 @@ type Process struct {
 
 	DisableBody bool `json:"-"`
 
-	Request  any    `json:"request,omitempty"`
-	Response any    `json:"response,omitempty"`
-	Status   Status `json:"status"`
-	Latency  int64  `json:"latency"`
+	Request         any                  `json:"request,omitempty"`
+	Response        any                  `json:"response,omitempty"`
+	ResponseCapture *BodyCaptureMetadata `json:"responseCapture,omitempty"`
+	Status          Status               `json:"status"`
+	Latency         int64                `json:"latency"`
 
 	TimeInit time.Time  `json:"-"`
 	Span     trace.Span `json:"-"`

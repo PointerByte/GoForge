@@ -10,15 +10,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/PointerByte/GoForge/logger/builder"
 	"github.com/PointerByte/GoForge/logger/common"
 	"github.com/PointerByte/GoForge/logger/formatter"
+	viperdata "github.com/PointerByte/GoForge/logger/viperData"
 	"github.com/gin-gonic/gin/binding"
 )
 
@@ -30,7 +32,9 @@ import (
 //
 // The implementation is responsible for serializing the request body,
 // setting headers, propagating context, and deserializing the response
-// into the provided Response object.
+// into the provided Response object. Every response body is drained and closed,
+// including when tracing is disabled. A non-2xx status does not synthesize an
+// error and is not decoded into Response.
 type IRestGeneric interface {
 	// DisableTrace disables automatic tracing for subsequent requests.
 	DisableTrace()
@@ -69,7 +73,8 @@ type IRestGeneric interface {
 // IRest instance to execute HTTP requests and process responses.
 type RestGeneric struct {
 	newIRest     IRest
-	disableTrace bool
+	disableTrace atomic.Bool
+	requestMu    sync.Mutex
 }
 
 // NewGenericRest creates a new instance of IRestGeneric.
@@ -128,20 +133,31 @@ func headersWithTraceID(ctx context.Context, header http.Header) http.Header {
 	return headers
 }
 
+func (gr *RestGeneric) requestHeaders(ctx context.Context, header http.Header) http.Header {
+	if gr.disableTrace.Load() {
+		headers := header.Clone()
+		if headers == nil {
+			headers = http.Header{}
+		}
+		return headers
+	}
+	return headersWithTraceID(ctx, header)
+}
+
 // buildService enriches the trace service entry with data extracted from the
 // HTTP response and request objects used by the REST client.
 //
 // When tracing is enabled, it copies transport metadata such as host, headers,
 // method, path, HTTP status code, and protocol into service. It also stores the
-// outbound request body and attempts to deserialize the response body into
-// object so the same value can be recorded in service.Response.
+// outbound request body and the response value already decoded by IRest.
 //
 // The response body is always drained and closed before the function returns.
-// If JSON decoding fails, the function tries to read the remaining body and
-// stores its raw string representation instead.
 func (gr *RestGeneric) buildService(service *formatter.Process, reqBody, object any, resp *http.Response) (err error) {
-	if gr.disableTrace || service == nil || resp == nil {
+	if resp == nil {
 		return nil
+	}
+	if gr.disableTrace.Load() || service == nil {
+		return drainAndCloseResponseBody(resp)
 	}
 
 	service.Code = int64(resp.StatusCode)
@@ -158,33 +174,37 @@ func (gr *RestGeneric) buildService(service *formatter.Process, reqBody, object 
 		service.SetRequest(reqBody)
 	}
 
-	if resp.Body == nil {
-		return nil
+	if isSuccessfulHTTPStatus(resp.StatusCode) && !isNilOutput(object) {
+		service.SetResponse(object)
+		return drainAndCloseResponseBody(resp)
 	}
-	defer func() {
-		if _, copyErr := io.Copy(io.Discard, resp.Body); copyErr != nil && err == nil {
-			err = fmt.Errorf("problem draining response body: %w", copyErr)
-		}
-		if closeErr := resp.Body.Close(); closeErr != nil && err == nil {
-			err = fmt.Errorf("problem closing response body: %w", closeErr)
-		}
-	}()
 
-	if err := json.NewDecoder(resp.Body).Decode(object); err != nil {
-		_respBody, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return fmt.Errorf("problem decoding the response: %w", err)
-		}
-		service.SetResponse(string(_respBody))
-		return nil
+	responseBody, truncated, err := readAndCloseResponseBodyLimited(resp)
+	if err != nil {
+		return err
 	}
-	service.SetResponse(object)
+	if truncated {
+		limit := viperdata.BodyCaptureMaxBytes()
+		service.ResponseCapture = &formatter.BodyCaptureMetadata{
+			Truncated:     true,
+			CapturedBytes: len(responseBody),
+			LimitBytes:    limit,
+		}
+	}
+	if len(responseBody) > 0 {
+		var decoded any
+		if jsonErr := json.Unmarshal(responseBody, &decoded); jsonErr == nil {
+			service.SetResponse(decoded)
+		} else {
+			service.SetResponse(string(responseBody))
+		}
+	}
 	return nil
 }
 
 // DisableTrace disables request tracing for the current instance.
 func (gr *RestGeneric) DisableTrace() {
-	gr.disableTrace = false
+	gr.disableTrace.Store(true)
 }
 
 // PostGeneric executes an HTTP POST request with JSON content.
@@ -195,9 +215,12 @@ func (gr *RestGeneric) DisableTrace() {
 // The input.Request is serialized into JSON and the response is
 // deserialized into input.Response.
 func (gr *RestGeneric) PostGeneric(ctx context.Context, input RequestGeneric) error {
+	gr.requestMu.Lock()
+	defer gr.requestMu.Unlock()
+
 	var process *formatter.Process
 	var traceEnd handlerTrace
-	if !gr.disableTrace {
+	if !gr.disableTrace.Load() {
 		process, traceEnd = traceClient(ctx, input.System, input.Process, input.DisableTraceBody)
 		defer traceEnd(process)
 	}
@@ -211,17 +234,18 @@ func (gr *RestGeneric) PostGeneric(ctx context.Context, input RequestGeneric) er
 
 	req, err := json.Marshal(input.Request)
 	if err != nil {
-		if !gr.disableTrace {
+		if !gr.disableTrace.Load() {
 			process.SetStatus(formatter.ERROR)
 		}
 		return err
 	}
 	gr.newIRest.SetRequest(input.HttpRequest)
 	gr.newIRest.SetContext(ctx)
-	gr.newIRest.SetHeaders(headersWithTraceID(ctx, input.Header))
+	gr.newIRest.SetHeaders(gr.requestHeaders(ctx, input.Header))
 
 	resp, err := gr.newIRest.Post(pathEncode, binding.MIMEJSON, bytes.NewReader(req), input.Response)
 	if err != nil {
+		_ = drainAndCloseResponseBody(resp)
 		return formatHTTPClientError(resp, err)
 	}
 	return gr.buildService(process, input.Request, input.Response, resp)
@@ -265,9 +289,12 @@ func buildURL(input RequestGeneric) (string, error) {
 // and appended to the final URL. The response is deserialized into
 // input.Response.
 func (gr *RestGeneric) GetGeneric(ctx context.Context, input RequestGeneric) error {
+	gr.requestMu.Lock()
+	defer gr.requestMu.Unlock()
+
 	var process *formatter.Process
 	var traceEnd handlerTrace
-	if !gr.disableTrace {
+	if !gr.disableTrace.Load() {
 		process, traceEnd = traceClient(ctx, input.System, input.Process, input.DisableTraceBody)
 		defer traceEnd(process)
 	}
@@ -278,10 +305,11 @@ func (gr *RestGeneric) GetGeneric(ctx context.Context, input RequestGeneric) err
 	}
 	gr.newIRest.SetRequest(input.HttpRequest)
 	gr.newIRest.SetContext(ctx)
-	gr.newIRest.SetHeaders(headersWithTraceID(ctx, input.Header))
+	gr.newIRest.SetHeaders(gr.requestHeaders(ctx, input.Header))
 
 	resp, err := gr.newIRest.Get(pathEncode, binding.MIMEJSON, input.Response)
 	if err != nil {
+		_ = drainAndCloseResponseBody(resp)
 		return formatHTTPClientError(resp, err)
 	}
 	return gr.buildService(process, input.Request, input.Response, resp)
@@ -292,9 +320,12 @@ func (gr *RestGeneric) GetGeneric(ctx context.Context, input RequestGeneric) err
 // The input.Request is serialized into JSON and the response is
 // deserialized into input.Response.
 func (gr *RestGeneric) PutGeneric(ctx context.Context, input RequestGeneric) error {
+	gr.requestMu.Lock()
+	defer gr.requestMu.Unlock()
+
 	var process *formatter.Process
 	var traceEnd handlerTrace
-	if !gr.disableTrace {
+	if !gr.disableTrace.Load() {
 		process, traceEnd = traceClient(ctx, input.System, input.Process, input.DisableTraceBody)
 		defer traceEnd(process)
 	}
@@ -308,17 +339,18 @@ func (gr *RestGeneric) PutGeneric(ctx context.Context, input RequestGeneric) err
 
 	req, err := json.Marshal(input.Request)
 	if err != nil {
-		if !gr.disableTrace {
+		if !gr.disableTrace.Load() {
 			process.SetStatus(formatter.ERROR)
 		}
 		return err
 	}
 	gr.newIRest.SetRequest(input.HttpRequest)
 	gr.newIRest.SetContext(ctx)
-	gr.newIRest.SetHeaders(headersWithTraceID(ctx, input.Header))
+	gr.newIRest.SetHeaders(gr.requestHeaders(ctx, input.Header))
 
 	resp, err := gr.newIRest.Put(pathEncode, binding.MIMEJSON, bytes.NewReader(req), input.Response)
 	if err != nil {
+		_ = drainAndCloseResponseBody(resp)
 		return formatHTTPClientError(resp, err)
 	}
 	return gr.buildService(process, input.Request, input.Response, resp)
@@ -329,9 +361,12 @@ func (gr *RestGeneric) PutGeneric(ctx context.Context, input RequestGeneric) err
 // The input.Request is serialized into JSON and the response is
 // deserialized into input.Response.
 func (gr *RestGeneric) PatchGeneric(ctx context.Context, input RequestGeneric) error {
+	gr.requestMu.Lock()
+	defer gr.requestMu.Unlock()
+
 	var process *formatter.Process
 	var traceEnd handlerTrace
-	if !gr.disableTrace {
+	if !gr.disableTrace.Load() {
 		process, traceEnd = traceClient(ctx, input.System, input.Process, input.DisableTraceBody)
 		defer traceEnd(process)
 	}
@@ -345,17 +380,18 @@ func (gr *RestGeneric) PatchGeneric(ctx context.Context, input RequestGeneric) e
 
 	req, err := json.Marshal(input.Request)
 	if err != nil {
-		if !gr.disableTrace {
+		if !gr.disableTrace.Load() {
 			process.SetStatus(formatter.ERROR)
 		}
 		return err
 	}
 	gr.newIRest.SetRequest(input.HttpRequest)
 	gr.newIRest.SetContext(ctx)
-	gr.newIRest.SetHeaders(headersWithTraceID(ctx, input.Header))
+	gr.newIRest.SetHeaders(gr.requestHeaders(ctx, input.Header))
 
 	resp, err := gr.newIRest.Patch(pathEncode, binding.MIMEJSON, bytes.NewReader(req), input.Response)
 	if err != nil {
+		_ = drainAndCloseResponseBody(resp)
 		return formatHTTPClientError(resp, err)
 	}
 	return gr.buildService(process, input.Request, input.Response, resp)
@@ -367,9 +403,12 @@ func (gr *RestGeneric) PatchGeneric(ctx context.Context, input RequestGeneric) e
 // a remote resource. If the response contains a body, it will be
 // deserialized into input.Response.
 func (gr *RestGeneric) OptionGeneric(ctx context.Context, input RequestGeneric) error {
+	gr.requestMu.Lock()
+	defer gr.requestMu.Unlock()
+
 	var process *formatter.Process
 	var traceEnd handlerTrace
-	if !gr.disableTrace {
+	if !gr.disableTrace.Load() {
 		process, traceEnd = traceClient(ctx, input.System, input.Process, input.DisableTraceBody)
 		defer traceEnd(process)
 	}
@@ -383,17 +422,18 @@ func (gr *RestGeneric) OptionGeneric(ctx context.Context, input RequestGeneric) 
 
 	req, err := json.Marshal(input.Request)
 	if err != nil {
-		if !gr.disableTrace {
+		if !gr.disableTrace.Load() {
 			process.SetStatus(formatter.ERROR)
 		}
 		return err
 	}
 	gr.newIRest.SetRequest(input.HttpRequest)
 	gr.newIRest.SetContext(ctx)
-	gr.newIRest.SetHeaders(headersWithTraceID(ctx, input.Header))
+	gr.newIRest.SetHeaders(gr.requestHeaders(ctx, input.Header))
 
 	resp, err := gr.newIRest.Option(pathEncode, binding.MIMEJSON, bytes.NewReader(req), input.Response)
 	if err != nil {
+		_ = drainAndCloseResponseBody(resp)
 		return formatHTTPClientError(resp, err)
 	}
 	return gr.buildService(process, input.Request, input.Response, resp)

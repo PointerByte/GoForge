@@ -81,50 +81,119 @@ func InitLogger() gin.HandlerFunc {
 
 type responseBodyWriter struct {
 	gin.ResponseWriter
-	body          *bytes.Buffer
+	body          *boundedBodyCapture
 	shouldCapture func() bool
 }
 
 func (r responseBodyWriter) Write(b []byte) (int, error) {
 	if r.shouldCapture() {
-		r.body.Write(b)
+		_, _ = r.body.Write(b)
 	}
 	return r.ResponseWriter.Write(b)
 }
 
 func (r responseBodyWriter) WriteString(s string) (int, error) {
 	if r.shouldCapture() {
-		r.body.WriteString(s)
+		_, _ = r.body.Write([]byte(s))
 	}
 	return r.ResponseWriter.WriteString(s)
 }
 
 type requestBodyCaptureReadCloser struct {
 	io.ReadCloser
-	body          *bytes.Buffer
+	body          *boundedBodyCapture
 	shouldCapture func() bool
+	readBytes     int64
+	sawEOF        bool
 }
 
 func (r *requestBodyCaptureReadCloser) Read(p []byte) (int, error) {
 	n, err := r.ReadCloser.Read(p)
+	r.readBytes += int64(n)
+	if err == io.EOF {
+		r.sawEOF = true
+	}
 	if n > 0 && r.shouldCapture() {
-		r.body.Write(p[:n])
+		_, _ = r.body.Write(p[:n])
 	}
 	return n, err
+}
+
+func (r *requestBodyCaptureReadCloser) finish(contentLength int64) {
+	incomplete := false
+	if contentLength >= 0 {
+		incomplete = r.readBytes < contentLength
+	} else {
+		incomplete = !r.sawEOF
+	}
+	if r.readBytes > int64(r.body.body.Len()) {
+		incomplete = true
+	}
+	if incomplete {
+		r.body.truncated = true
+	}
+}
+
+type boundedBodyCapture struct {
+	body      bytes.Buffer
+	limit     int
+	truncated bool
+}
+
+func newBoundedBodyCapture(limit int) *boundedBodyCapture {
+	if limit <= 0 {
+		limit = viperdata.DefaultBodyCaptureMaxBytes
+	}
+	return &boundedBodyCapture{limit: limit}
+}
+
+func (b *boundedBodyCapture) Write(payload []byte) (int, error) {
+	remaining := b.remaining()
+	if len(payload) > remaining {
+		b.truncated = true
+	}
+	if remaining > 0 {
+		toWrite := len(payload)
+		if toWrite > remaining {
+			toWrite = remaining
+		}
+		_, _ = b.body.Write(payload[:toWrite])
+	}
+	return len(payload), nil
+}
+
+func (b *boundedBodyCapture) remaining() int {
+	remaining := b.limit - b.body.Len()
+	if remaining < 0 {
+		return 0
+	}
+	return remaining
+}
+
+func (b *boundedBodyCapture) metadata() *formatter.BodyCaptureMetadata {
+	if !b.truncated {
+		return nil
+	}
+	return &formatter.BodyCaptureMetadata{
+		Truncated:     true,
+		CapturedBytes: b.body.Len(),
+		LimitBytes:    b.limit,
+	}
 }
 
 // CaptureBody captures raw request and response bodies only when body logging
 // is enabled for the current request.
 //
 // Request body capture is lazy: the middleware wraps the request body and only
-// stores bytes while the request body flag is enabled. If the handler enables
-// request body logging but does not read the body, the middleware drains the
-// remaining body after the handler completes so the final log can still include
-// it. When request or response body logging is disabled, no payload is stored in
-// gin.Context for that side.
+// stores bytes while the request body flag is enabled. It never drains unread
+// request bytes after the handler returns; an unread or only partially read body
+// is reported as truncated instead. Each side retains at most
+// logger.bodyCaptureMaxBytes and stores truncation metadata when additional
+// bytes are observed. Disabled payloads are never retained.
 func CaptureBody() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		requestBody := &bytes.Buffer{}
+		maxBytes := viperdata.BodyCaptureMaxBytes()
+		requestBody := newBoundedBodyCapture(maxBytes)
 		var requestCapture *requestBodyCaptureReadCloser
 		if c.Request.Body != nil {
 			requestCapture = &requestBodyCaptureReadCloser{
@@ -135,7 +204,7 @@ func CaptureBody() gin.HandlerFunc {
 			c.Request.Body = requestCapture
 		}
 
-		responseBody := &bytes.Buffer{}
+		responseBody := newBoundedBodyCapture(maxBytes)
 		writer := &responseBodyWriter{
 			ResponseWriter: c.Writer,
 			body:           responseBody,
@@ -147,12 +216,18 @@ func CaptureBody() gin.HandlerFunc {
 
 		if shouldCaptureGinBody(c, common.DisableRequestBodyKey) {
 			if requestCapture != nil {
-				_, _ = io.Copy(io.Discard, requestCapture)
+				requestCapture.finish(c.Request.ContentLength)
 			}
-			c.Set(common.RequestbodyKey, requestBody.String())
+			c.Set(common.RequestbodyKey, requestBody.body.String())
+			if metadata := requestBody.metadata(); metadata != nil {
+				c.Set(common.RequestBodyCaptureKey, *metadata)
+			}
 		}
 		if shouldCaptureGinBody(c, common.DisableResponseBodyKey) {
-			c.Set(common.ResponsebodyKey, responseBody.String())
+			c.Set(common.ResponsebodyKey, responseBody.body.String())
+			if metadata := responseBody.metadata(); metadata != nil {
+				c.Set(common.ResponseBodyCaptureKey, *metadata)
+			}
 		}
 	}
 }
@@ -200,6 +275,9 @@ func LoggerWithConfig() gin.HandlerFunc {
 						}
 					}
 					ctxLogger.Details.Request = requestBody
+					if metadata, ok := bodyCaptureMetadata(param.Keys[common.RequestBodyCaptureKey]); ok {
+						ctxLogger.Details.RequestCapture = metadata
+					}
 				}
 			}
 			if v, ok := param.Keys[common.DisableResponseBodyKey]; ok {
@@ -211,6 +289,9 @@ func LoggerWithConfig() gin.HandlerFunc {
 						}
 					}
 					ctxLogger.Details.Response = responseBody
+					if metadata, ok := bodyCaptureMetadata(param.Keys[common.ResponseBodyCaptureKey]); ok {
+						ctxLogger.Details.ResponseCapture = metadata
+					}
 				}
 			}
 			ctxLogger.Set(common.DetailsKey, ctxLogger.Details)
@@ -247,6 +328,22 @@ func LoggerWithConfig() gin.HandlerFunc {
 			return !viperdata.GetViperData(string(viperdata.GinLoggerWithConfigEnabledAtribute)).(bool)
 		},
 	})
+}
+
+func bodyCaptureMetadata(value any) (*formatter.BodyCaptureMetadata, bool) {
+	switch metadata := value.(type) {
+	case formatter.BodyCaptureMetadata:
+		copy := metadata
+		return &copy, true
+	case *formatter.BodyCaptureMetadata:
+		if metadata == nil {
+			return nil, false
+		}
+		copy := *metadata
+		return &copy, true
+	default:
+		return nil, false
+	}
 }
 
 // PrintInfo schedules an info-level log message for the current Gin request and

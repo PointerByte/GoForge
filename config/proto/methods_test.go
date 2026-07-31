@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+	gproto "google.golang.org/protobuf/proto"
 )
 
 type mockClientConn struct {
@@ -32,7 +33,8 @@ func (m *mockClientConn) Invoke(_ context.Context, method string, args any, repl
 		return m.err
 	}
 	if out, ok := reply.(*HelloReply); ok && m.reply != nil {
-		*out = *m.reply
+		gproto.Reset(out)
+		gproto.Merge(out, m.reply)
 	}
 	return nil
 }
@@ -136,9 +138,11 @@ func (m *mockClientStream) RecvMsg(msg any) error {
 	m.recv = m.recv[1:]
 	switch dst := msg.(type) {
 	case *ChatSummary:
-		*dst = *(next.(*ChatSummary))
+		gproto.Reset(dst)
+		gproto.Merge(dst, next.(*ChatSummary))
 	case *AlertMessage:
-		*dst = *(next.(*AlertMessage))
+		gproto.Reset(dst)
+		gproto.Merge(dst, next.(*AlertMessage))
 	default:
 		return errors.New("unexpected recv message type")
 	}
@@ -189,9 +193,11 @@ func (m *mockServerStream) RecvMsg(msg any) error {
 	m.recv = m.recv[1:]
 	switch dst := msg.(type) {
 	case *ChatMessage:
-		*dst = *(next.(*ChatMessage))
+		gproto.Reset(dst)
+		gproto.Merge(dst, next.(*ChatMessage))
 	case *AlertMessage:
-		*dst = *(next.(*AlertMessage))
+		gproto.Reset(dst)
+		gproto.Merge(dst, next.(*AlertMessage))
 	default:
 		return errors.New("unexpected recv message type")
 	}

@@ -15,6 +15,8 @@ const (
 	DisableTraceResponseBodyKey KeyContex = "disableTraceResponseBody"
 	RequestbodyKey              KeyContex = "requestBody"
 	ResponsebodyKey             KeyContex = "responseBody"
+	RequestBodyCaptureKey       KeyContex = "requestBodyCapture"
+	ResponseBodyCaptureKey      KeyContex = "responseBodyCapture"
 	MethodKey                   KeyContex = "method"
 	LineKey                     KeyContex = "line"
 )

@@ -38,8 +38,11 @@ func TestSymmetricRepositoryAES(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GenerateSymetrycKeys() error = %v", err)
 	}
-	if key == nil || key.KeyID == "" || key.Provider != "local" {
+	if key == nil || key.KeyID == "" || key.KeyRef == "" || key.Provider != "local" {
 		t.Fatalf("GenerateSymetrycKeys() = %#v, want populated local key data", key)
+	}
+	if key.KeyRef != key.KeyID {
+		t.Fatalf("local key reference = %q, want legacy key id value", key.KeyRef)
 	}
 	keyBytes, err := base64.StdEncoding.DecodeString(key.KeyID)
 	if err != nil {
@@ -183,8 +186,11 @@ func TestAsymmetricAndSignatureRepositories(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GenerateRSAKeys() error = %v", err)
 	}
-	if keyData == nil || keyData.KeyID == "" || keyData.PublicKey == "" || keyData.Provider != "local" {
+	if keyData == nil || keyData.KeyID == "" || keyData.KeyRef == "" || keyData.PublicKey == "" || keyData.Provider != "local" {
 		t.Fatalf("GenerateRSAKeys() = %#v, want populated local key data", keyData)
+	}
+	if keyData.KeyRef != keyData.KeyID {
+		t.Fatalf("local RSA key reference does not preserve the legacy key id")
 	}
 
 	privateKey, err := x509.ParsePKCS1PrivateKey(mustBase64Decode(t, keyData.KeyID))
@@ -212,8 +218,11 @@ func TestAsymmetricAndSignatureRepositories(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GenerateECDHCurveKeys() error = %v", err)
 	}
-	if eccKeyData == nil || eccKeyData.KeyID == "" || eccKeyData.PublicKey == "" || eccKeyData.Provider != "local" {
+	if eccKeyData == nil || eccKeyData.KeyID == "" || eccKeyData.KeyRef == "" || eccKeyData.PublicKey == "" || eccKeyData.Provider != "local" {
 		t.Fatalf("GenerateECDHCurveKeys() = %#v, want populated local key data", eccKeyData)
+	}
+	if eccKeyData.KeyRef != eccKeyData.KeyID {
+		t.Fatalf("local ECDH key reference does not preserve the legacy key id")
 	}
 
 	eccPublicKey, err := utilities.ParseECDHPublicKeyFromBase64(eccKeyData.PublicKey)
@@ -256,8 +265,11 @@ func TestAsymmetricAndSignatureRepositories(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GenerateEd255Keys() error = %v", err)
 	}
-	if edKeyData == nil || edKeyData.KeyID == "" || edKeyData.PublicKey == "" || edKeyData.Provider != "local" {
+	if edKeyData == nil || edKeyData.KeyID == "" || edKeyData.KeyRef == "" || edKeyData.PublicKey == "" || edKeyData.Provider != "local" {
 		t.Fatalf("GenerateEd255Keys() = %#v, want populated local key data", edKeyData)
+	}
+	if edKeyData.KeyRef != edKeyData.KeyID {
+		t.Fatalf("local Ed25519 key reference does not preserve the legacy key id")
 	}
 	edSignature, err := signatureRepository.SignEd25519(testContext, edKeyData.KeyID, "payload")
 	if err != nil {

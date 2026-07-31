@@ -22,7 +22,6 @@ La documentacion en ingles esta disponible en [README.md](./README.md).
 - middleware JWT mediante el modulo `security`
 - criptografia local y backends orientados a KMS mediante `encrypt`
 - jobs de intervalo fijo y utilidades simples de workers
-- helpers de ECS y Kubernetes para descubrir hosts de refresh
 - CLIs para generar servicios y certificados
 
 ## Modulos
@@ -213,7 +212,9 @@ jwt:
 Gin tambien soporta `server.gin.autotls.*`, `server.gin.tls.*` y
 `server.gin.mtls.*` para TLS automatico, TLS explicito y mTLS.
 
-Versiones TLS soportadas: `tlsv10`, `tlsv11`, `tlsv12` y `tlsv13`.
+Las versiones TLS reconocidas son `tlsv10`, `tlsv11`, `tlsv12` y `tlsv13`; el
+valor por defecto es `tlsv12`. TLS 1.0 y 1.1 se reconocen solo por
+compatibilidad legacy y no deben seleccionarse en despliegues de produccion.
 Valores de client-auth soportados: `no_client_cert`, `request_client_cert`,
 `require_any_client_cert`, `verify_client_cert_if_given` y
 `require_and_verify_client_cert`.
@@ -239,12 +240,28 @@ Valores de client-auth soportados: `no_client_cert`, `request_client_cert`,
 - `client.grpc.tls.*`: configuracion TLS gRPC saliente
 - `client.grpc.mtls.*`: certificado cliente mTLS gRPC saliente
 
+Las llamadas de verbos HTTP mantienen aislados URL, cuerpo, contexto y headers
+cuando un mismo `IRest` se usa de forma concurrente. `IRestGeneric` conserva
+la interfaz legacy basada en setters serializando cada secuencia de
+configuracion y request. Los cuerpos genericos que solo se descartan se
+procesan como stream; los cuerpos de respuestas no exitosas trazadas conservan
+como maximo `logger.bodyCaptureMaxBytes` (65,536 bytes por defecto) e informan
+metadata de truncamiento.
+
+Las llaves legacy `client.http.tls.insecureSkipVerify` y
+`client.grpc.tls.insecureSkipVerify` deshabilitan deliberadamente la
+verificacion del certificado y del host. Nunca las habilites en produccion;
+configura el `caFile` y `serverName` correspondientes. Se conservan solo para
+despliegues locales/de prueba compatibles.
+
 ### Logger, Traces y JWT
 
 - `logger.dir`: directorio de archivos de log
 - `logger.level`: nivel minimo como `debug`, `info`, `warn` o `error`
 - `logger.ignoredHeaders`: headers removidos de logs estructurados
 - `logger.formatter`: formato de salida, normalmente `json` o `text`
+- `logger.bodyCaptureMaxBytes`: prefijo maximo de request o respuesta retenido
+  en logs estructurados; 65,536 bytes por defecto
 - `logger.rotate.*`: configuracion de rotacion de archivos
 - `traces.SkipPaths`: rutas HTTP omitidas por el middleware OpenTelemetry de Gin
 - `jwt.enable`: habilita validacion JWT en middleware
@@ -259,8 +276,7 @@ Valores de client-auth soportados: `no_client_cert`, `request_client_cert`,
 
 `config/server/gin.CreateApp()` carga configuracion, inicializa logger y
 OpenTelemetry, crea el `gin.Engine` compartido, registra middlewares comunes,
-crea grupos desde `server.gin.groups` y registra `/health` y `/refresh` en cada
-grupo.
+crea grupos desde `server.gin.groups` y registra `/health` en cada grupo.
 
 ```go
 package main
@@ -286,10 +302,6 @@ func main() {
 	serverGin.Start(srv)
 }
 ```
-
-`GET /refresh` reinicia jobs registrados a nivel de paquete, ejecuta callbacks
-registrados con `SetFunctionsRefresh(...)` y puede propagarse a peers
-registrados con `SetHostsRefresh(...)`.
 
 ## Servidor gRPC
 

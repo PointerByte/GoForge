@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"strings"
 	"sync"
@@ -47,6 +48,26 @@ func (w *failOnNthWrite) Write(p []byte) (int, error) {
 type yieldingBuffer struct {
 	mux sync.Mutex
 	buf bytes.Buffer
+}
+
+type errorHandler struct {
+	err error
+}
+
+func (h errorHandler) Enabled(context.Context, slog.Level) bool {
+	return true
+}
+
+func (h errorHandler) Handle(context.Context, slog.Record) error {
+	return h.err
+}
+
+func (h errorHandler) WithAttrs([]slog.Attr) slog.Handler {
+	return h
+}
+
+func (h errorHandler) WithGroup(string) slog.Handler {
+	return h
 }
 
 func (w *yieldingBuffer) Write(p []byte) (int, error) {
@@ -334,9 +355,10 @@ func TestJSONHandler_Handle_SanitizesConfiguredKeysBeforeFormatting(t *testing.T
 			h := newHandler(slog.LevelDebug, buf)
 			ctx := newTestCtx()
 			ctx.Set(detailsKey, formatter.Details{
-				System:   "loan-service",
-				Request:  map[string]any{"password": "secret", "token": "visible"},
-				Response: `{"email":"person@example.com","ok":true}`,
+				System:          "loan-service",
+				Request:         map[string]any{"password": "secret", "token": "visible"},
+				Response:        `{"email":"person@example.com`,
+				ResponseCapture: &formatter.BodyCaptureMetadata{Truncated: true, CapturedBytes: 29, LimitBytes: 29},
 			})
 			rec := slog.NewRecord(time.Now(), slog.LevelInfo, "password=message-secret", 0)
 
@@ -360,7 +382,7 @@ func TestJSONHandler_Handle_SanitizesConfiguredKeysBeforeFormatting(t *testing.T
 	}
 }
 
-func TestJSONHandler_Handle_PanicsOnFormatterError(t *testing.T) {
+func TestJSONHandler_HandleReturnsFormatterError(t *testing.T) {
 	resetBuilderViper()
 	t.Cleanup(resetBuilderViper)
 
@@ -372,16 +394,28 @@ func TestJSONHandler_Handle_PanicsOnFormatterError(t *testing.T) {
 	ctx := newTestCtx()
 	rec := slog.NewRecord(time.Now(), slog.LevelInfo, "boom", 0)
 
-	defer func() {
-		if r := recover(); r == nil {
-			t.Fatal("expected panic but none occurred")
-		}
-	}()
-
-	_ = h.Handle(ctx, rec)
+	if err := h.Handle(ctx, rec); err == nil || !strings.Contains(err.Error(), "format entry") {
+		t.Fatalf("Handle() error = %v, want formatter error", err)
+	}
 }
 
-func TestJSONHandler_Handle_PanicsOnWriteError_JSON(t *testing.T) {
+func TestJSONHandler_HandleReturnsAttributeEncodingError(t *testing.T) {
+	resetBuilderViper()
+	t.Cleanup(resetBuilderViper)
+
+	viper.Set(string(viperdata.LoggerFormatterAtribute), "json")
+	viper.Set(string(viperdata.AppAtribute), "test-app")
+
+	handler := newHandler(slog.LevelDebug, io.Discard)
+	record := slog.NewRecord(time.Now(), slog.LevelInfo, "bad attribute", 0)
+	record.AddAttrs(slog.Any("unsupported", make(chan int)))
+
+	if err := handler.Handle(newTestCtx(), record); err == nil || !strings.Contains(err.Error(), "format entry") {
+		t.Fatalf("Handle() error = %v, want attribute encoding error", err)
+	}
+}
+
+func TestJSONHandler_HandleReturnsWriteErrorJSON(t *testing.T) {
 	resetBuilderViper()
 	t.Cleanup(resetBuilderViper)
 
@@ -389,20 +423,17 @@ func TestJSONHandler_Handle_PanicsOnWriteError_JSON(t *testing.T) {
 	viper.Set(string(viperdata.LoggerFormatterAtribute), "json")
 	viper.Set(string(viperdata.AppAtribute), "test-app")
 
-	h := newHandler(slog.LevelDebug, &errWriter{err: errors.New("write failed")})
+	wantErr := errors.New("write failed")
+	h := newHandler(slog.LevelDebug, &errWriter{err: wantErr})
 	ctx := newTestCtx()
 	rec := slog.NewRecord(time.Now(), slog.LevelInfo, "write-json", 0)
 
-	defer func() {
-		if r := recover(); r == nil {
-			t.Fatal("expected panic but none occurred")
-		}
-	}()
-
-	_ = h.Handle(ctx, rec)
+	if err := h.Handle(ctx, rec); !errors.Is(err, wantErr) {
+		t.Fatalf("Handle() error = %v, want %v", err, wantErr)
+	}
 }
 
-func TestJSONHandler_Handle_PanicsOnWriteError_TextFallback(t *testing.T) {
+func TestJSONHandler_HandleReturnsWriteErrorText(t *testing.T) {
 	resetBuilderViper()
 	t.Cleanup(resetBuilderViper)
 
@@ -410,17 +441,14 @@ func TestJSONHandler_Handle_PanicsOnWriteError_TextFallback(t *testing.T) {
 	viper.Set(string(viperdata.LoggerFormatterAtribute), "text")
 	viper.Set(string(viperdata.AppAtribute), "test-app")
 
-	h := newHandler(slog.LevelDebug, &errWriter{err: errors.New("write failed")})
+	wantErr := errors.New("write failed")
+	h := newHandler(slog.LevelDebug, &errWriter{err: wantErr})
 	ctx := newTestCtx()
 	rec := slog.NewRecord(time.Now(), slog.LevelWarn, "write-text", 0)
 
-	defer func() {
-		if r := recover(); r == nil {
-			t.Fatal("expected panic but none occurred")
-		}
-	}()
-
-	_ = h.Handle(ctx, rec)
+	if err := h.Handle(ctx, rec); !errors.Is(err, wantErr) {
+		t.Fatalf("Handle() error = %v, want %v", err, wantErr)
+	}
 }
 
 func TestJSONHandler_writeData(t *testing.T) {
@@ -439,6 +467,13 @@ func TestJSONHandler_writeData(t *testing.T) {
 	t.Run("first write error", func(t *testing.T) {
 		h := &jsonHandler{w: &errWriter{err: errors.New("first write")}}
 
+		if err := h.writeData([]byte(`{"ok":true}`)); err == nil {
+			t.Fatal("expected error, got nil")
+		}
+	})
+
+	t.Run("nil writer", func(t *testing.T) {
+		h := &jsonHandler{}
 		if err := h.writeData([]byte(`{"ok":true}`)); err == nil {
 			t.Fatal("expected error, got nil")
 		}
@@ -492,50 +527,134 @@ func TestJSONHandler_writeDataConcurrentWritesCompleteLines(t *testing.T) {
 	}
 }
 
-func TestJSONHandler_WithAttrs(t *testing.T) {
-	orig := &jsonHandler{
-		level: slog.LevelInfo,
-		w:     &bytes.Buffer{},
-		attrs: []slog.Attr{slog.String("a", "1")},
+func TestJSONHandlerPreservesGroupsAndSanitizesEverySink(t *testing.T) {
+	resetBuilderViper()
+	t.Cleanup(resetBuilderViper)
+
+	viper.Set(string(viperdata.LoggerFormatDateAtribute), time.RFC3339Nano)
+	viper.Set(string(viperdata.LoggerFormatterAtribute), "json")
+	viper.Set(string(viperdata.LoggerSensibleKeysAtribute), []string{"password", "email"})
+	viper.Set(string(viperdata.AppAtribute), "test-app")
+
+	var local bytes.Buffer
+	var secondary bytes.Buffer
+	root := newHandler(slog.LevelDebug, &local, slog.NewJSONHandler(&secondary, nil))
+	derived := root.
+		WithAttrs([]slog.Attr{
+			slog.String("component", "api"),
+			slog.String("password", "bound-secret"),
+		}).
+		WithGroup("request").
+		WithAttrs([]slog.Attr{slog.Int("attempt", 2)})
+
+	record := slog.NewRecord(time.Unix(1, 0), slog.LevelInfo, "password=message-secret", 0)
+	record.AddAttrs(
+		slog.String("email", "record@example.com"),
+		slog.Group("nested",
+			slog.String("password", "nested-secret"),
+			slog.String("public", "visible"),
+		),
+		slog.Group(""),
+	)
+
+	if err := derived.Handle(newTestCtx(), record); err != nil {
+		t.Fatalf("Handle() error = %v", err)
+	}
+	if len(root.operations) != 0 {
+		t.Fatalf("root operations = %d, want 0", len(root.operations))
 	}
 
-	got := orig.WithAttrs([]slog.Attr{slog.String("b", "2")})
-	clone, ok := got.(*jsonHandler)
+	var localEntry map[string]any
+	if err := json.Unmarshal(bytes.TrimSpace(local.Bytes()), &localEntry); err != nil {
+		t.Fatalf("local output is invalid JSON: %v", err)
+	}
+	attributes, ok := localEntry["attributes"].(map[string]any)
 	if !ok {
-		t.Fatalf("WithAttrs() type = %T, want *jsonHandler", got)
+		t.Fatalf("local attributes = %T, want object", localEntry["attributes"])
+	}
+	if attributes["component"] != "api" || attributes["password"] != sanitizer.RedactedValue {
+		t.Fatalf("root attributes = %#v", attributes)
+	}
+	request, ok := attributes["request"].(map[string]any)
+	if !ok {
+		t.Fatalf("request attributes = %T, want object", attributes["request"])
+	}
+	nested, ok := request["nested"].(map[string]any)
+	if !ok {
+		t.Fatalf("nested attributes = %T, want object", request["nested"])
+	}
+	if request["attempt"] != float64(2) ||
+		request["email"] != sanitizer.RedactedValue ||
+		nested["password"] != sanitizer.RedactedValue ||
+		nested["public"] != "visible" {
+		t.Fatalf("request attributes = %#v", request)
 	}
 
-	if len(orig.attrs) != 1 {
-		t.Fatalf("original attrs len = %d, want 1", len(orig.attrs))
-	}
-	if len(clone.attrs) != 2 {
-		t.Fatalf("clone attrs len = %d, want 2", len(clone.attrs))
-	}
-	if clone.attrs[0].Key != "a" || clone.attrs[1].Key != "b" {
-		t.Fatalf("unexpected attrs keys: %#v", clone.attrs)
+	for name, output := range map[string]string{
+		"local":     local.String(),
+		"secondary": secondary.String(),
+	} {
+		for _, secret := range []string{"bound-secret", "message-secret", "record@example.com", "nested-secret"} {
+			if strings.Contains(output, secret) {
+				t.Fatalf("%s output leaked %q: %s", name, secret, output)
+			}
+		}
+		if !strings.Contains(output, sanitizer.RedactedValue) || !strings.Contains(output, "visible") {
+			t.Fatalf("%s output missing expected sanitized attributes: %s", name, output)
+		}
 	}
 }
 
-func TestJSONHandler_WithGroup(t *testing.T) {
-	orig := &jsonHandler{
-		level:  slog.LevelInfo,
-		w:      &bytes.Buffer{},
-		groups: []string{"root"},
+func TestJSONHandlerReturnsSecondaryHandlerError(t *testing.T) {
+	resetBuilderViper()
+	t.Cleanup(resetBuilderViper)
+	viper.Set(string(viperdata.LoggerFormatterAtribute), "json")
+	viper.Set(string(viperdata.AppAtribute), "test-app")
+
+	wantErr := errors.New("secondary failed")
+	handler := newHandler(slog.LevelDebug, io.Discard, errorHandler{err: wantErr})
+	if err := handler.Handle(newTestCtx(), slog.NewRecord(time.Now(), slog.LevelInfo, "message", 0)); !errors.Is(err, wantErr) {
+		t.Fatalf("Handle() error = %v, want %v", err, wantErr)
+	}
+}
+
+func TestJSONHandlerEmptyAttrsAndGroupsAreNoOps(t *testing.T) {
+	handler := newHandler(slog.LevelInfo, io.Discard)
+	if got := handler.WithAttrs(nil); got != handler {
+		t.Fatal("WithAttrs(nil) must return the receiver")
+	}
+	if got := handler.WithGroup(""); got != handler {
+		t.Fatal("WithGroup(\"\") must return the receiver")
 	}
 
-	got := orig.WithGroup("child")
-	clone, ok := got.(*jsonHandler)
-	if !ok {
-		t.Fatalf("WithGroup() type = %T, want *jsonHandler", got)
+	attributes := handler.
+		WithGroup("request").
+		WithAttrs([]slog.Attr{slog.Group("empty")}).(*jsonHandler).
+		recordAttributes(slog.NewRecord(time.Now(), slog.LevelInfo, "message", 0))
+	if attributes != nil {
+		t.Fatalf("empty group attributes = %#v, want nil", attributes)
 	}
+}
 
-	if len(orig.groups) != 1 {
-		t.Fatalf("original groups len = %d, want 1", len(orig.groups))
-	}
-	if len(clone.groups) != 2 {
-		t.Fatalf("clone groups len = %d, want 2", len(clone.groups))
-	}
-	if clone.groups[0] != "root" || clone.groups[1] != "child" {
-		t.Fatalf("unexpected groups: %#v", clone.groups)
+func BenchmarkJSONHandlerWithAttributes(b *testing.B) {
+	resetBuilderViper()
+	b.Cleanup(resetBuilderViper)
+	viper.Set(string(viperdata.LoggerFormatterAtribute), "json")
+	viper.Set(string(viperdata.AppAtribute), "benchmark")
+	viper.Set(string(viperdata.LoggerSensibleKeysAtribute), []string{"password"})
+
+	handler := newHandler(slog.LevelInfo, io.Discard).
+		WithAttrs([]slog.Attr{slog.String("component", "api")}).
+		WithGroup("request")
+	ctx := newTestCtx()
+	record := slog.NewRecord(time.Unix(1, 0), slog.LevelInfo, "completed", 0)
+	record.AddAttrs(slog.Int("attempt", 1), slog.String("password", "secret"))
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		if err := handler.Handle(ctx, record); err != nil {
+			b.Fatal(err)
+		}
 	}
 }

@@ -49,6 +49,7 @@ codigo todavia compile.
 
 - crear JWTs desde claims arbitrarios
 - validar firmas y algoritmos de JWT compactos
+- validar claims NumericDate `exp` y `nbf` presentes despues de verificar la firma
 - decodificar claims en `map[string]any` o structs tipados
 - agregar validadores a nivel servicio y por llamada
 - usar contextos de request y timeouts a nivel servicio
@@ -122,8 +123,9 @@ if err != nil {
 ```
 
 Las rutas legacy especificas por algoritmo, como `jwt.eddsa.*` y `jwt.rsa.*`,
-siguen aceptandose por compatibilidad y todavia pueden inferirse cuando solo
-hay una estrategia legacy configurada. Si configuras varias estrategias, define
+siguen aceptandose por compatibilidad. Cuando una llave privada o publica
+generica esta vacia, el constructor configurado de RSA, RSA-PSS o Ed25519 usa
+la llave legacy correspondiente. Si configuras varias estrategias, define
 `jwt.algorithm` o pasalo en `ConfigServiceInput`:
 
 ```go
@@ -204,8 +206,32 @@ if err != nil {
 _ = parsedToken
 ```
 
-Usa `ValidateSignatureWithContext(ctx, token)` cuando solo necesites verificar
-la estructura, algoritmo y firma del JWT sin decodificar claims.
+Usa `ValidateSignatureWithContext(ctx, token)` cuando necesites verificar la
+estructura, algoritmo, firma y claims de tiempo registrados del JWT sin
+decodificar claims en un destino.
+
+### Claims De Tiempo Registrados
+
+Despues de validar la firma, el servicio valida los claims `exp` y `nbf`
+presentes como valores JWT NumericDate numericos. Un valor mal formado devuelve
+`ErrInvalidExpirationClaim` o `ErrInvalidNotBeforeClaim`; un token expirado o
+prematuro devuelve `ErrTokenExpired` o `ErrTokenNotYetValid`.
+
+El reloj predeterminado es el reloj del sistema y la tolerancia predeterminada
+es cero. Los servicios explicitos pueden usar `WithClock` para inyectar un reloj
+comprobable y `WithLeeway` para una tolerancia no negativa y acotada:
+
+```go
+service, err := jwtservice.New(
+	jwtservice.WithHMACSHA256("my-secret"),
+	jwtservice.WithLeeway(30*time.Second),
+)
+```
+
+El paquete no aplica `iss` ni `aud` porque no conoce las expectativas
+especificas del caller para esos claims. Validalos con `WithValidator` o con un
+validador por llamada cuando tu aplicacion requiera una politica de issuer o
+audience.
 
 ## Algoritmos Soportados
 

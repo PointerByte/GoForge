@@ -113,8 +113,10 @@ func (symmetricRepository) GenerateSymetrycKeys(ctx context.Context, input model
 		if _, err := io.ReadFull(rand.Reader, b); err != nil {
 			return nil, err
 		}
+		keyMaterial := base64.StdEncoding.EncodeToString(b)
 		return &models.KeyData{
-			KeyID:    base64.StdEncoding.EncodeToString(b),
+			KeyID:    keyMaterial,
+			KeyRef:   keyMaterial,
 			Provider: "local",
 		}, nil
 	})
@@ -273,6 +275,7 @@ func (asymmetricRepository) GenerateRSAKeys(ctx context.Context, input models.Ge
 		pub := base64.StdEncoding.EncodeToString(publicDer)
 		return &models.KeyData{
 			KeyID:     priv,
+			KeyRef:    priv,
 			PublicKey: pub,
 			Provider:  "local",
 		}, nil
@@ -357,8 +360,10 @@ func (asymmetricRepository) GenerateECDHCurveKeys(ctx context.Context, input mod
 			return nil, fmt.Errorf("marshal ECC public key: %w", err)
 		}
 
+		privateEncoded := base64.StdEncoding.EncodeToString(privateDER)
 		return &models.KeyData{
-			KeyID:     base64.StdEncoding.EncodeToString(privateDER),
+			KeyID:     privateEncoded,
+			KeyRef:    privateEncoded,
 			PublicKey: base64.StdEncoding.EncodeToString(publicDER),
 			Provider:  "local",
 		}, nil
@@ -492,6 +497,7 @@ func (signatureRepository) GenerateEd255Keys(ctx context.Context) (data *models.
 		pub := base64.StdEncoding.EncodeToString(publicDer)
 		return &models.KeyData{
 			KeyID:     priv,
+			KeyRef:    priv,
 			PublicKey: pub,
 			Provider:  "local",
 		}, nil

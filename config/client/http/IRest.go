@@ -21,8 +21,16 @@ import (
 // you to execute HTTP methods (`GET`, `POST`, `PUT`, `PATCH`) and handle headers,
 // context, and response decoding in a target object.
 //
-// All functions return the HTTP status code (`int`) and a possible
-// error (`error`) describing transport, encoding, or response failures.
+// A successful 2xx response is decoded only when the output is non-nil; its
+// consumed body is then drained and closed. With a nil output, or with a
+// non-2xx status, the raw body remains available and the caller must close it.
+//
+// An HTTP status code does not by itself produce an error. Request methods
+// return the *http.Response for status inspection and report only request
+// construction, transport, decoding, draining, or closing failures as errors.
+// Verb calls may execute concurrently; each call uses a local request and
+// snapshots the configured context and headers. Callers must still avoid
+// mutating a supplied request or body reader while it is in use.
 type IRest interface {
 	// SetContext sets a context (`context.Context`) that will be used
 	// by HTTP requests. It allows you to control cancellations and timeouts.
@@ -64,10 +72,11 @@ type Rest struct {
 	restClient  *http.Client
 	initErr     error
 	hdr         atomic.Value // stores http.Header (immutable after a Store operation)
-	ctx         atomic.Value // stores context.Context
-	withContext atomic.Bool
-	mux         sync.Mutex
+	mux         sync.RWMutex
+	ctx         context.Context
+	withContext bool
 	req         *http.Request
+	customReq   *http.Request
 }
 
 // NewIRest creates a new instance of IRest.
@@ -79,7 +88,6 @@ func NewIRest(timeout time.Duration, tr *http.Transport) IRest {
 	s := &Rest{
 		restClient: restClient,
 		initErr:    err,
-		req:        &http.Request{},
 	}
 	s.hdr.Store(http.Header{}) // Init value imutable
 	return s
@@ -94,7 +102,6 @@ func NewConfiguredIRest(timeout time.Duration, tr *http.Transport) (IRest, error
 	}
 	s := &Rest{
 		restClient: restClient,
-		req:        &http.Request{},
 	}
 	s.hdr.Store(http.Header{})
 	return s, nil
@@ -107,51 +114,85 @@ func NewIRestFromConfig() (IRest, error) {
 }
 
 func (sr *Rest) SetRequest(req *http.Request) {
+	sr.mux.Lock()
+	defer sr.mux.Unlock()
+	sr.req = req
+	sr.customReq = req
+}
+
+func (sr *Rest) configuredContext() (context.Context, bool) {
+	sr.mux.RLock()
+	defer sr.mux.RUnlock()
+	if sr.customReq != nil {
+		return sr.customReq.Context(), true
+	}
+	return sr.ctx, sr.withContext && sr.ctx != nil
+}
+
+func (sr *Rest) configuredRequest() *http.Request {
+	sr.mux.RLock()
+	defer sr.mux.RUnlock()
+	if sr.customReq == nil {
+		return nil
+	}
+	return sr.customReq.Clone(sr.customReq.Context())
+}
+
+func (sr *Rest) storeLastRequest(req *http.Request) {
+	sr.mux.Lock()
+	defer sr.mux.Unlock()
 	sr.req = req
 }
 
-func (sr *Rest) cloneRequest(req *http.Request) *http.Request {
-	sr.mux.Lock()
-	defer sr.mux.Unlock()
-	if sr.req == nil {
-		return req
+func (sr *Rest) newRequest(method, url string, body io.Reader) (*http.Request, error) {
+	if ctx, ok := sr.configuredContext(); ok {
+		return http.NewRequestWithContext(ctx, method, url, body)
 	}
-	ctx := sr.req.Context()
-	return req.Clone(ctx)
+	return http.NewRequest(method, url, body)
 }
 
-func (sr *Rest) doRequest() (*http.Response, error) {
+func (sr *Rest) doRequest(req *http.Request, output any) (*http.Response, error) {
 	if sr.initErr != nil {
 		return nil, sr.initErr
 	}
-
-	sr.mux.Lock()
-	defer sr.mux.Unlock()
-
-	// Merge the base header with the one from the request, without overwriting what's already there.
-	base := sr.hdr.Load().(http.Header)
-	if sr.req.Header == nil {
-		sr.req.Header = make(http.Header)
-	}
-	for k, vals := range base {
-		// If the request already includes a header (e.g., Content-Type), we respect it.
-		if _, exists := sr.req.Header[k]; exists {
-			continue
-		}
-		for _, v := range vals {
-			sr.req.Header.Add(k, v)
-		}
+	if req == nil {
+		return nil, fmt.Errorf("problem executing the request: request is nil")
 	}
 
-	resp, err := sr.restClient.Do(sr.req)
+	sr.storeLastRequest(req)
+	resp, err := sr.restClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("problema al ejecutar la solicitud: %w", err)
+	}
+	if isNilOutput(output) || resp.Body == nil || !isSuccessfulHTTPStatus(resp.StatusCode) {
+		return resp, nil
+	}
+	if err := decodeResponse(resp, output); err != nil {
+		return resp, err
 	}
 	return resp, nil
 }
 
-func (sr *Rest) Do(object any) (*http.Response, error) {
-	return sr.doRequest()
+func (sr *Rest) Do(output any) (*http.Response, error) {
+	req := sr.configuredRequest()
+	if req != nil {
+		mergeRequestHeaders(req, sr.hdr.Load().(http.Header))
+	}
+	return sr.doRequest(req, output)
+}
+
+func mergeRequestHeaders(req *http.Request, base http.Header) {
+	if req.Header == nil {
+		req.Header = make(http.Header)
+	}
+	for key, values := range base {
+		if _, exists := req.Header[key]; exists {
+			continue
+		}
+		for _, value := range values {
+			req.Header.Add(key, value)
+		}
+	}
 }
 
 func (sr *Rest) SetHeaders(header http.Header) {
@@ -162,111 +203,73 @@ func (sr *Rest) SetHeaders(header http.Header) {
 }
 
 func (sr *Rest) SetContext(ctx context.Context) {
-	sr.ctx.Store(ctx)
-	sr.withContext.Store(true)
+	sr.mux.Lock()
+	defer sr.mux.Unlock()
+	sr.ctx = ctx
+	sr.withContext = ctx != nil
 }
 
-func (sr *Rest) Get(url, contentType string, object any) (*http.Response, error) {
-	var req *http.Request
-	var err error
-	if sr.withContext.Load() {
-		ctx, _ := sr.ctx.Load().(context.Context)
-		req, err = http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	} else {
-		req, err = http.NewRequest(http.MethodGet, url, nil)
-	}
+func (sr *Rest) Get(url, contentType string, output any) (*http.Response, error) {
+	req, err := sr.newRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("problem creating the request get: %w", err)
 	}
-	sr.req = sr.cloneRequest(req)
 
 	// Take a snapshot of the header and include the Content-Type field ONLY in this request
 	h := sr.hdr.Load().(http.Header)
-	sr.req.Header = h.Clone()
-	sr.req.Header.Set("Content-Type", contentType)
-	return sr.doRequest()
+	req.Header = h.Clone()
+	req.Header.Set("Content-Type", contentType)
+	return sr.doRequest(req, output)
 }
 
-func (sr *Rest) Post(url, contentType string, body io.Reader, object any) (*http.Response, error) {
-	var req *http.Request
-	var err error
-	if sr.withContext.Load() {
-		ctx, _ := sr.ctx.Load().(context.Context)
-		req, err = http.NewRequestWithContext(ctx, http.MethodPost, url, body)
-	} else {
-		req, err = http.NewRequest(http.MethodPost, url, body)
-	}
+func (sr *Rest) Post(url, contentType string, body io.Reader, output any) (*http.Response, error) {
+	req, err := sr.newRequest(http.MethodPost, url, body)
 	if err != nil {
 		return nil, fmt.Errorf("problem creating the request post: %w", err)
 	}
-	sr.req = sr.cloneRequest(req)
 
 	// Take a snapshot of the header and include the Content-Type field ONLY in this request
 	h := sr.hdr.Load().(http.Header)
-	sr.req.Header = h.Clone()
-	sr.req.Header.Set("Content-Type", contentType)
-	return sr.doRequest()
+	req.Header = h.Clone()
+	req.Header.Set("Content-Type", contentType)
+	return sr.doRequest(req, output)
 }
 
-func (sr *Rest) Put(url, contentType string, body io.Reader, object any) (*http.Response, error) {
-	var req *http.Request
-	var err error
-	if sr.withContext.Load() {
-		ctx, _ := sr.ctx.Load().(context.Context)
-		req, err = http.NewRequestWithContext(ctx, http.MethodPut, url, body)
-	} else {
-		req, err = http.NewRequest(http.MethodPut, url, body)
-	}
+func (sr *Rest) Put(url, contentType string, body io.Reader, output any) (*http.Response, error) {
+	req, err := sr.newRequest(http.MethodPut, url, body)
 	if err != nil {
 		return nil, fmt.Errorf("problem creating the request put: %w", err)
 	}
-	sr.req = sr.cloneRequest(req)
 
 	// Take a snapshot of the header and include the Content-Type field ONLY in this request
 	h := sr.hdr.Load().(http.Header)
-	sr.req.Header = h.Clone()
-	sr.req.Header.Set("Content-Type", contentType)
-	return sr.doRequest()
+	req.Header = h.Clone()
+	req.Header.Set("Content-Type", contentType)
+	return sr.doRequest(req, output)
 }
 
-func (sr *Rest) Patch(url, contentType string, body io.Reader, object any) (*http.Response, error) {
-	var req *http.Request
-	var err error
-	if sr.withContext.Load() {
-		ctx, _ := sr.ctx.Load().(context.Context)
-		req, err = http.NewRequestWithContext(ctx, http.MethodPatch, url, body)
-	} else {
-		req, err = http.NewRequest(http.MethodPatch, url, body)
-	}
+func (sr *Rest) Patch(url, contentType string, body io.Reader, output any) (*http.Response, error) {
+	req, err := sr.newRequest(http.MethodPatch, url, body)
 	if err != nil {
 		return nil, fmt.Errorf("problem creating the request patch: %w", err)
 	}
-	sr.req = sr.cloneRequest(req)
 
 	// Take a snapshot of the header and include the Content-Type field ONLY in this request
 	h := sr.hdr.Load().(http.Header)
-	sr.req.Header = h.Clone()
-	sr.req.Header.Set("Content-Type", contentType)
-	return sr.doRequest()
+	req.Header = h.Clone()
+	req.Header.Set("Content-Type", contentType)
+	return sr.doRequest(req, output)
 }
 
-func (sr *Rest) Option(url, contentType string, body io.Reader, object any) (*http.Response, error) {
-	var req *http.Request
-	var err error
-	if sr.withContext.Load() {
-		ctx, _ := sr.ctx.Load().(context.Context)
-		req, err = http.NewRequestWithContext(ctx, http.MethodOptions, url, body)
-	} else {
-		req, err = http.NewRequest(http.MethodOptions, url, body)
-	}
+func (sr *Rest) Option(url, contentType string, body io.Reader, output any) (*http.Response, error) {
+	req, err := sr.newRequest(http.MethodOptions, url, body)
 	if err != nil {
 		return nil, fmt.Errorf("problem creating the request option: %w", err)
 	}
-	sr.req = sr.cloneRequest(req)
 
 	// Take a snapshot of the header and include the Content-Type field ONLY in this request
 	h := sr.hdr.Load().(http.Header)
-	sr.req.Header = h.Clone()
-	sr.req.Header.Set("Content-Type", contentType)
-	return sr.doRequest()
+	req.Header = h.Clone()
+	req.Header.Set("Content-Type", contentType)
+	return sr.doRequest(req, output)
 }

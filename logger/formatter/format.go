@@ -23,7 +23,7 @@ type CustomFormatter struct {
 	Template string
 }
 
-const defaultJSONTemplate = `{"timestamp":{{json .Timestamp}},"traceID":{{json .TraceID}},"level":{{json .Level}},"message":{{json .Message}},"details":{{json (buildDetails .Details)}},"process":{{json (buildServices .Process)}},"method":{{json .Method}},"line":{{json .Line}},"latency":{{json .Latency}}}`
+const defaultJSONTemplate = `{"timestamp":{{json .Timestamp}},"traceID":{{json .TraceID}},"level":{{json .Level}},"message":{{json .Message}},"details":{{json (buildDetails .Details)}},"process":{{json (buildServices .Process)}}{{if .Attributes}},"attributes":{{json .Attributes}}{{end}},"method":{{json .Method}},"line":{{json .Line}},"latency":{{json .Latency}}}`
 
 func (f *CustomFormatter) Format(log LogFormat) ([]byte, error) {
 	log = log.Normalize()
@@ -66,7 +66,9 @@ func (f *CustomFormatter) FormatText(log LogFormat) ([]byte, error) {
 		log.Details.Path != "" ||
 		len(log.Details.Headers) > 0 ||
 		log.Details.Request != nil ||
-		log.Details.Response != nil {
+		log.Details.Response != nil ||
+		log.Details.RequestCapture != nil ||
+		log.Details.ResponseCapture != nil {
 
 		b.WriteString(" | details={")
 
@@ -103,8 +105,18 @@ func (f *CustomFormatter) FormatText(log LogFormat) ([]byte, error) {
 		if log.Details.Response != nil {
 			writeField("response", toJSON(log.Details.Response))
 		}
+		if log.Details.RequestCapture != nil {
+			writeField("requestCapture", toJSON(log.Details.RequestCapture))
+		}
+		if log.Details.ResponseCapture != nil {
+			writeField("responseCapture", toJSON(log.Details.ResponseCapture))
+		}
 
 		b.WriteString("}")
+	}
+
+	if len(log.Attributes) > 0 {
+		fmt.Fprintf(&b, " | attributes=%s", toJSON(log.Attributes))
 	}
 
 	// Services
@@ -162,6 +174,9 @@ func (f *CustomFormatter) FormatText(log LogFormat) ([]byte, error) {
 			if s.Response != nil {
 				writeServiceField("response", toJSON(s.Response))
 			}
+			if s.ResponseCapture != nil {
+				writeServiceField("responseCapture", toJSON(s.ResponseCapture))
+			}
 			if s.Status != "" {
 				writeServiceField("status", s.Status)
 			}
@@ -194,9 +209,9 @@ func (f *CustomFormatter) FormatTemplate(log LogFormat) ([]byte, error) {
 func (f *CustomFormatter) executeTemplate(tpl string, log LogFormat) ([]byte, error) {
 	log = log.Normalize()
 	funcMap := template.FuncMap{
-		"json": func(v any) string {
-			b, _ := json.Marshal(v)
-			return string(b)
+		"json": func(v any) (string, error) {
+			b, err := json.Marshal(v)
+			return string(b), err
 		},
 		"buildDetails":  buildDetails,
 		"buildServices": buildServices,
@@ -245,6 +260,12 @@ func buildDetails(d Details) map[string]any {
 	if d.Response != nil {
 		out["response"] = d.Response
 	}
+	if d.RequestCapture != nil {
+		out["requestCapture"] = d.RequestCapture
+	}
+	if d.ResponseCapture != nil {
+		out["responseCapture"] = d.ResponseCapture
+	}
 	return out
 }
 
@@ -287,6 +308,9 @@ func buildServices(items []Process) []map[string]any {
 		}
 		if s.Response != nil {
 			row["response"] = s.Response
+		}
+		if s.ResponseCapture != nil {
+			row["responseCapture"] = s.ResponseCapture
 		}
 		if s.Status != "" {
 			row["status"] = s.Status

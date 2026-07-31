@@ -178,6 +178,13 @@ func TestGenerateEncryptedCertificates(t *testing.T) {
 	if block == nil || block.Type != encryptedPEMBlockType {
 		t.Fatalf("expected encrypted PEM block, got %#v", block)
 	}
+	var payload encryptedPEMPayload
+	if err := json.Unmarshal(block.Bytes, &payload); err != nil {
+		t.Fatalf("expected encrypted payload JSON, got %v", err)
+	}
+	if payload.Version != encryptedPEMVersion || payload.KDF != encryptedPEMKDF {
+		t.Fatalf("expected current encrypted PEM format, got %#v", payload)
+	}
 
 	certificatePEM, err := ReadPEMFile(result.CertificatePath, testEncryptionSecret)
 	if err != nil {
@@ -347,6 +354,16 @@ func TestGenerateCertificatesErrors(t *testing.T) {
 		t.Fatal("expected short encryption secret error")
 	}
 
+	if _, err := GenerateCertificates(Options{
+		OutputDir:         t.TempDir(),
+		CommonName:        "localhost",
+		CertFileName:      "same.pem",
+		KeyFileName:       "same.pem",
+		PublicKeyFileName: "public.pem",
+	}); err == nil {
+		t.Fatal("expected duplicate output path error")
+	}
+
 	if _, err := UpdateEncryptionSecret(UpdateEncryptionSecretOptions{
 		CertificatePath:  "cert.pem",
 		PrivateKeyPath:   "key.pem",
@@ -465,7 +482,7 @@ func TestPEMReadAndDecryptErrors(t *testing.T) {
 		{
 			name: "invalid nonce",
 			content: encryptedPayloadPEM(t, encryptedKindCertificate, encryptedPEMPayload{
-				Version:    encryptedPEMVersion,
+				Version:    legacyEncryptedPEMVersion,
 				Algorithm:  encryptedPEMAlgorithm,
 				Nonce:      "%%%",
 				Ciphertext: base64.StdEncoding.EncodeToString([]byte("cipher")),
@@ -475,7 +492,7 @@ func TestPEMReadAndDecryptErrors(t *testing.T) {
 		{
 			name: "invalid ciphertext",
 			content: encryptedPayloadPEM(t, encryptedKindCertificate, encryptedPEMPayload{
-				Version:    encryptedPEMVersion,
+				Version:    legacyEncryptedPEMVersion,
 				Algorithm:  encryptedPEMAlgorithm,
 				Nonce:      base64.StdEncoding.EncodeToString(make([]byte, 12)),
 				Ciphertext: "%%%",
@@ -485,7 +502,7 @@ func TestPEMReadAndDecryptErrors(t *testing.T) {
 		{
 			name: "invalid nonce size",
 			content: encryptedPayloadPEM(t, encryptedKindCertificate, encryptedPEMPayload{
-				Version:    encryptedPEMVersion,
+				Version:    legacyEncryptedPEMVersion,
 				Algorithm:  encryptedPEMAlgorithm,
 				Nonce:      base64.StdEncoding.EncodeToString([]byte("short")),
 				Ciphertext: base64.StdEncoding.EncodeToString([]byte("cipher")),

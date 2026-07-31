@@ -52,8 +52,8 @@ func (c grpcMetadataCarrier) Keys() []string {
 type grpcCaptureStream struct {
 	grpc.ServerStream
 	ctx       context.Context
-	requests  []any
-	responses []any
+	requests  *grpcBodyCapture
+	responses *grpcBodyCapture
 }
 
 func (s *grpcCaptureStream) Context() context.Context {
@@ -63,7 +63,7 @@ func (s *grpcCaptureStream) Context() context.Context {
 func (s *grpcCaptureStream) RecvMsg(m any) error {
 	err := s.ServerStream.RecvMsg(m)
 	if err == nil && shouldIncludeGRPCBody(builder.New(s.ctx), common.DisableRequestBodyKey) {
-		s.requests = append(s.requests, m)
+		s.requestCapture().add(m)
 	}
 	return err
 }
@@ -73,9 +73,23 @@ func (s *grpcCaptureStream) SendMsg(m any) error {
 		return err
 	}
 	if shouldIncludeGRPCBody(builder.New(s.ctx), common.DisableResponseBodyKey) {
-		s.responses = append(s.responses, m)
+		s.responseCapture().add(m)
 	}
 	return nil
+}
+
+func (s *grpcCaptureStream) requestCapture() *grpcBodyCapture {
+	if s.requests == nil {
+		s.requests = newGRPCBodyCapture(viperdata.BodyCaptureMaxBytes())
+	}
+	return s.requests
+}
+
+func (s *grpcCaptureStream) responseCapture() *grpcBodyCapture {
+	if s.responses == nil {
+		s.responses = newGRPCBodyCapture(viperdata.BodyCaptureMaxBytes())
+	}
+	return s.responses
 }
 
 // InitLoggerUnaryServerInterceptor creates the request-scoped logger context
@@ -128,10 +142,20 @@ func CaptureBodyUnaryServerInterceptor() grpc.UnaryServerInterceptor {
 		ctxLogger := builder.New(ctx)
 		resp, err := handler(ctxLogger, req)
 		if shouldIncludeGRPCBody(ctxLogger, common.DisableRequestBodyKey) {
-			ctxLogger.Set(common.RequestbodyKey, req)
+			capture := newGRPCBodyCapture(viperdata.BodyCaptureMaxBytes())
+			capture.add(req)
+			ctxLogger.Set(common.RequestbodyKey, capture.value())
+			if metadata := capture.metadata(); metadata != nil {
+				ctxLogger.Set(common.RequestBodyCaptureKey, *metadata)
+			}
 		}
 		if shouldIncludeGRPCBody(ctxLogger, common.DisableResponseBodyKey) {
-			ctxLogger.Set(common.ResponsebodyKey, resp)
+			capture := newGRPCBodyCapture(viperdata.BodyCaptureMaxBytes())
+			capture.add(resp)
+			ctxLogger.Set(common.ResponsebodyKey, capture.value())
+			if metadata := capture.metadata(); metadata != nil {
+				ctxLogger.Set(common.ResponseBodyCaptureKey, *metadata)
+			}
 		}
 		return resp, err
 	}
@@ -150,14 +174,22 @@ func CaptureBodyStreamServerInterceptor() grpc.StreamServerInterceptor {
 		captureStream := &grpcCaptureStream{
 			ServerStream: stream,
 			ctx:          ctxLogger,
+			requests:     newGRPCBodyCapture(viperdata.BodyCaptureMaxBytes()),
+			responses:    newGRPCBodyCapture(viperdata.BodyCaptureMaxBytes()),
 		}
 
 		err := handler(srv, captureStream)
 		if shouldIncludeGRPCBody(ctxLogger, common.DisableRequestBodyKey) {
-			ctxLogger.Set(common.RequestbodyKey, collapseCapturedBodies(captureStream.requests))
+			ctxLogger.Set(common.RequestbodyKey, captureStream.requests.value())
+			if metadata := captureStream.requests.metadata(); metadata != nil {
+				ctxLogger.Set(common.RequestBodyCaptureKey, *metadata)
+			}
 		}
 		if shouldIncludeGRPCBody(ctxLogger, common.DisableResponseBodyKey) {
-			ctxLogger.Set(common.ResponsebodyKey, collapseCapturedBodies(captureStream.responses))
+			ctxLogger.Set(common.ResponsebodyKey, captureStream.responses.value())
+			if metadata := captureStream.responses.metadata(); metadata != nil {
+				ctxLogger.Set(common.ResponseBodyCaptureKey, *metadata)
+			}
 		}
 		return err
 	}
@@ -340,11 +372,40 @@ func applyGRPCBodyDetails(ctxLogger *builder.Context) {
 	if requestBody, ok := ctxLogger.Get(common.RequestbodyKey); includeRequest && ok {
 		details.Request = requestBody
 	}
+	if metadata, ok := grpcBodyCaptureMetadata(ctxLogger, common.RequestBodyCaptureKey); includeRequest && ok {
+		details.RequestCapture = metadata
+	}
 	if responseBody, ok := ctxLogger.Get(common.ResponsebodyKey); includeResponse && ok {
 		details.Response = responseBody
 	}
+	if metadata, ok := grpcBodyCaptureMetadata(ctxLogger, common.ResponseBodyCaptureKey); includeResponse && ok {
+		details.ResponseCapture = metadata
+	}
 	ctxLogger.Details = details
 	ctxLogger.Set(common.DetailsKey, details)
+}
+
+func grpcBodyCaptureMetadata(ctxLogger *builder.Context, key common.KeyContex) (*formatter.BodyCaptureMetadata, bool) {
+	value, ok := ctxLogger.Get(key)
+	if !ok {
+		value, ok = ctxLogger.Get(string(key))
+	}
+	if !ok {
+		return nil, false
+	}
+	switch metadata := value.(type) {
+	case formatter.BodyCaptureMetadata:
+		copy := metadata
+		return &copy, true
+	case *formatter.BodyCaptureMetadata:
+		if metadata == nil {
+			return nil, false
+		}
+		copy := *metadata
+		return &copy, true
+	default:
+		return nil, false
+	}
 }
 
 func setGRPCMethodDetails(ctxLogger *builder.Context, fullMethod string) {

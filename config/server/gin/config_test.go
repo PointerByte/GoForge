@@ -14,6 +14,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"syscall"
 	"testing"
@@ -43,6 +44,7 @@ func resetServerTestState(t *testing.T) {
 	origReadFileFn := readFileFn
 	origNewCertPoolFn := newCertPoolFn
 	origBuilderNewFn := builderNewFn
+	origLogServerErrorFn := logServerErrorFn
 	origStartJobsFn := startJobsFn
 	origStopFn := stopFn
 	origWaitForShutdownSignalFn := waitForShutdownSignalFn
@@ -72,6 +74,7 @@ func resetServerTestState(t *testing.T) {
 	readFileFn = os.ReadFile
 	newCertPoolFn = x509.NewCertPool
 	builderNewFn = builder.New
+	logServerErrorFn = func(error) {}
 	startJobsFn = func() {}
 	stopFn = Stop
 	waitForShutdownSignalFn = waitForShutdownSignal
@@ -93,6 +96,7 @@ func resetServerTestState(t *testing.T) {
 		readFileFn = origReadFileFn
 		newCertPoolFn = origNewCertPoolFn
 		builderNewFn = origBuilderNewFn
+		logServerErrorFn = origLogServerErrorFn
 		startJobsFn = origStartJobsFn
 		stopFn = origStopFn
 		waitForShutdownSignalFn = origWaitForShutdownSignalFn
@@ -721,24 +725,81 @@ func TestStartAndShutdown(t *testing.T) {
 	})
 }
 
-func TestStartPanicsOnUnexpectedListenError(t *testing.T) {
+func TestStartLogsUnexpectedListenErrorAndTriggersShutdown(t *testing.T) {
 	resetServerTestState(t)
 
 	waitForShutdownSignalFn = func() {}
 	startJobsFn = func() {}
 	shutdownServerFn = func(*http.Server, context.Context) error { return nil }
 	runAsyncFn = func(fn func()) { fn() }
+	var logged error
+	logServerErrorFn = func(err error) {
+		logged = err
+	}
+	stopCalls := 0
+	stopFn = func() {
+		stopCalls++
+	}
 	listenAndServeFn = func(*http.Server) error {
 		return errors.New("boom")
 	}
 
-	defer func() {
-		if recovered := recover(); recovered == nil {
-			t.Fatal("expected panic")
-		}
-	}()
-
 	Start(&http.Server{})
+	if logged == nil || !strings.Contains(logged.Error(), "boom") {
+		t.Fatalf("expected listener error to be logged, got %v", logged)
+	}
+	if stopCalls != 1 {
+		t.Fatalf("expected shutdown trigger once, got %d", stopCalls)
+	}
+}
+
+func TestStartRejectsNilServerWithoutPanic(t *testing.T) {
+	resetServerTestState(t)
+
+	var logged error
+	logServerErrorFn = func(err error) {
+		logged = err
+	}
+	Start(nil)
+	if logged == nil || logged.Error() != "http server is required" {
+		t.Fatalf("logged error = %v", logged)
+	}
+}
+
+func TestLoadConfigReplacesShutdownHandlersAndCleansPartialInitialization(t *testing.T) {
+	resetServerTestState(t)
+
+	shutdownCalls := 0
+	initLogger = func(context.Context, string) (*sdklog.LoggerProvider, error) {
+		provider := sdklog.NewLoggerProvider()
+		return provider, nil
+	}
+	initOtel = func(context.Context) (func(context.Context) error, error) {
+		return func(context.Context) error {
+			shutdownCalls++
+			return nil
+		}, nil
+	}
+
+	if err := loadConfig(t.TempDir()); err != nil {
+		t.Fatalf("first loadConfig() error = %v", err)
+	}
+	if err := loadConfig(t.TempDir()); err != nil {
+		t.Fatalf("second loadConfig() error = %v", err)
+	}
+	if len(shutdownList) != 2 {
+		t.Fatalf("shutdown handlers accumulated: got %d, want 2", len(shutdownList))
+	}
+
+	initOtel = func(context.Context) (func(context.Context) error, error) {
+		return nil, errors.New("otel failed")
+	}
+	if err := loadConfig(t.TempDir()); err == nil {
+		t.Fatal("expected partial initialization error")
+	}
+	if shutdownCalls != 0 {
+		t.Fatalf("unexpected retained OTEL shutdown call count %d", shutdownCalls)
+	}
 }
 
 func TestStopAndSetModeTest(t *testing.T) {
@@ -756,6 +817,17 @@ func TestStopAndSetModeTest(t *testing.T) {
 			}
 		default:
 			t.Fatal("expected signal to be sent")
+		}
+
+		returned := make(chan struct{})
+		go func() {
+			Stop()
+			close(returned)
+		}()
+		select {
+		case <-returned:
+		case <-time.After(time.Second):
+			t.Fatal("repeated Stop blocked with shutdown already pending")
 		}
 	})
 

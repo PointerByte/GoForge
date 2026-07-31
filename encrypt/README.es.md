@@ -86,14 +86,17 @@ _, _, _, _ = localRepository, awsRepository, azureRepository, gcpRepository
 
 Los metodos de generacion de llaves devuelven `*models.KeyData`:
 
-- `KeyID`: llave privada local, llave simetrica o identificador de proveedor
+- `KeyID`: identificador del proveedor; el backend local conserva material de
+  llave aqui solo por compatibilidad
 - `PublicKey`: llave publica local cuando es exportable
-- `KeyRef`: referencia especifica del proveedor, como ARN, URL o version
+- `KeyRef`: referencia canonica para operaciones: material local o una
+  referencia de proveedor como ARN, URL o version
 - `Provider`: nombre del backend, por ejemplo `local`, `aws-kms`, `azure-key-vault` o `gcp-kms`
 
-Para llaves simetricas locales, usa `KeyID` como llave AES. Para llaves
-asimetricas locales, usa `KeyID` como llave privada y `PublicKey` como llave
-publica.
+Usa `KeyRef` al pasar llaves generadas a operaciones con cualquier backend.
+Para llaves asimetricas locales, usa `KeyRef` como llave privada y `PublicKey`
+como llave publica. El `KeyID` local permanece igual a `KeyRef` por
+compatibilidad, pero ambos campos contienen secretos y nunca deben registrarse.
 
 ## Inicio Rapido
 
@@ -124,7 +127,7 @@ func main() {
 	additional := "aad"
 	cipherText, err := repository.EncryptAES(ctx, models.EncryptAESRequest{
 		UID:        "user-123",
-		SecretKey:  keyData.KeyID,
+		SecretKey:  keyData.KeyRef,
 		Value:      "hola",
 		Additional: &additional,
 	})
@@ -134,7 +137,7 @@ func main() {
 
 	plainText, err := repository.DecryptAES(ctx, models.DecryptAESRequest{
 		UID:         "user-123",
-		SecretKey:   keyData.KeyID,
+		SecretKey:   keyData.KeyRef,
 		CipherValue: cipherText,
 		Additional:  &additional,
 	})
@@ -178,14 +181,14 @@ if err != nil {
 
 plainText, err := repository.RSA_OAEP_Decode(ctx, models.RSAOAEPDecodeRequest{
 	UID:        "user-123",
-	PrivateKey: keys.KeyID,
+	PrivateKey: keys.KeyRef,
 	CipherText: cipherText,
 })
 if err != nil {
 	panic(err)
 }
 
-signature, err := repository.SignRSAPSS(ctx, keys.KeyID, "payload")
+signature, err := repository.SignRSAPSS(ctx, keys.KeyRef, "payload")
 if err != nil {
 	panic(err)
 }
@@ -219,7 +222,7 @@ if err != nil {
 
 plainText, err := repository.ECDH_Decode(ctx, models.ECDHDecodeRequest{
 	UID:        "user-123",
-	PrivateKey: keys.KeyID,
+	PrivateKey: keys.KeyRef,
 	CipherText: cipherText,
 })
 if err != nil {
@@ -237,7 +240,7 @@ if err != nil {
 	panic(err)
 }
 
-signature, err := repository.SignEd25519(ctx, keys.KeyID, "payload")
+signature, err := repository.SignEd25519(ctx, keys.KeyRef, "payload")
 if err != nil {
 	panic(err)
 }

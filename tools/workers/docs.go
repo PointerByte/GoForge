@@ -1,13 +1,13 @@
-// Package workers provides a simple in-process task dispatcher backed by a
+// Package workers provides a bounded in-process task dispatcher backed by a
 // buffered function queue.
 //
 // The package exposes a process-wide worker loop. Tasks are submitted with
 // AddTask and executed asynchronously after RunWorkers starts the dispatcher.
-// SetWorkersLimit replaces the queue with a new buffered channel whose capacity
-// controls how many tasks can be queued before AddTask blocks.
+// SetWorkersLimit controls both the maximum number of concurrently executing
+// tasks and the queue capacity.
 //
 // Main entry points:
-//   - SetWorkersLimit configures the task queue capacity.
+//   - SetWorkersLimit configures the execution limit and task queue capacity.
 //   - AddTask queues a function for asynchronous execution.
 //   - RunWorkers starts the dispatcher if it is not already running.
 //   - StopWorkers stops the current dispatcher loop.
@@ -25,6 +25,6 @@
 //
 // AddTask blocks when the configured queue is full. RunWorkers is idempotent:
 // calling it while the dispatcher is already running does not start another
-// loop. StopWorkers stops task dispatching, but it does not cancel tasks that
-// have already started.
+// loop. StopWorkers stops consuming queued tasks, but it does not cancel tasks
+// that have already started. Queued tasks remain available for a later run.
 package workers

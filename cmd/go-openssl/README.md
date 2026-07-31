@@ -52,7 +52,9 @@ When flags are omitted, generation uses:
 - files: `cert.pem`, `key.pem`, `public.pem`
 
 Private keys are written with mode `0600`; certificate and public key files are
-written with mode `0644`.
+written with mode `0644`. File contents are staged beside their destinations
+and atomically replaced. A generation or rotation error cleans staged files and
+restores any targets replaced earlier in the same batch.
 
 ## Generate Flags
 
@@ -73,23 +75,29 @@ written with mode `0644`.
 | `--signed-by` | | CA certificate PEM path used to sign the new certificate |
 | `--ca-key` | | CA private key PEM path used with `--signed-by` |
 | `--ca` | | mark the generated certificate as a CA |
-| `--encrypt-secret` | | encrypt generated PEM files; must be at least 32 bytes |
-| `--signed-by-secret` | | secret used to read an encrypted `--signed-by` certificate |
-| `--ca-key-secret` | | secret used to read an encrypted `--ca-key` private key |
+| `--encrypt-secret-env` | | environment variable containing the generated-file encryption secret |
+| `--encrypt-secret-file` | | regular file containing the generated-file encryption secret |
+| `--signed-by-secret-env` / `--signed-by-secret-file` | | environment or file source for the encrypted `--signed-by` certificate |
+| `--ca-key-secret-env` / `--ca-key-secret-file` | | environment or file source for the encrypted `--ca-key` private key |
+| `--encrypt-secret`, `--signed-by-secret`, `--ca-key-secret` | | deprecated literal-value compatibility flags |
 
 `--signed-by` and `--ca-key` must be provided together. If either CA file is
-encrypted, pass the matching secret with `--signed-by-secret` or
-`--ca-key-secret`.
+encrypted, pass the matching environment-variable name or secret-file path.
+Literal secret flags remain compatible but warn because process arguments may
+be visible to other users and monitoring tools.
 
 ## Read Flags
 
 | Flag | Short | Description |
 | --- | --- | --- |
 | `--file` | `-f` | plain or encrypted PEM file to read |
-| `--secret` | `-s` | secret used to decrypt encrypted PEM files |
+| `--secret-env` | | environment variable containing the decryption secret |
+| `--secret-file` | | regular file containing the decryption secret |
+| `--secret` | `-s` | deprecated literal-value compatibility flag |
 | `--out` | `-o` | optional destination for decrypted PEM output |
 
-If `--out` is omitted, the command writes the PEM content to stdout.
+If `--out` is omitted, the command writes the PEM content to stdout. With
+`--out`, it atomically replaces a regular-file target with mode `0600`.
 
 ## Reencrypt Flags
 
@@ -98,11 +106,12 @@ If `--out` is omitted, the command writes the PEM content to stdout.
 | `--cert-file` | encrypted certificate PEM path |
 | `--key-file` | encrypted private key PEM path |
 | `--public-key-file` | encrypted public key PEM path |
-| `--encrypt-secret-old` | current secret used to decrypt the PEM files |
-| `--encrypt-secret-new` | new secret used to re-encrypt the PEM files |
+| `--encrypt-secret-old-env` / `--encrypt-secret-old-file` | environment or file source for the current secret |
+| `--encrypt-secret-new-env` / `--encrypt-secret-new-file` | environment or file source for the new secret |
+| `--encrypt-secret-old`, `--encrypt-secret-new` | deprecated literal-value compatibility flags |
 
-Both secrets must be at least 32 bytes. The command rewrites the same files and
-does not generate a new certificate or key pair.
+Both secrets must be at least 32 bytes. The command atomically replaces the same
+files and does not generate a new certificate or key pair.
 
 ## Basic Examples
 
@@ -186,9 +195,16 @@ go-openssl generate \
 
 ## Encrypted PEM Files
 
-Use `--encrypt-secret` to encrypt `cert.pem`, `key.pem`, and `public.pem` as
-`GoForge ENCRYPTED PEM` envelopes using AES-256-GCM. The secret must be at
-least 32 bytes.
+New encrypted output uses version-2 `GoForge ENCRYPTED PEM` envelopes:
+AES-256-GCM with an Argon2id-derived key, a random 16-byte KDF salt, and a
+separate random nonce. Version 2 fixes Argon2id at 64 MiB, three passes, two
+lanes, and a 32-byte key; unexpected parameters are rejected before allocation.
+Secrets must be at least 32 bytes. The reader continues to accept legacy
+version-1 envelopes; reading does not rewrite them, while `reencrypt` upgrades
+them to version 2.
+
+Prefer a secret-manager mount or an environment variable. Do not place the
+secret value directly in a command line:
 
 ```bash
 go-openssl generate \
@@ -196,7 +212,7 @@ go-openssl generate \
   --rsa-bits 4096 \
   --dir ./certs/encrypted \
   --common-name api.default.svc \
-  --encrypt-secret "12345678901234567890123456789012"
+  --encrypt-secret-file /run/secrets/goforge-pem
 ```
 
 Read an encrypted PEM to stdout:
@@ -204,7 +220,7 @@ Read an encrypted PEM to stdout:
 ```bash
 go-openssl read \
   --file ./certs/encrypted/cert.pem \
-  --secret "12345678901234567890123456789012"
+  --secret-file /run/secrets/goforge-pem
 ```
 
 Write the decrypted PEM to a new file:
@@ -212,7 +228,7 @@ Write the decrypted PEM to a new file:
 ```bash
 go-openssl read \
   --file ./certs/encrypted/key.pem \
-  --secret "12345678901234567890123456789012" \
+  --secret-file /run/secrets/goforge-pem \
   --out ./certs/encrypted/key.decrypted.pem
 ```
 
@@ -223,8 +239,8 @@ go-openssl reencrypt \
   --cert-file ./certs/encrypted/cert.pem \
   --key-file ./certs/encrypted/key.pem \
   --public-key-file ./certs/encrypted/public.pem \
-  --encrypt-secret-old "12345678901234567890123456789012" \
-  --encrypt-secret-new "abcdefghijklmnopqrstuvwxyz123456"
+  --encrypt-secret-old-file /run/secrets/goforge-pem-current \
+  --encrypt-secret-new-env GOFORGE_PEM_SECRET_NEW
 ```
 
 Use an encrypted CA to sign another certificate:
@@ -238,9 +254,19 @@ go-openssl generate \
   --dns service.default.svc \
   --signed-by ./certs/ca/ca.pem \
   --ca-key ./certs/ca/ca-key.pem \
-  --signed-by-secret "12345678901234567890123456789012" \
-  --ca-key-secret "12345678901234567890123456789012"
+  --signed-by-secret-file /run/secrets/goforge-ca \
+  --ca-key-secret-file /run/secrets/goforge-ca
 ```
+
+Each logical secret accepts exactly one environment, file, or deprecated
+literal source. Secret files are bounded regular files; one trailing `LF` or
+`CRLF` is removed for compatibility with mounted secrets. Values are never
+included in command status or error text.
+
+Version-2 files cannot be read by older `go-openssl` releases. Keep an updated
+binary available during rollout. Ordinary operation failures trigger cleanup
+and rollback, but no multi-file format can guarantee transactionality across a
+host crash; use normal backup and recovery controls for key material.
 
 ## Kubernetes Examples
 
@@ -317,8 +343,8 @@ _, err := goopenssl.UpdateEncryptionSecret(goopenssl.UpdateEncryptionSecretOptio
 	CertificatePath:   "./certs/encrypted/cert.pem",
 	PrivateKeyPath:    "./certs/encrypted/key.pem",
 	PublicKeyPath:     "./certs/encrypted/public.pem",
-	EncryptSecretOld:  "12345678901234567890123456789012",
-	EncryptSecretNew:  "abcdefghijklmnopqrstuvwxyz123456",
+	EncryptSecretOld:  oldSecretFromSecretManager,
+	EncryptSecretNew:  newSecretFromSecretManager,
 })
 if err != nil {
 	log.Fatal(err)
@@ -345,9 +371,9 @@ if err != nil {
 | `--signed-by` | `SignedBy` |
 | `--ca-key` | `CAKeyFile` |
 | `--ca` | `IsCA` |
-| `--encrypt-secret` | `EncryptSecret` |
-| `--signed-by-secret` | `SignedBySecret` |
-| `--ca-key-secret` | `CAKeySecret` |
+| any `--encrypt-secret-*` source | `EncryptSecret` |
+| any `--signed-by-secret-*` source | `SignedBySecret` |
+| any `--ca-key-secret-*` source | `CAKeySecret` |
 
 Reader helpers:
 
@@ -358,7 +384,8 @@ Reader helpers:
 - `UpdateEncryptionSecret(options)`
 
 Plain PEM files can be read with an empty secret. Encrypted PEM files require
-the same secret used during generation.
+the same secret used during generation. Go callers should obtain secret strings
+from their secret manager; the Go API never requires command-line arguments.
 
 ## Development
 

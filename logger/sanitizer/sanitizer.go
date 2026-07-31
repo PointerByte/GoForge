@@ -69,6 +69,9 @@ func (s Sanitizer) LogFormat(log formatter.LogFormat) formatter.LogFormat {
 	for index := range log.Process {
 		log.Process[index] = s.Service(log.Process[index])
 	}
+	if sanitized, ok := s.Value(log.Attributes).(map[string]any); ok {
+		log.Attributes = sanitized
+	}
 	return log
 }
 
@@ -143,8 +146,11 @@ func (s Sanitizer) value(key string, value any, depth int) any {
 	if key != "" && s.isSensitive(key) {
 		return RedactedValue
 	}
-	if value == nil || depth > maxDepth {
+	if value == nil {
 		return value
+	}
+	if depth > maxDepth {
+		return RedactedValue
 	}
 
 	switch cast := value.(type) {
@@ -251,7 +257,7 @@ func (s Sanitizer) reflectValue(value any, depth int) any {
 func (s Sanitizer) structValue(value any, depth int) any {
 	data, err := json.Marshal(value)
 	if err != nil {
-		return s.sanitizeString(fmt.Sprint(value))
+		return RedactedValue
 	}
 
 	var decoded any

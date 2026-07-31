@@ -74,3 +74,35 @@ func TestIsIgnoredHeader(t *testing.T) {
 		})
 	}
 }
+
+func TestBodyCaptureMaxBytes(t *testing.T) {
+	tests := []struct {
+		name       string
+		set        bool
+		configured int
+		want       int
+	}{
+		{name: "missing uses safe default", want: DefaultBodyCaptureMaxBytes},
+		{name: "zero uses safe default", set: true, configured: 0, want: DefaultBodyCaptureMaxBytes},
+		{name: "negative uses safe default", set: true, configured: -1, want: DefaultBodyCaptureMaxBytes},
+		{name: "positive value is honored", set: true, configured: 4096, want: 4096},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			viper.Reset()
+			ResetViperDataSingleton()
+			t.Cleanup(func() {
+				viper.Reset()
+				ResetViperDataSingleton()
+			})
+			if tt.set {
+				viper.Set(string(LoggerBodyCaptureMaxBytesAtribute), tt.configured)
+			}
+
+			if got := BodyCaptureMaxBytes(); got != tt.want {
+				t.Fatalf("BodyCaptureMaxBytes() = %d, want %d", got, tt.want)
+			}
+		})
+	}
+}

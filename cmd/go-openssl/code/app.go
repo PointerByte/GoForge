@@ -53,6 +53,9 @@ func (app *App) rootCommand() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
+	root.SetIn(app.streams.In)
+	root.SetOut(app.streams.Out)
+	root.SetErr(app.streams.Err)
 	root.AddCommand(newGenerateCommand(app).Cobra())
 	root.AddCommand(newReadCommand(app).Cobra())
 	root.AddCommand(newReencryptCommand(app).Cobra())

@@ -24,8 +24,9 @@ type unsupportedLoginRequest struct {
 	Password chan int `json:"password"`
 }
 
-func (unsupportedLoginRequest) String() string {
-	return "password=secret"
+type cyclicLoginRequest struct {
+	Password string              `json:"password"`
+	Next     *cyclicLoginRequest `json:"next"`
 }
 
 func TestLogFormatRedactsSensitiveKeys(t *testing.T) {
@@ -221,8 +222,8 @@ func TestSanitizerCoversReflectionValues(t *testing.T) {
 		t.Fatalf("scalar value = %#v, want 42", got)
 	}
 
-	if got := s.Value(unsupportedLoginRequest{Password: make(chan int)}).(string); !strings.Contains(got, RedactedValue) {
-		t.Fatalf("unsupported struct fallback was not sanitized: %s", got)
+	if got := s.Value(unsupportedLoginRequest{Password: make(chan int)}); got != RedactedValue {
+		t.Fatalf("unsupported struct fallback = %#v, want %q", got, RedactedValue)
 	}
 }
 
@@ -246,12 +247,67 @@ func TestSanitizerCoversGuardBranches(t *testing.T) {
 	if got := s.Headers(nil); got != nil {
 		t.Fatalf("Headers(nil) = %#v, want nil", got)
 	}
-	if got := s.value("", "secret", maxDepth+1); got != "secret" {
-		t.Fatalf("max depth guard changed value: %#v", got)
+	if got := s.value("", "secret", maxDepth+1); got != RedactedValue {
+		t.Fatalf("max depth guard = %#v, want %q", got, RedactedValue)
 	}
 	if s.isSensitive("") {
 		t.Fatal("empty key must not be sensitive")
 	}
+}
+
+func TestSanitizerFailsClosedBeyondMaximumDepth(t *testing.T) {
+	s := New([]string{"password"})
+	root := map[string]any{}
+	current := root
+	for depth := 0; depth <= maxDepth+1; depth++ {
+		next := map[string]any{}
+		current["next"] = next
+		current = next
+	}
+	current["password"] = "deep-secret"
+
+	got := s.Value(root)
+	data, err := json.Marshal(got)
+	if err != nil {
+		t.Fatalf("json.Marshal(sanitized deep value) error = %v", err)
+	}
+	if strings.Contains(string(data), "deep-secret") {
+		t.Fatalf("sanitized deep value exposed a secret: %s", data)
+	}
+	if !strings.Contains(string(data), RedactedValue) {
+		t.Fatalf("sanitized deep value lacks depth marker: %s", data)
+	}
+}
+
+func TestSanitizerFailsClosedForCycles(t *testing.T) {
+	s := New([]string{"password"})
+
+	t.Run("map cycle", func(t *testing.T) {
+		cycle := map[string]any{"password": "cycle-secret"}
+		cycle["self"] = cycle
+
+		got := s.Value(cycle)
+		data, err := json.Marshal(got)
+		if err != nil {
+			t.Fatalf("json.Marshal(sanitized map cycle) error = %v", err)
+		}
+		if strings.Contains(string(data), "cycle-secret") {
+			t.Fatalf("sanitized map cycle exposed a secret: %s", data)
+		}
+		if !strings.Contains(string(data), RedactedValue) {
+			t.Fatalf("sanitized map cycle lacks redaction marker: %s", data)
+		}
+	})
+
+	t.Run("pointer cycle", func(t *testing.T) {
+		cycle := &cyclicLoginRequest{Password: "pointer-secret"}
+		cycle.Next = cycle
+
+		got := s.Value(cycle)
+		if got != RedactedValue {
+			t.Fatalf("sanitized pointer cycle = %#v, want %q", got, RedactedValue)
+		}
+	})
 }
 
 func TestSanitizeJSONStringRejectsPartialJSON(t *testing.T) {

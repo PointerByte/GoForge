@@ -4,8 +4,8 @@
 // Package gin provides the HTTP bootstrap layer used by GoForge services.
 //
 // It is responsible for turning the framework configuration into a runnable Gin
-// server with shared middleware, route groups, observability setup, refresh and
-// health handlers, and graceful shutdown coordination.
+// server with shared middleware, route groups, observability setup, health
+// handlers, and graceful shutdown coordination.
 //
 // In a typical application flow this package:
 //   - loads configuration through tools/utilities
@@ -20,9 +20,6 @@
 //   - GetEngine to access the shared gin.Engine after CreateApp
 //   - GetRoute to obtain one of the configured route groups
 //   - Start to run the HTTP server and coordinate shutdown
-//
-// The package also exposes helpers such as SetHostsRefresh and
-// SetFunctionsRefresh, which are used by the built-in refresh propagation flow.
 //
 // Complete example from a main package:
 //
@@ -56,6 +53,6 @@
 //	}
 //
 // In that example, `/api/v1` must exist in the `server.gin.groups` configuration.
-// Once CreateApp succeeds, the package will also register `/health` and
-// `/refresh` under each configured route group.
+// Once CreateApp succeeds, the package will also register `/health` under each
+// configured route group.
 package gin

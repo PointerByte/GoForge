@@ -18,6 +18,10 @@ var (
 
 const layout = "2006-01-02T15:04:05.000"
 
+// DefaultBodyCaptureMaxBytes is the per-side request or response capture limit
+// used when logger.bodyCaptureMaxBytes is absent or non-positive.
+const DefaultBodyCaptureMaxBytes = 64 * 1024
+
 func ResetViperDataSingleton() {
 	mux.Lock()
 	defer mux.Unlock()
@@ -36,6 +40,10 @@ func GetViperData(key string) any {
 		if viper.GetString(string(LoggerFormatDateAtribute)) == "" {
 			viper.Set(string(LoggerFormatDateAtribute), layout)
 		}
+		bodyCaptureMaxBytes := viper.GetInt(string(LoggerBodyCaptureMaxBytesAtribute))
+		if bodyCaptureMaxBytes <= 0 {
+			bodyCaptureMaxBytes = DefaultBodyCaptureMaxBytes
+		}
 		viperData = map[string]any{
 			string(AppVersionAtribute):                         viper.GetString(string(AppVersionAtribute)),
 			string(AppAtribute):                                viper.GetString(string(AppAtribute)),
@@ -48,6 +56,7 @@ func GetViperData(key string) any {
 			string(LoggerFormatterAtribute):                    viper.GetString(string(LoggerFormatterAtribute)),
 			string(LoggerFormatDateAtribute):                   viper.GetString(string(LoggerFormatDateAtribute)),
 			string(LoggerSensibleKeysAtribute):                 viper.GetStringSlice(string(LoggerSensibleKeysAtribute)),
+			string(LoggerBodyCaptureMaxBytesAtribute):          bodyCaptureMaxBytes,
 			string(LoggerRotateEnableAtribute):                 viper.GetBool(string(LoggerRotateEnableAtribute)),
 			string(LoggerRotateMaxSizeAtribute):                viper.GetInt(string(LoggerRotateMaxSizeAtribute)),
 			string(LoggerRotateMaxBackupsAtribute):             viper.GetInt(string(LoggerRotateMaxBackupsAtribute)),
@@ -64,6 +73,15 @@ func GetViperData(key string) any {
 		once = sync.Once{}
 	}
 	return viperData[key]
+}
+
+// BodyCaptureMaxBytes returns the normalized per-side body capture limit.
+func BodyCaptureMaxBytes() int {
+	value, ok := GetViperData(string(LoggerBodyCaptureMaxBytesAtribute)).(int)
+	if !ok || value <= 0 {
+		return DefaultBodyCaptureMaxBytes
+	}
+	return value
 }
 
 func IsIgnoredHeader(header string) bool {

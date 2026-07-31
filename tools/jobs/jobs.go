@@ -50,17 +50,14 @@ type CronTrigger struct {
 
 type cronTrigger = CronTrigger
 
-// ijobs defines the public operations used to schedule and start jobs.
+// ijobs defines the operations used by the package-level scheduler.
 // It is implemented by *Jobs.
-//
-// Recommendation: create instances with NewJobs().
 //
 // Example:
 //
-//	j := jobs.NewJobs()
-//	j.Job(func() { /* ... */ }, 2*time.Second, nil)
-//	j.CronJob(func() { /* ... */ }, jobs.CronTrigger{Hour: 9}, 0)
-//	j.StartJobs()
+//	jobs.Job(func() { /* ... */ }, 2*time.Second, nil)
+//	jobs.CronJob(func() { /* ... */ }, jobs.CronTrigger{Hour: 9}, 0)
+//	jobs.StartJobs()
 type ijobs interface {
 	// job schedules fn to run periodically every interval.
 	// If timeout != nil and *timeout > 0, the job stops automatically when
@@ -96,8 +93,8 @@ type ijobs interface {
 	startJobs()
 }
 
-// jobs manages the lifecycle of periodic and cron jobs for a single instance.
-// Create it with NewJobs and stop it with Destroy or globally with StopAllJobs.
+// jobs manages the lifecycle of periodic and cron jobs for one internal
+// scheduler instance.
 type jobs struct {
 	started atomic.Bool
 	stopCh  atomic.Value
@@ -110,14 +107,14 @@ type jobs struct {
 	wg sync.WaitGroup
 }
 
-// newJobs creates and registers a new Jobs instance in the global registry.
+// newJobs creates and registers an internal jobs instance in the global registry.
 // Any instance created with newJobs is affected by StopAllJobs.
 //
 // Example:
 //
 //	j := jobs.newJobs()
-//	j.Job(func() { fmt.Println("hello") }, time.Second, nil)
-//	j.StartJobs()
+//	j.job(func() { fmt.Println("hello") }, time.Second, nil)
+//	j.startJobs()
 func newJobs() *jobs {
 	j := &jobs{controls: make(map[string]*jobControl)}
 	register(j)
@@ -272,50 +269,32 @@ func CronJobWithID(id string, fn func(), trigger CronTrigger, interval time.Dura
 	return globalJobs.cronJobWithID(id, fn, trigger, interval)
 }
 
-var restartJobs chan struct{}
-
-func init() {
-	restartJobs = make(chan struct{})
-	go RestartJobs()
-}
-
-var flagStartJobs atomic.Bool
+var lifecycleMu sync.Mutex
 
 // StartJobs starts the package-level jobs scheduler.
 //
-// Internally it waits for restart signals and starts the global job registry
-// when requested. This is the entry point used by higher-level server packages
-// such as `server/gin.Start(...)`.
+// This is the entry point used by higher-level server packages such as
+// `server/gin.Start(...)`. Concurrent lifecycle calls are serialized, and
+// repeated starts do not duplicate running jobs.
 //
 // When `server.modeTest=true`, registered jobs are not started.
 func StartJobs() {
-	if flagStartJobs.Load() {
-		return
-	}
-	flagStartJobs.Store(true)
-	go func() {
-		for {
-			select {
-			case <-restartJobs:
-				StopAllJobs(false)
-				globalJobs.startJobs()
-			default:
-				if !CheckStatusJobs() {
-					flagStartJobs.Store(false)
-					return
-				}
-				time.Sleep(time.Second)
-			}
-		}
-	}()
+	lifecycleMu.Lock()
+	defer lifecycleMu.Unlock()
+	globalJobs.startJobs()
 }
 
 // RestartJobs requests a restart of the package-level scheduler.
 //
 // The restart flow stops currently running jobs without clearing their
 // registered definitions and starts them again from the current process state.
+// It is safe to call before StartJobs and never waits for a background
+// receiver.
 func RestartJobs() {
-	restartJobs <- struct{}{}
+	lifecycleMu.Lock()
+	defer lifecycleMu.Unlock()
+	stopAllJobs(false)
+	globalJobs.startJobs()
 }
 
 // startJobs starts all previously registered jobs.
@@ -387,8 +366,8 @@ func (j *jobs) destroy() {
 	unregister(j)
 }
 
-// StopAllJobs stops and clears all globally registered instances created with NewJobs.
-// It is useful for coordinated shutdowns, tests, or global resets.
+// StopAllJobs stops all internal scheduler instances. It is useful for
+// coordinated shutdowns, tests, or global resets.
 //
 // Example:
 //
@@ -400,6 +379,12 @@ func (j *jobs) destroy() {
 // started again later. If clearJobs is true, the jobs stop and their stored
 // definitions are removed from each registered instance.
 func StopAllJobs(clearJobs bool) {
+	lifecycleMu.Lock()
+	defer lifecycleMu.Unlock()
+	stopAllJobs(clearJobs)
+}
+
+func stopAllJobs(clearJobs bool) {
 	regMu.Lock()
 	list := make([]*jobs, 0, len(registry))
 	for j := range registry {

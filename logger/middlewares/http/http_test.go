@@ -21,6 +21,16 @@ import (
 	"github.com/spf13/viper"
 )
 
+type panicReadCloser struct{}
+
+func (panicReadCloser) Read([]byte) (int, error) {
+	panic("request body must not be drained by logging middleware")
+}
+
+func (panicReadCloser) Close() error {
+	return nil
+}
+
 func TestInitLogger(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -190,6 +200,132 @@ func TestMiddlewareCaptureBody(t *testing.T) {
 				t.Fatalf("response body captured = %#v, want nil", gotResponseBody)
 			}
 		})
+	}
+}
+
+func TestCaptureBodyAppliesIndependentByteLimits(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	viper.Reset()
+	viperdata.ResetViperDataSingleton()
+	t.Cleanup(func() {
+		viper.Reset()
+		viperdata.ResetViperDataSingleton()
+	})
+	viper.Set(string(viperdata.LoggerBodyCaptureMaxBytesAtribute), 8)
+
+	requestPayload := "request-complete"
+	responsePayload := "response-complete"
+	var handlerRequest string
+	var requestBody any
+	var responseBody any
+	var requestMetadata formatter.BodyCaptureMetadata
+	var responseMetadata formatter.BodyCaptureMetadata
+
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Next()
+		requestBody, _ = c.Get(common.RequestbodyKey)
+		responseBody, _ = c.Get(common.ResponsebodyKey)
+		requestMetadata, _ = c.MustGet(common.RequestBodyCaptureKey).(formatter.BodyCaptureMetadata)
+		responseMetadata, _ = c.MustGet(common.ResponseBodyCaptureKey).(formatter.BodyCaptureMetadata)
+	})
+	router.Use(CaptureBody())
+	router.POST("/bounded", func(c *gin.Context) {
+		EnableBody(c, true, true)
+		body, err := io.ReadAll(c.Request.Body)
+		if err != nil {
+			t.Fatalf("handler read failed: %v", err)
+		}
+		handlerRequest = string(body)
+		c.String(http.StatusOK, responsePayload)
+	})
+
+	request := httptest.NewRequest(http.MethodPost, "/bounded", strings.NewReader(requestPayload))
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if handlerRequest != requestPayload {
+		t.Fatalf("handler request = %q, want complete %q", handlerRequest, requestPayload)
+	}
+	if response.Body.String() != responsePayload {
+		t.Fatalf("client response = %q, want complete %q", response.Body.String(), responsePayload)
+	}
+	if requestBody != requestPayload[:8] || responseBody != responsePayload[:8] {
+		t.Fatalf("captured request/response = %#v/%#v, want 8-byte prefixes", requestBody, responseBody)
+	}
+	for name, metadata := range map[string]formatter.BodyCaptureMetadata{
+		"request":  requestMetadata,
+		"response": responseMetadata,
+	} {
+		if !metadata.Truncated || metadata.CapturedBytes != 8 || metadata.LimitBytes != 8 {
+			t.Fatalf("%s metadata = %#v, want truncated 8-byte capture", name, metadata)
+		}
+	}
+}
+
+func TestCaptureBodyNeverDrainsUnreadRequest(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	viper.Reset()
+	viperdata.ResetViperDataSingleton()
+	t.Cleanup(func() {
+		viper.Reset()
+		viperdata.ResetViperDataSingleton()
+	})
+	viper.Set(string(viperdata.LoggerBodyCaptureMaxBytesAtribute), 8)
+
+	var body any
+	var metadata formatter.BodyCaptureMetadata
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Next()
+		body, _ = c.Get(common.RequestbodyKey)
+		metadata, _ = c.MustGet(common.RequestBodyCaptureKey).(formatter.BodyCaptureMetadata)
+	})
+	router.Use(CaptureBody())
+	router.POST("/unread", func(c *gin.Context) {
+		EnableBody(c, true, false)
+		c.Status(http.StatusNoContent)
+	})
+
+	request := httptest.NewRequest(http.MethodPost, "/unread", nil)
+	request.Body = panicReadCloser{}
+	request.ContentLength = 100
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want %d", response.Code, http.StatusNoContent)
+	}
+	if body != "" {
+		t.Fatalf("captured body = %#v, want empty", body)
+	}
+	if !metadata.Truncated || metadata.CapturedBytes != 0 || metadata.LimitBytes != 8 {
+		t.Fatalf("metadata = %#v, want unread truncated body", metadata)
+	}
+}
+
+func TestBoundedBodyCaptureExactLimit(t *testing.T) {
+	capture := newBoundedBodyCapture(4)
+	if n, err := capture.Write([]byte("1234")); err != nil || n != 4 {
+		t.Fatalf("Write() = %d, %v; want 4, nil", n, err)
+	}
+	if metadata := capture.metadata(); metadata != nil {
+		t.Fatalf("metadata = %#v, want nil at exact limit", metadata)
+	}
+	if n, err := capture.Write([]byte("5")); err != nil || n != 1 {
+		t.Fatalf("Write(extra) = %d, %v; want 1, nil", n, err)
+	}
+	if metadata := capture.metadata(); metadata == nil || metadata.CapturedBytes != 4 {
+		t.Fatalf("metadata = %#v, want truncated 4-byte capture", metadata)
+	}
+}
+
+func BenchmarkBoundedBodyCapture(b *testing.B) {
+	payload := bytes.Repeat([]byte("x"), 128*1024)
+	b.ReportAllocs()
+	for range b.N {
+		capture := newBoundedBodyCapture(64 * 1024)
+		_, _ = capture.Write(payload)
 	}
 }
 
@@ -413,6 +549,11 @@ func TestLoggerWithConfig_BodyHandling(t *testing.T) {
 
 			r.POST("/test", func(c *gin.Context) {
 				EnableBody(c, tt.enableRequestBody, tt.enableResponseBody)
+				if c.Request.Body != nil {
+					if _, err := io.Copy(io.Discard, c.Request.Body); err != nil {
+						t.Fatalf("handler failed to consume request: %v", err)
+					}
+				}
 
 				PrintInfo(c, "info message")
 				c.JSON(http.StatusOK, gin.H{"message": "Hello, World!"})
@@ -453,6 +594,63 @@ func TestLoggerWithConfig_BodyHandling(t *testing.T) {
 				t.Fatalf("details.response = %#v, want %#v", gotDetails.Response, tt.wantResponse)
 			}
 		})
+	}
+}
+
+func TestLoggerWithConfigCopiesBodyCaptureMetadata(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	viper.Reset()
+	viperdata.ResetViperDataSingleton()
+	t.Cleanup(func() {
+		viper.Reset()
+		viperdata.ResetViperDataSingleton()
+	})
+	viper.Set(string(viperdata.AppAtribute), "test-service")
+	viper.Set(string(viperdata.GinLoggerWithConfigEnabledAtribute), true)
+	viper.Set(string(viperdata.GinLoggerWithConfigSkipPathsAtribute), []string{})
+	viper.Set(string(viperdata.GinLoggerWithConfigSkipQueryStringAtribute), false)
+	viper.Set(string(viperdata.LoggerIgnoredHeadersAtribute), []string{})
+	viper.Set(string(viperdata.LoggerModeTestAtribute), false)
+	viper.Set(string(viperdata.LoggerBodyCaptureMaxBytesAtribute), 4)
+
+	var details formatter.Details
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Next()
+		ctxLogger := builder.New(c.Request.Context())
+		value, ok := ctxLogger.Get(common.DetailsKey)
+		if !ok {
+			t.Fatalf("missing %q", common.DetailsKey)
+		}
+		details, ok = value.(formatter.Details)
+		if !ok {
+			t.Fatalf("%q = %T, want formatter.Details", common.DetailsKey, value)
+		}
+	})
+	router.Use(InitLogger(), LoggerWithConfig(), CaptureBody())
+	router.POST("/bounded", func(c *gin.Context) {
+		EnableBody(c, true, true)
+		if _, err := io.Copy(io.Discard, c.Request.Body); err != nil {
+			t.Fatalf("handler failed to consume request: %v", err)
+		}
+		PrintInfo(c, "bounded")
+		c.String(http.StatusOK, "response")
+	})
+
+	request := httptest.NewRequest(http.MethodPost, "/bounded", strings.NewReader("request"))
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if details.Request != "requ" || details.Response != "resp" {
+		t.Fatalf("details bodies = %#v/%#v, want bounded prefixes", details.Request, details.Response)
+	}
+	for name, metadata := range map[string]*formatter.BodyCaptureMetadata{
+		"request":  details.RequestCapture,
+		"response": details.ResponseCapture,
+	} {
+		if metadata == nil || !metadata.Truncated || metadata.CapturedBytes != 4 || metadata.LimitBytes != 4 {
+			t.Fatalf("%s metadata = %#v, want truncated 4-byte capture", name, metadata)
+		}
 	}
 }
 

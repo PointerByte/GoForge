@@ -14,6 +14,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -60,6 +61,9 @@ var loadX509KeyPairFn = tls.LoadX509KeyPair
 var readFileFn = os.ReadFile
 var newCertPoolFn = x509.NewCertPool
 var builderNewFn = builder.New
+var logServerErrorFn = func(err error) {
+	builder.New(context.Background()).Error(err)
+}
 var startJobsFn = jobs.StartJobs
 var stopFn = Stop
 var waitForShutdownSignalFn = waitForShutdownSignal
@@ -74,6 +78,7 @@ var initOtel = traces.InitOtel
 type handlerShutdown func(ctx context.Context) error
 
 var shutdownList []handlerShutdown
+var shutdownMu sync.RWMutex
 var loadEnv = utilities.LoadEnv
 
 func loadConfig(prefixPath string) error {
@@ -89,13 +94,17 @@ func loadConfig(prefixPath string) error {
 	if err != nil {
 		return err
 	}
-	shutdownList = append(shutdownList, lp.Shutdown)
+	handlers := []handlerShutdown{lp.Shutdown}
 
 	shutdownOtel, err := initOtel(ctx)
 	if err != nil {
-		return err
+		return errors.Join(err, lp.Shutdown(ctx))
 	}
-	shutdownList = append(shutdownList, shutdownOtel)
+	handlers = append(handlers, shutdownOtel)
+
+	shutdownMu.Lock()
+	shutdownList = handlers
+	shutdownMu.Unlock()
 	return nil
 }
 
@@ -288,6 +297,7 @@ func CreateApp() (*http.Server, error) {
 	// Initialize engine.
 	engine = gin.New()
 	engine.Use(cors.Default())
+	engine.HandleMethodNotAllowed = true
 	engine.NoRoute(notFound())
 	engine.NoMethod(noMethod())
 	engine.Use(
@@ -332,6 +342,11 @@ const timeout = 30 * time.Second
 // port, and then executes the registered shutdown handlers before stopping the
 // server.
 func Start(srv *http.Server) {
+	if srv == nil {
+		logServerErrorFn(errors.New("http server is required"))
+		return
+	}
+
 	ctx := context.Background()
 	ctxLogger := builderNewFn(ctx)
 
@@ -339,12 +354,14 @@ func Start(srv *http.Server) {
 	runAsyncFn(func() {
 		if srv.TLSConfig != nil {
 			if err := listenAndServeTLSFn(srv); err != nil && !errors.Is(err, http.ErrServerClosed) {
-				panic(err)
+				logServerErrorFn(fmt.Errorf("https listener: %w", err))
+				stopFn()
 			}
 			return
 		}
 		if err := listenAndServeFn(srv); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			panic(err)
+			logServerErrorFn(fmt.Errorf("http listener: %w", err))
+			stopFn()
 		}
 	})
 
@@ -365,7 +382,10 @@ func shutdownFn(srv *http.Server) {
 	// Execute shutdown handlers.
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	for _, s := range shutdownList {
+	shutdownMu.RLock()
+	handlers := append([]handlerShutdown(nil), shutdownList...)
+	shutdownMu.RUnlock()
+	for _, s := range handlers {
 		if err := s(ctx); err != nil {
 			ctxLogger.Error(fmt.Errorf("shutdown handler: %w", err))
 		}
@@ -392,5 +412,8 @@ func waitForShutdownSignal() {
 // delay so the same shutdown path can be used from runtime code and tests.
 func Stop() {
 	sleepFn(time.Second)
-	quit <- syscall.SIGTERM
+	select {
+	case quit <- syscall.SIGTERM:
+	default:
+	}
 }

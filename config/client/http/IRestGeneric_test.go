@@ -8,19 +8,23 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/PointerByte/GoForge/logger/builder"
 	"github.com/PointerByte/GoForge/logger/common"
 	"github.com/PointerByte/GoForge/logger/formatter"
+	viperdata "github.com/PointerByte/GoForge/logger/viperData"
 	"github.com/golang/mock/gomock"
+	"github.com/spf13/viper"
 )
 
 func getDefaultTransport() *http.Transport {
@@ -254,6 +258,112 @@ func TestGenericRestPreservesExistingTraceIDHeader(t *testing.T) {
 	}
 }
 
+func TestGenericRestDisableTracePreservesHeadersAndClosesNon2xxBody(t *testing.T) {
+	type response struct {
+		Message string `json:"message"`
+	}
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctxLogger := builder.New(context.Background())
+	ctxLogger.SetTraceID("trace-must-not-be-injected")
+	output := &response{Message: "unchanged"}
+	body := newTrackingReadCloser(`{"message":"rejected"}`)
+	resp := &http.Response{
+		StatusCode: http.StatusUnprocessableEntity,
+		Body:       body,
+	}
+	input := RequestGeneric{
+		Url:      "http://example.test/rejected",
+		Header:   http.Header{"X-Caller": []string{"present"}},
+		Response: output,
+	}
+
+	var gotHeaders http.Header
+	mock := NewMockIRest(ctrl)
+	mock.EXPECT().SetRequest(nil)
+	mock.EXPECT().SetContext(ctxLogger)
+	mock.EXPECT().SetHeaders(gomock.Any()).Do(func(headers http.Header) {
+		gotHeaders = headers.Clone()
+	})
+	mock.EXPECT().Get(input.Url, "application/json", output).Return(resp, nil)
+
+	gr := &RestGeneric{newIRest: mock}
+	gr.DisableTrace()
+	if !gr.disableTrace.Load() {
+		t.Fatal("DisableTrace() did not disable tracing")
+	}
+	if err := gr.GetGeneric(ctxLogger, input); err != nil {
+		t.Fatalf("GetGeneric() error = %v, want nil for HTTP status", err)
+	}
+	if gotHeaders.Get("X-Caller") != "present" {
+		t.Fatalf("X-Caller = %q, want %q", gotHeaders.Get("X-Caller"), "present")
+	}
+	if gotHeaders.Get(common.TraceIDHeader) != "" {
+		t.Fatalf("%s = %q, want no automatic trace header", common.TraceIDHeader, gotHeaders.Get(common.TraceIDHeader))
+	}
+	if output.Message != "unchanged" {
+		t.Fatalf("output was decoded on non-2xx response: %+v", output)
+	}
+	if !body.closed {
+		t.Fatal("disabled-trace response body was not closed")
+	}
+	if body.reader.Len() != 0 {
+		t.Fatalf("disabled-trace response body has %d unread bytes", body.reader.Len())
+	}
+	if resp.Body != http.NoBody {
+		t.Fatalf("response body = %T, want http.NoBody", resp.Body)
+	}
+}
+
+type genericRequestContextKey struct{}
+
+func TestRestGenericConcurrentSetterSequenceIsIsolated(t *testing.T) {
+	const requests = 32
+	rest := newRoundTripRest(func(req *http.Request) (*http.Response, error) {
+		marker := strings.TrimPrefix(req.URL.Path, "/")
+		if got := req.Header.Get("X-Request-ID"); got != marker {
+			return nil, fmt.Errorf("header request id = %q, want %q", got, marker)
+		}
+		if got, _ := req.Context().Value(genericRequestContextKey{}).(string); got != marker {
+			return nil, fmt.Errorf("context request id = %q, want %q", got, marker)
+		}
+		return &http.Response{
+			StatusCode: http.StatusNoContent,
+			Body:       io.NopCloser(strings.NewReader("discarded")),
+			Request:    req,
+		}, nil
+	})
+	generic := &RestGeneric{newIRest: rest}
+	generic.DisableTrace()
+
+	errs := make(chan error, requests)
+	var wg sync.WaitGroup
+	for i := range requests {
+		marker := fmt.Sprintf("generic-%d", i)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			ctx := context.WithValue(context.Background(), genericRequestContextKey{}, marker)
+			headers := make(http.Header)
+			headers.Set("X-Request-ID", marker)
+			errs <- generic.GetGeneric(ctx, RequestGeneric{
+				Url:    "http://example.test/" + marker,
+				Header: headers,
+			})
+		}()
+	}
+	wg.Wait()
+	close(errs)
+
+	for err := range errs {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 func TestRestGenericBuildService(t *testing.T) {
 	type response struct {
 		Message string `json:"message"`
@@ -262,7 +372,8 @@ func TestRestGenericBuildService(t *testing.T) {
 	t.Run("fills trace fields from response and request", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "http://api.example.test/v1/items", nil)
 		req.Header.Set("X-Test", "ok")
-		respObj := &response{}
+		respObj := &response{Message: "created"}
+		body := newTrackingReadCloser(`{"message":"created"}`)
 		service := &formatter.Process{}
 		gr := &RestGeneric{}
 
@@ -270,7 +381,7 @@ func TestRestGenericBuildService(t *testing.T) {
 			StatusCode: http.StatusCreated,
 			Proto:      "HTTP/1.1",
 			Request:    req,
-			Body:       io.NopCloser(strings.NewReader(`{"message":"created"}`)),
+			Body:       body,
 		})
 		if err != nil {
 			t.Fatalf("buildService() failed: %v", err)
@@ -300,6 +411,9 @@ func TestRestGenericBuildService(t *testing.T) {
 		if service.Response != respObj {
 			t.Fatalf("Response = %#v, want response object pointer", service.Response)
 		}
+		if !body.closed || body.reader.Len() != 0 {
+			t.Fatalf("response body lifecycle: closed=%v unread=%d", body.closed, body.reader.Len())
+		}
 	})
 
 	t.Run("keeps response metadata without request or body", func(t *testing.T) {
@@ -325,6 +439,40 @@ func TestRestGenericBuildService(t *testing.T) {
 		}
 		if service.Response != nil {
 			t.Fatalf("Response = %#v, want nil", service.Response)
+		}
+	})
+
+	t.Run("caps traced non-success response and records truncation", func(t *testing.T) {
+		key := string(viperdata.LoggerBodyCaptureMaxBytesAtribute)
+		previous := viper.Get(key)
+		viper.Set(key, 8)
+		viperdata.ResetViperDataSingleton()
+		t.Cleanup(func() {
+			viper.Set(key, previous)
+			viperdata.ResetViperDataSingleton()
+		})
+
+		body := newTrackingReadCloser("0123456789abcdef")
+		service := &formatter.Process{}
+		gr := &RestGeneric{}
+		err := gr.buildService(service, nil, nil, &http.Response{
+			StatusCode: http.StatusBadGateway,
+			Proto:      "HTTP/1.1",
+			Body:       body,
+		})
+		if err != nil {
+			t.Fatalf("buildService() failed: %v", err)
+		}
+		if got := service.Response; got != "01234567" {
+			t.Fatalf("Response = %#v, want capped prefix", got)
+		}
+		metadata := service.ResponseCapture
+		if metadata == nil || !metadata.Truncated ||
+			metadata.CapturedBytes != 8 || metadata.LimitBytes != 8 {
+			t.Fatalf("ResponseCapture = %#v, want truncated 8-byte capture", metadata)
+		}
+		if !body.closed || body.reader.Len() != 0 {
+			t.Fatalf("response body lifecycle: closed=%v unread=%d", body.closed, body.reader.Len())
 		}
 	})
 

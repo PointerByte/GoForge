@@ -4,8 +4,7 @@
 // Package jobs provides in-process scheduling for periodic and trigger-aligned
 // background jobs.
 //
-// It supports both instance-based scheduling through NewJobs and a process-wide
-// scheduler exposed by package-level helpers.
+// It exposes a process-wide scheduler through package-level helpers.
 //
 // Main entry points:
 //   - Job and JobWithID to register fixed-interval work
@@ -17,5 +16,6 @@
 //
 // Jobs are not started when they are registered. They begin running only after
 // StartJobs is called, and jobs added after startup begin executing
-// immediately.
+// immediately. RestartJobs is synchronous, preserves registered definitions,
+// and is safe to call before StartJobs.
 package jobs

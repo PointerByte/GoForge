@@ -327,7 +327,7 @@ func resolveTLSConfig() (*tls.Config, error) {
 	config := &tls.Config{
 		MinVersion:         parseTLSVersion(viper.GetString("client.grpc.tls.version")),
 		ServerName:         strings.TrimSpace(viper.GetString("client.grpc.tls.serverName")),
-		InsecureSkipVerify: viper.GetBool("client.grpc.tls.insecureSkipVerify"),
+		InsecureSkipVerify: viper.GetBool("client.grpc.tls.insecureSkipVerify"), // #nosec G402 -- explicitly configured legacy test escape hatch.
 	}
 
 	if caFile := strings.TrimSpace(viper.GetString("client.grpc.tls.caFile")); caFile != "" {
@@ -379,7 +379,8 @@ func traceUnaryClientInterceptor() grpc.UnaryClientInterceptor {
 		defer traceEnd(service)
 
 		err := invoker(ctx, method, req, reply, cc, opts...)
-		return buildService(service, req, reply, method, cc.Target(), ctx, err)
+		_ = buildService(service, req, reply, method, cc.Target(), ctx, err)
+		return err
 	}
 }
 

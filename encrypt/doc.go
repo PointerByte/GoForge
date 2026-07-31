@@ -16,13 +16,8 @@
 // so callers can control request scope, deadlines, and cancellation across
 // local and provider-backed implementations.
 //
-// NewRepository selects its backend from viper key "encrypt.vault.mode".
-// Supported values are:
-//   - "local" for in-process cryptography
-//   - "aws-kms" for AWS KMS-backed repositories
-//   - "azure-key-vault" for Azure Key Vault-backed repositories
-//   - "gcp-kms" for Google Cloud KMS-backed repositories
-//
-// When the configuration value is empty or unsupported, NewRepository falls
-// back to the local repository implementation.
+// NewRepository composes the backend supplied by the caller. Backend packages
+// provide focused constructors for local, AWS KMS, Azure Key Vault, and Google
+// Cloud KMS implementations. This explicit injection keeps configuration and
+// cloud SDK selection outside the portable root contract.
 package encrypt

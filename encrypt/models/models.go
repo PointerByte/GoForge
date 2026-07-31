@@ -3,10 +3,19 @@ package models
 import "github.com/PointerByte/GoForge/encrypt/common"
 
 type KeyData struct {
+	// PublicKey contains exportable public key material when the backend
+	// supports it.
 	PublicKey string
-	KeyID     string
-	KeyRef    string
-	Provider  string
+	// KeyID is the provider identifier. For backward compatibility, the local
+	// backend still places key material here; new code should use KeyRef.
+	KeyID string
+	// KeyRef is the canonical value to pass to cryptographic operations. It is
+	// local key material for the local backend and a provider reference for
+	// cloud backends. It must be treated as secret whenever it contains key
+	// material.
+	KeyRef string
+	// Provider identifies the backend that created the key data.
+	Provider string
 }
 
 type RotateKeyRequest struct {

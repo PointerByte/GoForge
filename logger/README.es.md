@@ -77,6 +77,7 @@ logger:
     - Cookie
   formatter: json
   formatDate: "2006-01-02T15:04:05.000"
+  bodyCaptureMaxBytes: 65536
   rotate:
     enable: true
     maxSize: 10
@@ -105,12 +106,44 @@ Claves principales:
 - `logger.ignoredHeaders`: headers filtrados de los details estructurados
 - `logger.formatter`: `json`, `text` o un template Go custom
 - `logger.formatDate`: layout de timestamp
+- `logger.bodyCaptureMaxBytes`: maximo de bytes retenidos de forma independiente para un request o response habilitado; valores ausentes o no positivos usan 65536
 - `logger.sensibleKeys`: keys o fragmentos de key case-insensitive cuyos valores se redactan antes de formatear
 - `logger.rotate.*`: configuracion de rotacion de archivos con `lumberjack`
 
 `viperData` cachea valores en el primer uso. En tests que cambian valores de
 viper dentro del mismo proceso, llama `viperdata.ResetViperDataSingleton()`
 antes de volver a leer configuracion del logger.
+
+## Limite Seguro De Sanitizacion
+
+Cuando se configura al menos una entrada en `logger.sensibleKeys`, los valores
+estructurados se sanitizan recursivamente hasta una profundidad maxima de 32.
+Cualquier subarbol no inspeccionado que supere ese limite se reemplaza con
+`sanitizer.RedactedValue` (`"[REDACTED]"`); nunca se devuelve el subarbol
+original. Esto tambien acota inputs ciclicos.
+
+## Captura De Bodies Acotada
+
+El logging de request y response body sigue deshabilitado por default. Cuando
+se habilita, los middlewares HTTP y gRPC retienen como maximo
+`logger.bodyCaptureMaxBytes` para cada lado de forma independiente. Un lado
+truncado agrega metadata sin cambiar los bodies que caben:
+
+```json
+{
+  "requestCapture": {
+    "truncated": true,
+    "capturedBytes": 65536,
+    "limitBytes": 65536
+  }
+}
+```
+
+La captura HTTP observa solo los bytes que consume el handler. Nunca drena un
+request no leido despues de que termina el handler; un request no leido o
+parcial se marca como truncado. El body completo sigue fluyendo al handler y
+al cliente. La captura gRPC streaming aplica el limite al agregado de mensajes
+de cada lado y separa los valores retenidos de su almacenamiento original.
 
 ## Inicializar El Logger
 
@@ -149,6 +182,12 @@ stdout y, cuando `logger.rotate.enable=true`, tambien en un archivo rotado.
 Tambien crea un logger provider de OpenTelemetry y lo devuelve para que el
 caller pueda apagarlo de forma ordenada.
 
+Los atributos ligados y por registro de `slog` se emiten bajo el objeto
+opcional `attributes`, preservando la anidacion de `WithGroup`. Los mensajes y
+atributos se sanitizan antes de la salida local y la exportacion OpenTelemetry.
+Los errores del formatter, writer y handlers secundarios se retornan mediante
+el contrato del handler en lugar de causar panic.
+
 ## Middleware Gin
 
 ```go
@@ -182,7 +221,7 @@ Rol de cada middleware:
 
 - `InitLogger()` extrae headers de tracing distribuido, crea el contexto logger del request y guarda metadata del request.
 - `LoggerWithConfig()` emite el log HTTP estructurado final mediante el hook logger de Gin.
-- `CaptureBody()` captura request y response solo cuando el logging de bodies esta habilitado, para incluirlos en `details.request` y `details.response` sin guardar payloads deshabilitados.
+- `CaptureBody()` captura bytes consumidos del request y bytes emitidos del response solo cuando el logging de bodies esta habilitado, acotados por `logger.bodyCaptureMaxBytes`, para incluirlos en `details.request` y `details.response` sin guardar payloads deshabilitados.
 - `EnableBody(c, request, response)` habilita la emision de request y response body en el log HTTP final. Los bodies estan deshabilitados por default.
 - `EnableTraceBody(c, request, response)` habilita la emision de request y response body en las entradas de servicios de traza cuando se llama `TraceEnd`. Los bodies de traza estan deshabilitados por default.
 
@@ -210,7 +249,10 @@ grpcServer := grpc.NewServer(
 
 Los interceptores replican el comportamiento de Gin para RPCs unary y stream:
 crean el contexto logger del request, capturan payloads, copian metadata en los
-details estructurados y escriben el log final cuando termina el handler.
+details estructurados y escriben el log final cuando termina el handler. Los
+bodies unary y cada direccion streaming se acotan de forma independiente con
+`logger.bodyCaptureMaxBytes`; los mensajes streaming comparten el limite de su
+direccion.
 
 Los request y response bodies estan deshabilitados por default. Usa
 `loggrpc.EnableBody(ctxLogger, true, true)` para incluirlos en el log gRPC

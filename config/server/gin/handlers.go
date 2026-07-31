@@ -22,7 +22,7 @@ func healthGin() gin.HandlerFunc {
 
 func notFound() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		ctx.JSON(http.StatusOK, gin.H{
+		ctx.AbortWithStatusJSON(http.StatusNotFound, gin.H{
 			"message": "Path not found",
 		})
 	}
@@ -30,8 +30,8 @@ func notFound() gin.HandlerFunc {
 
 func noMethod() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		ctx.JSON(http.StatusOK, gin.H{
-			"message": "Method not allow",
+		ctx.AbortWithStatusJSON(http.StatusMethodNotAllowed, gin.H{
+			"message": "Method not allowed",
 		})
 	}
 }

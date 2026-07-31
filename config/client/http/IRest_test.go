@@ -103,10 +103,10 @@ func TestSubRest_Do(t *testing.T) {
 			setup: func() *Rest {
 				sr := newBaseSubRest(time.Second)
 				sr.SetHeaders(http.Header{"X-Test": {"value"}})
-				sr.req = reqOK.Clone(context.Background())
+				sr.SetRequest(reqOK.Clone(context.Background()))
 				return sr
 			},
-			object:  struct{}{},
+			object:  any(nil),
 			wantErr: false,
 			assertion: func(t *testing.T, sr *Rest, got *http.Response) {
 				if got.StatusCode != http.StatusOK {
@@ -118,7 +118,7 @@ func TestSubRest_Do(t *testing.T) {
 			name: "returns wrapped error on transport failure",
 			setup: func() *Rest {
 				sr := newBaseSubRest(50 * time.Millisecond)
-				sr.req = reqErr.Clone(context.Background())
+				sr.SetRequest(reqErr.Clone(context.Background()))
 				return sr
 			},
 			object:  nil,
@@ -130,7 +130,7 @@ func TestSubRest_Do(t *testing.T) {
 			setup: func() *Rest {
 				sr := newBaseSubRest(time.Second)
 				sr.SetHeaders(http.Header{"Content-Type": {"base/type"}, "X-Test": {"value"}})
-				sr.req = reqMerge.Clone(context.Background())
+				sr.SetRequest(reqMerge.Clone(context.Background()))
 				return sr
 			},
 			object:  nil,
@@ -246,7 +246,7 @@ func TestSubRest_Get(t *testing.T) {
 				sr.SetHeaders(http.Header{"X-Test": {"value"}})
 				sr.SetContext(context.WithValue(context.Background(), ctxKey, "ctx-value"))
 				baseReq, _ := http.NewRequest(http.MethodGet, server.URL, nil)
-				sr.req = baseReq
+				sr.SetRequest(baseReq)
 				return sr
 			},
 			url:     server.URL,
@@ -259,10 +259,10 @@ func TestSubRest_Get(t *testing.T) {
 				if sr.req == nil || sr.req.Method != http.MethodGet {
 					t.Fatalf("stored request = %#v", sr.req)
 				}
-				if sr.withContext.Load() != true {
-					t.Fatalf("withContext = %v", sr.withContext.Load())
+				if !sr.withContext {
+					t.Fatalf("withContext = %v", sr.withContext)
 				}
-				ctx, _ := sr.ctx.Load().(context.Context)
+				ctx := sr.ctx
 				if ctx == nil || ctx.Value(ctxKey) != "ctx-value" {
 					t.Fatalf("stored context value = %v", ctx.Value(ctxKey))
 				}
@@ -336,7 +336,7 @@ func TestSubRest_Post(t *testing.T) {
 			setup: func() *Rest {
 				sr := newBaseSubRest(time.Second)
 				baseReq, _ := http.NewRequest(http.MethodPost, server.URL, nil)
-				sr.req = baseReq
+				sr.SetRequest(baseReq)
 				return sr
 			},
 			url:     server.URL,
@@ -421,7 +421,7 @@ func TestSubRest_Put(t *testing.T) {
 			setup: func() *Rest {
 				sr := newBaseSubRest(time.Second)
 				baseReq, _ := http.NewRequest(http.MethodPut, server.URL, nil)
-				sr.req = baseReq
+				sr.SetRequest(baseReq)
 				return sr
 			},
 			url:     server.URL,
@@ -506,7 +506,7 @@ func TestSubRest_Patch(t *testing.T) {
 			setup: func() *Rest {
 				sr := newBaseSubRest(time.Second)
 				baseReq, _ := http.NewRequest(http.MethodPatch, server.URL, nil)
-				sr.req = baseReq
+				sr.SetRequest(baseReq)
 				return sr
 			},
 			url:     server.URL,
@@ -591,7 +591,7 @@ func TestSubRest_Option(t *testing.T) {
 			setup: func() *Rest {
 				sr := newBaseSubRest(time.Second)
 				baseReq, _ := http.NewRequest(http.MethodOptions, server.URL, nil)
-				sr.req = baseReq
+				sr.SetRequest(baseReq)
 				return sr
 			},
 			url:     server.URL,

@@ -367,39 +367,6 @@ func TestAsymmetricAndSignatureRepositoryErrors(t *testing.T) {
 	}
 }
 
-func TestPKCS7Helpers(t *testing.T) {
-	padded := pkcs7Pad([]byte("abc"), 4)
-	if len(padded)%4 != 0 {
-		t.Fatal("pkcs7Pad() length should align to block size")
-	}
-
-	unpadded, err := pkcs7Unpad(padded, 4)
-	if err != nil {
-		t.Fatalf("pkcs7Unpad() error = %v", err)
-	}
-	if string(unpadded) != "abc" {
-		t.Fatalf("pkcs7Unpad() = %q, want %q", string(unpadded), "abc")
-	}
-
-	if got := bytesRepeat('x', 3); string(got) != "xxx" {
-		t.Fatalf("bytesRepeat() = %q, want %q", string(got), "xxx")
-	}
-
-	assertPanic(t, func() { pkcs7Pad([]byte("abc"), 0) })
-	if _, err := pkcs7Unpad(nil, 4); err == nil {
-		t.Fatal("expected pkcs7Unpad() size error")
-	}
-	if _, err := pkcs7Unpad([]byte{1, 2, 0}, 3); err == nil {
-		t.Fatal("expected pkcs7Unpad() length error")
-	}
-	if _, err := pkcs7Unpad([]byte{1, 2, 4, 4}, 3); err == nil {
-		t.Fatal("expected pkcs7Unpad() length > block error")
-	}
-	if _, err := pkcs7Unpad([]byte{1, 2, 3, 2}, 4); err == nil {
-		t.Fatal("expected pkcs7Unpad() content error")
-	}
-}
-
 func TestParseKeyUtilities(t *testing.T) {
 	privateKey := mustRSAKey(t)
 	publicKey := &privateKey.PublicKey
@@ -562,16 +529,6 @@ func mustBase64Decode(t *testing.T, value string) []byte {
 		t.Fatalf("DecodeString() error = %v", err)
 	}
 	return decoded
-}
-
-func assertPanic(t *testing.T, fn func()) {
-	t.Helper()
-	defer func() {
-		if recover() == nil {
-			t.Fatal("expected panic")
-		}
-	}()
-	fn()
 }
 
 func mustSHA256Bytes(data []byte) []byte {

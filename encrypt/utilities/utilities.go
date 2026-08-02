@@ -191,24 +191,7 @@ func ParseECDHPublicKeyFromBase64(b64 string) (*ecdh.PublicKey, error) {
 	if err != nil {
 		return nil, fmt.Errorf("decode public key from Base64: %w", err)
 	}
-
-	publicKeyAny, err := x509.ParsePKIXPublicKey(der)
-	if err != nil {
-		return nil, fmt.Errorf("parse public key: %w", err)
-	}
-
-	switch publicKey := publicKeyAny.(type) {
-	case *ecdh.PublicKey:
-		return publicKey, nil
-	case *ecdsa.PublicKey:
-		ecdhPublicKey, err := publicKey.ECDH()
-		if err != nil {
-			return nil, fmt.Errorf("convert public key to ECDH: %w", err)
-		}
-		return ecdhPublicKey, nil
-	default:
-		return nil, errors.New("public key is not an ECC key")
-	}
+	return parseECDHPublicKey(der)
 }
 
 // ParseECDHPublicKeyFromPEMFile decodes an ECDH public key from a PEM file.
@@ -217,7 +200,28 @@ func ParseECDHPublicKeyFromPEMFile(path string) (*ecdh.PublicKey, error) {
 	if err != nil {
 		return nil, err
 	}
+	return parseECDHPublicKey(der)
+}
 
+// ParseECDHPrivateKeyFromBase64 decodes a Base64-encoded ECDH private key.
+func ParseECDHPrivateKeyFromBase64(b64 string) (*ecdh.PrivateKey, error) {
+	der, err := base64.StdEncoding.DecodeString(b64)
+	if err != nil {
+		return nil, fmt.Errorf("decode private key from Base64: %w", err)
+	}
+	return parseECDHPrivateKey(der)
+}
+
+// ParseECDHPrivateKeyFromPEMFile decodes an ECDH private key from a PEM file.
+func ParseECDHPrivateKeyFromPEMFile(path string) (*ecdh.PrivateKey, error) {
+	der, err := readPEMFile(path)
+	if err != nil {
+		return nil, err
+	}
+	return parseECDHPrivateKey(der)
+}
+
+func parseECDHPublicKey(der []byte) (*ecdh.PublicKey, error) {
 	publicKeyAny, err := x509.ParsePKIXPublicKey(der)
 	if err != nil {
 		return nil, fmt.Errorf("parse public key: %w", err)
@@ -237,39 +241,7 @@ func ParseECDHPublicKeyFromPEMFile(path string) (*ecdh.PublicKey, error) {
 	}
 }
 
-// ParseECDHPrivateKeyFromBase64 decodes a Base64-encoded ECDH private key.
-func ParseECDHPrivateKeyFromBase64(b64 string) (*ecdh.PrivateKey, error) {
-	der, err := base64.StdEncoding.DecodeString(b64)
-	if err != nil {
-		return nil, fmt.Errorf("decode private key from Base64: %w", err)
-	}
-
-	privateKeyAny, err := x509.ParsePKCS8PrivateKey(der)
-	if err != nil {
-		return nil, fmt.Errorf("parse private key: %w", err)
-	}
-
-	switch privateKey := privateKeyAny.(type) {
-	case *ecdh.PrivateKey:
-		return privateKey, nil
-	case *ecdsa.PrivateKey:
-		ecdhPrivateKey, err := privateKey.ECDH()
-		if err != nil {
-			return nil, fmt.Errorf("convert private key to ECDH: %w", err)
-		}
-		return ecdhPrivateKey, nil
-	default:
-		return nil, errors.New("private key is not an ECC key")
-	}
-}
-
-// ParseECDHPrivateKeyFromPEMFile decodes an ECDH private key from a PEM file.
-func ParseECDHPrivateKeyFromPEMFile(path string) (*ecdh.PrivateKey, error) {
-	der, err := readPEMFile(path)
-	if err != nil {
-		return nil, err
-	}
-
+func parseECDHPrivateKey(der []byte) (*ecdh.PrivateKey, error) {
 	privateKeyAny, err := x509.ParsePKCS8PrivateKey(der)
 	if err != nil {
 		return nil, fmt.Errorf("parse private key: %w", err)

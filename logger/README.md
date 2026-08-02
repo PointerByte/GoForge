@@ -179,13 +179,54 @@ func main() {
 `builder.InitLogger` configures the process-wide `slog` default logger. It
 writes to stdout and, when `logger.rotate.enable=true`, to a rotated log file.
 It also creates an OpenTelemetry logger provider and returns it so the caller
-can shut it down gracefully.
+can shut it down gracefully. The returned provider is never nil on success, so
+`defer lp.Shutdown(ctx)` is always safe.
 
 Bound and record-level `slog` attributes are emitted under the optional
 `attributes` object, with `WithGroup` nesting preserved. Messages and
 attributes are sanitized before both local output and OpenTelemetry export.
 Formatter, writer, and secondary-handler failures are returned by the handler
 contract rather than panicking.
+
+## OpenTelemetry Log Export
+
+Log export is **off by default**. It is enabled only when `OTEL_LOGS_EXPORTER`
+selects an exporter, matching the `none` default that `OTEL_TRACES_EXPORTER` and
+`OTEL_METRICS_EXPORTER` already use in the root module:
+
+| `OTEL_LOGS_EXPORTER` | Behavior                                                    |
+| -------------------- | ----------------------------------------------------------- |
+| unset, empty, `none` | No exporter, no processor, no OpenTelemetry bridge attached  |
+| `otlp`               | OTLP exporter behind a batch processor                       |
+| anything else        | `InitLogger` returns an error                                |
+
+The value is read as a comma-separated list; the first non-empty entry wins
+after trimming and lowercasing, so `" OTLP , none "` selects `otlp`.
+
+When `otlp` is selected, the transport comes from
+`OTEL_EXPORTER_OTLP_LOGS_PROTOCOL`, falling back to
+`OTEL_EXPORTER_OTLP_PROTOCOL` and then to `http/protobuf`. Any other resolved
+protocol — including `grpc`, which this module does not link — returns an error
+rather than exporting over a transport the caller did not ask for. The endpoint
+and headers follow the standard `OTEL_EXPORTER_OTLP_*` variables.
+
+```bash
+# Export logs to a collector on the default OTLP HTTP endpoint.
+export OTEL_LOGS_EXPORTER=otlp
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://collector:4318
+```
+
+> **Behavior change.** Before `logger/v0.0.62` an OTLP exporter was always
+> created with the specification defaults, targeting
+> `https://localhost:4318/v1/logs`. Without a collector there, every batch
+> export failed, and `otel.Handle` routed each failure through the standard
+> library `log` package into this logger at `INFO`, so the transport error
+> became the dominant log line. Set `OTEL_LOGS_EXPORTER=otlp` to restore the
+> previous behavior.
+
+When export is disabled, the `otelslog` bridge is not attached to the installed
+handler at all, so records cost nothing extra rather than being built and
+dropped.
 
 ## Gin Middleware
 

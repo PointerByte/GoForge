@@ -651,8 +651,8 @@ func BenchmarkJSONHandlerWithAttributes(b *testing.B) {
 	record.AddAttrs(slog.Int("attempt", 1), slog.String("password", "secret"))
 
 	b.ReportAllocs()
-	b.ResetTimer()
-	for range b.N {
+
+	for b.Loop() {
 		if err := handler.Handle(ctx, record); err != nil {
 			b.Fatal(err)
 		}

@@ -1,5 +1,17 @@
 # GoForge
 
+> [!WARNING]
+> **This repository is archived and no longer supported.**
+> `github.com/PointerByte/GoForge` receives no further releases, fixes or
+> security updates. The official repository is
+> **[`github.com/PointerByte/forge-go`](https://github.com/PointerByte/forge-go)**.
+>
+> The Go module path changed with it: replace
+> `github.com/PointerByte/GoForge[/<module>]` with
+> `github.com/PointerByte/forge-go[/<module>]` in your `go.mod` and imports.
+> Versioning restarts at `v0.0.1` under the new module path; tags published
+> here are never reused.
+
 GoForge is a modular Go toolkit for bootstrapping service-oriented
 applications with shared conventions for configuration, HTTP and gRPC
 transport, logging, OpenTelemetry, JWT security, background jobs, and small

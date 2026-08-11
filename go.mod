@@ -1,3 +1,6 @@
+// Deprecated: GoForge is archived and no longer maintained.
+// Use https://github.com/PointerByte/forge-go instead.
+// See the migration documentation in the repository README.
 module github.com/PointerByte/GoForge
 
 go 1.25.0

@@ -1,3 +1,6 @@
+// Deprecated: GoForge is archived and no longer maintained.
+// Use https://github.com/PointerByte/forge-go/cmd/go-openssl instead.
+// See the migration documentation in the repository README.
 module github.com/PointerByte/GoForge/cmd/go-openssl
 
 go 1.25.0
